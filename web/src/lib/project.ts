@@ -1,5 +1,5 @@
 // Helpers for projects: due dates, due-rule labels and filling in message templates.
-import type { DueRule, MessageTemplate, PItem, Project } from "@/lib/api"
+import type { DueRule, LaunchCheckId, MessageTemplate, PItem, Project } from "@/lib/api"
 
 const parse = (d: string) => { const [y, m, day] = d.split("-").map(Number); return new Date(y!, m! - 1, day!) }
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
@@ -48,4 +48,15 @@ export function renderMessage(t: Pick<MessageTemplate, "subject" | "body">, p: P
   }
   const fill = (s: string) => s.replace(/\{([a-z ]+)\}/g, (m, k: string) => vals[k] ?? m)
   return { subject: fill(t.subject || ""), body: fill(t.body || "") }
+}
+
+/** What each launch check covers, in the order the report lists them. */
+export const LAUNCH_CHECKS: Record<LaunchCheckId, string> = {
+  indexing: "Google can index the site",
+  placeholders: "No placeholder text or dummy links",
+  links: "Links work",
+  seo: "Titles, descriptions, H1s, alt text, OG images, favicon",
+  canonicals: "Canonicals point to the live domain",
+  legal: "Legal pages linked",
+  https: "SSL and redirects",
 }

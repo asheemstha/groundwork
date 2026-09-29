@@ -470,6 +470,9 @@ const server = http.createServer(async (req, res) => {
         mm = sub.match(/^\/signoff\/([\w-]+)$/);
         if (mm && M === 'POST') { P.signoff(id, mm[1], await body(req)); return json(res, P.get(id)); }
         if (mm && M === 'DELETE') { P.unsign(id, mm[1]); return json(res, P.get(id)); }
+        if (sub === '/launch' && M === 'POST') { const b = await body(req); return json(res, { checkId: P.startLaunch(id, b.url) }); }
+        mm = sub.match(/^\/launch\/([a-z0-9]+)$/);
+        if (mm && M === 'GET') { const r = P.getLaunch(id, mm[1]); return r ? json(res, r) : json(res, { error: 'Not found' }, 404); }
         if (sub === '/scan' && M === 'POST') {
           const b = await body(req), raw = P.readRaw(id);
           const run = await startScan(b.url || raw.url, raw.name);
@@ -589,7 +592,7 @@ for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(sig, async () => {
 server.on('error', e => { if (e.code === 'EADDRINUSE' && !process.env.GW_RESTARTED && !process.env.GW_APP) { console.log(`${APP_NAME} is already running: http://localhost:${PORT}`); process.exit(0); } if (e.code !== 'EADDRINUSE') throw e; });
 let SC = null; // shared/checks.mjs, loaded at boot
 let markReady;
-module.exports = { ready: new Promise(r => { markReady = r; }), busy: () => busyRuns().length };
+module.exports = { ready: new Promise(r => { markReady = r; }), busy: () => busyRuns().length + P.launchRunning() };
 import('./shared/checks.mjs').then(mod => {
   SC = mod; H.init(mod);
   // After an update the old process may still be letting go of the port for a moment.

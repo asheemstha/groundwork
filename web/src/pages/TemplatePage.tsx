@@ -9,8 +9,8 @@ import { Spinner, TopBar } from "@/components/common/bits"
 import { newProject } from "@/components/project/NewProjectDialog"
 import { Chip } from "@/pages/Dashboard"
 import { useApp } from "@/hooks/useApp"
-import { api, type ChecklistTemplate, type DueRule, type MessageTemplate, type Project, type TItem, type Template, type ToolId } from "@/lib/api"
-import { VARIABLES, renderMessage, ruleLabel } from "@/lib/project"
+import { api, type ChecklistTemplate, type DueRule, type LaunchCheckId, type MessageTemplate, type Project, type TItem, type Template, type ToolId } from "@/lib/api"
+import { LAUNCH_CHECKS, VARIABLES, renderMessage, ruleLabel } from "@/lib/project"
 import { ago } from "@/lib/format"
 import { go, routes } from "@/lib/router"
 
@@ -18,7 +18,7 @@ const TOOL_NAMES: Record<ToolId, { name: string; ready: boolean }> = {
   scan: { name: "Site scan", ready: true },
   headings: { name: "Heading plan", ready: true },
   seo: { name: "SEO plan", ready: false },
-  launch: { name: "Launch check", ready: false },
+  launch: { name: "Launch check", ready: true },
   redirects: { name: "Redirect check", ready: false },
 }
 const newId = () => "i" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5)
@@ -171,9 +171,14 @@ function ItemEditor({ it, t, onChange, onDelete, onDone }: { it: TItem; t: Check
           <select value={it.part || ""} onChange={(e) => onChange({ part: e.target.value || null })} className="h-8 rounded-lg border border-input bg-card px-2 text-[13px] text-foreground"><option value="">Always</option>{t.parts.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
         </label>
         <label className="grid gap-1.5 text-[12.5px] text-muted-foreground">Groundwork tool
-          <select value={it.tool || ""} onChange={(e) => onChange({ tool: (e.target.value || null) as ToolId | null })} className="h-8 rounded-lg border border-input bg-card px-2 text-[13px] text-foreground"><option value="">None</option>{(Object.keys(TOOL_NAMES) as ToolId[]).map((k) => <option key={k} value={k}>{TOOL_NAMES[k].name}{TOOL_NAMES[k].ready ? "" : " (soon)"}</option>)}</select>
+          <select value={it.tool || ""} onChange={(e) => onChange({ tool: (e.target.value || null) as ToolId | null, check: null })} className="h-8 rounded-lg border border-input bg-card px-2 text-[13px] text-foreground"><option value="">None</option>{(Object.keys(TOOL_NAMES) as ToolId[]).map((k) => <option key={k} value={k}>{TOOL_NAMES[k].name}{TOOL_NAMES[k].ready ? "" : " (soon)"}</option>)}</select>
         </label>
       </div>
+      {it.tool === "launch" && (
+        <label className="grid grid-cols-[minmax(0,0.8fr)_minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1.1fr)] items-center gap-2.5 text-[12.5px] text-muted-foreground"><span className="col-span-2">Which part of the launch check ticks it</span>
+          <select value={it.check || ""} onChange={(e) => onChange({ check: (e.target.value || null) as LaunchCheckId | null })} className="col-span-2 h-8 rounded-lg border border-input bg-card px-2 text-[13px] text-foreground"><option value="">Guess from the item’s name</option>{(Object.keys(LAUNCH_CHECKS) as LaunchCheckId[]).map((k) => <option key={k} value={k}>{LAUNCH_CHECKS[k]}</option>)}</select>
+        </label>
+      )}
       <div className="flex items-center gap-2"><Button variant="ghost" size="sm" className="text-destructive" onClick={onDelete}>Delete item</Button><span className="flex-1" /><Button size="sm" onClick={onDone}>Done</Button></div>
     </div>
   )

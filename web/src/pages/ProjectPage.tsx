@@ -16,11 +16,12 @@ import { api, proofUrl, type MessageTemplate, type PItem, type PPhase, type Proj
 import { dueLabel, fmtDay, renderMessage, today } from "@/lib/project"
 import { ago } from "@/lib/format"
 import { go, routes } from "@/lib/router"
+import { LaunchCard, LaunchItemPanel, LaunchReportPage, useLaunchRefresh } from "@/components/project/LaunchCheck"
 
-type Tab = "checklist" | "client" | "tools"
+type Tab = "checklist" | "client" | "tools" | "launch"
 type SetItem = (itemId: string, b: Parameters<typeof api.setItem>[2]) => Promise<void>
 
-export function ProjectPage({ id, tab }: { id: string; tab: Tab }) {
+export function ProjectPage({ id, tab, sub }: { id: string; tab: Tab; sub?: string }) {
   const { runs, refreshProjects } = useApp()
   const [p, setP] = React.useState<Project | null>(null)
   const [missing, setMissing] = React.useState(false)
@@ -28,6 +29,10 @@ export function ProjectPage({ id, tab }: { id: string; tab: Tab }) {
   const [removing, setRemoving] = React.useState(false)
   const load = React.useCallback(() => api.project(id).then((x) => { setP(x); setMissing(false) }).catch(() => setMissing(true)), [id])
   React.useEffect(() => { load() }, [load, runs])
+  // While a launch check runs, keep the checklist current so its items tick as soon as it ends.
+  const checking = p?.tools.launchRunning?.id
+  React.useEffect(() => { if (!checking) return; const t = setInterval(load, 3000); return () => clearInterval(t) }, [checking, load])
+  useLaunchRefresh(p)
 
   const setItem: SetItem = async (itemId, b) => {
     try { setP(await api.setItem(id, itemId, b)); refreshProjects().catch(() => {}) } catch (e) { toast.error((e as Error).message) }
@@ -45,7 +50,7 @@ export function ProjectPage({ id, tab }: { id: string; tab: Tab }) {
         <nav aria-label="Project" className="ml-3 flex gap-0.5">
           <TabLink on={tab === "checklist"} onClick={() => go(routes.project(id))}>Checklist</TabLink>
           <TabLink on={tab === "client"} onClick={() => go(routes.project(id, "client"))}>Client <span className="text-xs text-muted-foreground tabular">{open}</span>{p.client.late.length > 0 && <span className="size-1.5 rounded-full bg-destructive" aria-label={`${p.client.late.length} late`} />}</TabLink>
-          <TabLink on={tab === "tools"} onClick={() => go(routes.project(id, "tools"))}>Tools <span className="text-xs text-muted-foreground tabular">{p.tools.runs.length}</span></TabLink>
+          <TabLink on={tab === "tools" || tab === "launch"} onClick={() => go(routes.project(id, "tools"))}>Tools <span className="text-xs text-muted-foreground tabular">{p.tools.runs.length}</span></TabLink>
         </nav>
         <span className="flex-1" />
         <button onClick={() => setEditing(true)} className="inline-flex h-[26px] items-center gap-1.5 rounded-full border px-2.5 text-[12.5px] text-muted-foreground hover:text-foreground"><CalendarDays className="size-3.5" />{p.launch ? `Launch ${fmtDay(p.launch)}` : "Set dates"}</button>
@@ -59,9 +64,10 @@ export function ProjectPage({ id, tab }: { id: string; tab: Tab }) {
         </DropdownMenu>
       </TopBar>
       <div className="scrollbar-thin min-h-0 flex-1 overflow-auto">
-        {tab === "checklist" && <ChecklistTab p={p} setItem={setItem} setP={setP} />}
+        {tab === "checklist" && <ChecklistTab p={p} setItem={setItem} setP={setP} reload={load} />}
         {tab === "client" && <ClientTab p={p} setItem={setItem} setP={setP} />}
         {tab === "tools" && <ToolsTab p={p} reload={load} />}
+        {tab === "launch" && <LaunchReportPage key={sub || ""} p={p} sub={sub} reload={load} />}
       </div>
       <EditDialog p={p} open={editing} onClose={() => setEditing(false)} onSaved={(x) => { setP(x); refreshProjects() }} />
       <AlertDialog open={removing} onOpenChange={setRemoving}>
@@ -98,7 +104,7 @@ function StatusIcon({ it, onClick, size = 18 }: { it: PItem; onClick?: () => voi
 
 // ---------- checklist ----------
 type Filter = "all" | "us" | "client" | "tools"
-function ChecklistTab({ p, setItem, setP }: { p: Project; setItem: SetItem; setP: (x: Project) => void }) {
+function ChecklistTab({ p, setItem, setP, reload }: { p: Project; setItem: SetItem; setP: (x: Project) => void; reload: () => void }) {
   const [sel, setSel] = React.useState(p.current || p.phases[p.phases.length - 1]!.id)
   const [filter, setFilter] = React.useState<Filter>("all")
   const [hideDone, setHideDone] = React.useState(false)
@@ -172,7 +178,7 @@ function ChecklistTab({ p, setItem, setP }: { p: Project; setItem: SetItem; setP
           </section>
         </aside>
       </div>
-      <ItemSheet p={p} it={item} onClose={() => setItemId(null)} setItem={setItem} />
+      <ItemSheet p={p} it={item} onClose={() => setItemId(null)} setItem={setItem} reload={reload} />
       <SignoffDialog p={p} ph={ph} open={signing} onClose={() => setSigning(false)} onDone={(x) => { setP(x); setSigning(false) }} />
     </div>
   )
@@ -193,7 +199,7 @@ function ItemRow({ it, onToggle, onOpen }: { it: PItem; onToggle: () => void; on
   let tag: React.ReactNode = null
   if (it.who === "client" && it.status === "todo") tag = <Chip className={cn(!it.asked && "border-dashed")}><User className="size-3" />{it.asked ? `Asked ${new Date(it.asked).toLocaleDateString([], { month: "short", day: "numeric" })}` : "Not asked yet"}</Chip>
   else if (it.tool && it.toolInfo) tag = it.toolInfo.ready
-    ? <Chip className="bg-muted/60 text-foreground/80"><span className="size-2 rounded-[2px] bg-brand" />{it.toolInfo.progress ? <>{it.toolInfo.name} <span className="text-muted-foreground tabular">{it.toolInfo.progress.done} of {it.toolInfo.progress.total}</span></> : it.status === "done" && it.auto ? "Done by Groundwork" : it.toolInfo.name}</Chip>
+    ? <Chip className="bg-muted/60 text-foreground/80"><span className="size-2 rounded-[2px] bg-brand" />{it.toolInfo.progress ? <>{it.toolInfo.name} <span className="text-muted-foreground tabular">{it.toolInfo.progress.done} of {it.toolInfo.progress.total}</span></> : it.status === "done" && it.auto ? "Done by Groundwork" : it.status === "todo" && it.toolInfo.issues ? <>{it.toolInfo.name} <span className="text-destructive tabular">{it.toolInfo.issues} {it.toolInfo.issues === 1 ? "issue" : "issues"}</span></> : it.toolInfo.name}</Chip>
     : <Chip className="border-dashed"><span className="size-2 rounded-[2px] bg-brand" />{it.toolInfo.name}, soon</Chip>
   else if (it.note || it.link) tag = <span className="inline-flex items-center gap-1 text-xs text-muted-foreground/80">{it.link ? <Link2 className="size-3" /> : <MessageSquare className="size-3" />}{it.link ? "Link" : "Note"}</span>
   return (
@@ -233,7 +239,7 @@ function SignoffCard({ p, ph, onReview, onUndo, onOpen, match, toggle }: { p: Pr
 }
 
 // ---------- item detail ----------
-function ItemSheet({ p, it, onClose, setItem }: { p: Project; it: PItem | null; onClose: () => void; setItem: SetItem }) {
+function ItemSheet({ p, it, onClose, setItem, reload }: { p: Project; it: PItem | null; onClose: () => void; setItem: SetItem; reload: () => void }) {
   const [note, setNote] = React.useState("")
   const [link, setLink] = React.useState("")
   React.useEffect(() => { setNote(it?.note || ""); setLink(it?.link || "") }, [it?.id]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -262,12 +268,12 @@ function ItemSheet({ p, it, onClose, setItem }: { p: Project; it: PItem | null; 
               {x.doneMeans && <div className="grid gap-1 rounded-lg bg-muted/60 px-3.5 py-3"><span className="text-[12.5px] text-muted-foreground">Done means</span><p className="leading-relaxed">{x.doneMeans}</p></div>}
               {t && (
                 <section className="grid gap-3 rounded-xl border bg-card p-4">
-                  <div className="grid grid-cols-[28px_minmax(0,1fr)] items-center gap-2.5"><span className="grid size-7 place-items-center rounded-md bg-brand text-brand-foreground"><Layers className="size-[15px]" strokeWidth={2.2} /></span><div className="grid gap-px"><h3 className="text-sm font-medium">{t.name}</h3><span className="text-[12.5px] text-muted-foreground">{t.ready ? t.text || "Not run yet" : "Coming soon to Groundwork"}</span></div></div>
+                  <div className="grid grid-cols-[28px_minmax(0,1fr)] items-center gap-2.5"><span className="grid size-7 place-items-center rounded-md bg-brand text-brand-foreground"><Layers className="size-[15px]" strokeWidth={2.2} /></span><div className="grid gap-px"><h3 className="text-sm font-medium">{t.name}{t.checkName && <span className="font-normal text-muted-foreground">: {t.checkName}</span>}</h3><span className="text-[12.5px] text-muted-foreground">{t.ready ? t.text || "Not run yet" : "Coming soon to Groundwork"}</span></div></div>
                   {t.progress && t.progress.total > 0 && <><div className="flex items-baseline gap-1.5"><span className="text-xl font-medium tabular">{t.progress.done}</span><span className="text-muted-foreground">of {t.progress.total} tag fixes done</span></div><div className="h-[5px] overflow-hidden rounded-full bg-muted"><span className="block h-full bg-brand" style={{ width: `${(100 * t.progress.done) / t.progress.total}%` }} /></div></>}
-                  {t.ready && (t.runId
+                  {x.tool === "launch" ? <LaunchItemPanel p={p} it={x} reload={reload} /> : t.ready && (t.runId
                     ? <div className="flex gap-2"><Button size="sm" onClick={() => go(x.tool === "headings" ? routes.review(t.runId!) : routes.run(t.runId!))}>{x.tool === "headings" ? "Open the to-do list" : "Open the scan"}</Button></div>
                     : <div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => go(routes.project(p.id, "tools"))}>Go to Tools</Button></div>)}
-                  <p className="text-[12.5px] leading-relaxed text-muted-foreground">{!t.ready ? "When this tool is ready, it will do or check this item for you." : x.tool === "headings" ? "This item ticks itself once every tag fix in the plan is done. You can also tick it yourself." : "This item ticks itself when the scan finishes."}</p>
+                  <p className="text-[12.5px] leading-relaxed text-muted-foreground">{!t.ready ? "When this tool is ready, it will do or check this item for you." : x.tool === "headings" ? "This item ticks itself once every tag fix in the plan is done. You can also tick it yourself." : x.tool === "launch" ? (x.check === "indexing" || x.check === "https" ? "This item ticks itself when a check of the live domain passes. A staging check shows the issues but doesn’t tick it." : "This item ticks itself when the check passes. You can also tick it yourself.") : "This item ticks itself when the scan finishes."}</p>
                 </section>
               )}
               <dl className="grid grid-cols-[92px_minmax(0,1fr)] items-center gap-3">
@@ -452,6 +458,7 @@ function ToolsTab({ p, reload }: { p: Project; reload: () => void }) {
   return (
     <div className="mx-auto grid max-w-3xl gap-5 px-7 py-7">
       <div><h1 className="text-[22px] font-medium">Tools</h1><p className="mt-1.5 text-sm text-muted-foreground">Groundwork’s tools for {p.name}. Their results tick checklist items for you.</p></div>
+      <LaunchCard p={p} reload={reload} />
       {!p.url ? (
         <section className="grid gap-3 rounded-xl border bg-card p-4">
           <h2 className="text-sm font-medium">Add the website</h2>
@@ -483,7 +490,6 @@ function ToolsTab({ p, reload }: { p: Project; reload: () => void }) {
           <section className="grid gap-2 rounded-xl border border-dashed p-4 text-[13px] text-muted-foreground">
             <span className="font-medium text-foreground">Coming soon</span>
             <span>SEO plan: titles, meta descriptions and slugs for every page.</span>
-            <span>Launch check: noindex, placeholders, broken links, titles and canonicals.</span>
             <span>Redirect check: old URLs to new ones, before and after launch.</span>
           </section>
         </>
@@ -494,15 +500,17 @@ function ToolsTab({ p, reload }: { p: Project; reload: () => void }) {
 
 // ---------- edit details ----------
 function EditDialog({ p, open, onClose, onSaved }: { p: Project; open: boolean; onClose: () => void; onSaved: (x: Project) => void }) {
-  const [f, setF] = React.useState({ name: p.name, clientName: p.clientName, kickoff: p.kickoff || "", launch: p.launch || "" })
-  React.useEffect(() => { if (open) setF({ name: p.name, clientName: p.clientName, kickoff: p.kickoff || "", launch: p.launch || "" }) }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
-  const save = async () => { try { onSaved(await api.updateProject(p.id, { name: f.name, clientName: f.clientName, kickoff: f.kickoff || null, launch: f.launch || null })); onClose() } catch (e) { toast.error((e as Error).message) } }
+  const init = () => ({ name: p.name, clientName: p.clientName, url: p.url || "", kickoff: p.kickoff || "", launch: p.launch || "" })
+  const [f, setF] = React.useState(init)
+  React.useEffect(() => { if (open) setF(init()) }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
+  const save = async () => { try { onSaved(await api.updateProject(p.id, { name: f.name, clientName: f.clientName, kickoff: f.kickoff || null, launch: f.launch || null, ...(f.url.trim() ? { url: f.url.trim() } : {}) })); onClose() } catch (e) { toast.error((e as Error).message) } }
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader><DialogTitle>Project details</DialogTitle><DialogDescription>Changing the dates moves every due date that hasn’t been set by hand.</DialogDescription></DialogHeader>
         <div className="grid gap-3">
           <label className="grid gap-1.5 text-[13px] font-medium">Name<Input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} className="font-normal" /></label>
+          <label className="grid gap-1.5 text-[13px] font-medium"><span>Website <span className="font-normal text-muted-foreground">(the live domain)</span></span><Input value={f.url} onChange={(e) => setF({ ...f, url: e.target.value })} placeholder="client-site.com" className="font-normal" /></label>
           <label className="grid gap-1.5 text-[13px] font-medium">Client contact<Input value={f.clientName} onChange={(e) => setF({ ...f, clientName: e.target.value })} placeholder="Used in messages" className="font-normal" /></label>
           <div className="grid grid-cols-2 gap-3">
             <label className="grid gap-1.5 text-[13px] font-medium">Kickoff<Input type="date" value={f.kickoff} onChange={(e) => setF({ ...f, kickoff: e.target.value })} className="font-normal" /></label>

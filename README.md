@@ -36,10 +36,11 @@ Needs Node.js (LTS). `git clone https://github.com/asheemstha/groundwork.git`, t
 - Each item is ours or the client’s, has a due date worked out from kickoff or launch, and can be ticked, marked not needed, or opened for notes and links.
 - Each phase ends with a **sign-off**: who approved, when, and the proof (an email or screenshot you drop in, or a link). Open items can move to the next phase.
 - The **Client** tab lists everything the client owes you and writes a request message from a message template. Groundwork never sends anything.
-- Items linked to a Groundwork tool tick themselves: the site scan ticks “Crawl the current site”, and the heading plan ticks “Heading structure” when its tag fixes are done.
+- Items linked to a Groundwork tool tick themselves: the site scan ticks “Crawl the current site”, the heading plan ticks “Heading structure” when its tag fixes are done, and the launch check ticks the QA items it passes.
+- The **launch check** (Tools tab, runs on your Mac, no AI) reads up to 60 pages of the staging or live site and every link on them. It checks noindex and robots.txt, placeholder text and “#” links, broken links, titles, descriptions, H1s, alt text and OG images, canonicals, legal links, and the https and www redirects. It also lists the sitemap, copyright year, phone numbers without tap-to-call, forms to test and broken links to other sites. **Copy issues** gives a Markdown checklist for Slack. On a staging (.webflow.io) check, indexing and redirects wait for a check of the live domain.
 - **Templates** holds project checklists, messages and emails. Changing a template only affects new projects.
 
-Projects live in `data/projects/<id>/`, and templates in `data/templates.json`.
+Projects live in `data/projects/<id>/` (launch check reports in its `launch/` folder), and templates in `data/templates.json`.
 
 ## How it works
 
