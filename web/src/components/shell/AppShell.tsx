@@ -56,7 +56,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="relative flex h-full bg-canvas" data-sidebar={sidebar ? "open" : "closed"}>
       <RenameDialog />
-      <WindowBar sidebar={sidebar} onToggle={() => setSidebar(!sidebar)} onHover={sidebar ? undefined : hover} />
       {sidebar ? (
         <Sidebar />
       ) : (
@@ -68,6 +67,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <main className={cn("min-w-0 flex-1 py-2 pr-2", !sidebar && "pl-2")}>
         <div className="flex h-full flex-col overflow-hidden rounded-xl border border-border/80 bg-background shadow-[0_1px_2px_rgba(22,23,22,0.04)]">{children}</div>
       </main>
+      {/* Last on purpose: in the Mac app, window-drag areas later in the page override earlier ones, so the cluster must come
+          after the sidebar and page header (both draggable) or its buttons would start a window drag instead of clicking. */}
+      <WindowBar sidebar={sidebar} onToggle={() => setSidebar(!sidebar)} onHover={sidebar ? undefined : hover} />
     </div>
   )
 }
