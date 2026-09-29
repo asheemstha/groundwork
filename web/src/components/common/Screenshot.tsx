@@ -82,8 +82,8 @@ export function Screenshot({ src, markers, active, onPick, className }: { src: s
                     title={off ? `${m.label} · off-screen in the screenshot (slider or hidden panel)` : m.label}
                     onClick={() => onPick?.(m.key)}
                     className={cn(
-                      "absolute z-10 grid h-5 min-w-5 place-items-center rounded-full px-1 font-mono text-[10.5px] font-semibold shadow-sm ring-2 ring-background transition-transform",
-                      on ? "z-20 scale-125 bg-brand text-brand-foreground" : m.done ? "bg-foreground text-background" : "border border-foreground bg-card text-foreground",
+                      "absolute z-10 grid h-5 min-w-5 place-items-center rounded-full px-1 tabular text-[10.5px] font-medium shadow-sm ring-2 ring-background transition-transform",
+                      on ? "z-20 scale-125 bg-brand text-brand-foreground" : m.done ? "bg-done text-background" : "border border-strong bg-card text-foreground",
                       off && "border-dashed"
                     )}
                     style={{ left: x, top: y }}

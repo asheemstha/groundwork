@@ -21,7 +21,7 @@ export function Block({ label, title, right, children, className }: { label: str
       <header className="flex items-center gap-3 px-5 pt-4 pb-3">
         <div className="min-w-0 flex-1">
           <Tag tone="muted">{label}</Tag>
-          <h2 className="mt-1.5 truncate text-lg font-semibold">{title}</h2>
+          <h2 className="mt-1.5 truncate text-lg font-medium">{title}</h2>
         </div>
         {right}
       </header>
@@ -31,7 +31,7 @@ export function Block({ label, title, right, children, className }: { label: str
 }
 
 function StepIcon({ state }: { state: "done" | "active" | "todo" }) {
-  if (state === "done") return <span className="grid size-5 place-items-center rounded-full bg-foreground text-background"><Check className="size-3" strokeWidth={3} /></span>
+  if (state === "done") return <span className="grid size-5 place-items-center rounded-full bg-done text-background"><Check className="size-3" strokeWidth={2.5} /></span>
   if (state === "active") return <span className="grid size-5 place-items-center"><Spinner className="size-4" /></span>
   return <span className="size-5 rounded-full border border-dashed border-input" />
 }
@@ -52,7 +52,7 @@ export function ScanBlock({ run, progress }: { run: Run; progress: Progress | nu
         const sub = k === "pages" && s?.total ? `${s.done} of ${s.total}` : k === "sitemap" && pages.length ? plural(pages.length, "page") + " found" : ""
         return (
           <li key={k} className={cn("flex items-center gap-3 rounded-lg px-2 py-1.5 text-sm", state === "active" && "bg-muted/70", state === "todo" && "text-muted-foreground")}>
-            <StepIcon state={state} /><span className="flex-1">{l}</span><span className="font-mono text-xs text-muted-foreground tabular">{sub}</span>
+            <StepIcon state={state} /><span className="flex-1">{l}</span><span className="text-xs text-muted-foreground tabular">{sub}</span>
           </li>
         )
       })}
@@ -60,10 +60,10 @@ export function ScanBlock({ run, progress }: { run: Run; progress: Progress | nu
   )
   if (scanning)
     return (
-      <Block label="Free scan · no AI" title={<>Scanning {run.name}</>}>
+      <Block label="Scan · runs on your Mac" title={<>Scanning {run.name}</>}>
         <div className="px-5 pb-3">
           <Bar value={progress?.percent || 3} tone="brand" className="h-1.5" />
-          <div className="mt-2 flex items-baseline justify-between text-sm"><span className="font-mono text-2xl font-semibold tracking-tight tabular">{progress?.percent || 0}%</span><span className="text-muted-foreground">{progress?.etaSec != null && s?.step === "pages" ? `About ${fmtDur(progress.etaSec)} left` : "Starting…"}</span></div>
+          <div className="mt-2 flex items-baseline justify-between text-sm"><span className="text-2xl font-medium tracking-tight tabular">{progress?.percent || 0}%</span><span className="text-muted-foreground">{progress?.etaSec != null && s?.step === "pages" ? `About ${fmtDur(progress.etaSec)} left` : "Starting…"}</span></div>
         </div>
         {stepsList}
       </Block>
@@ -75,14 +75,14 @@ export function ScanBlock({ run, progress }: { run: Run; progress: Progress | nu
     [ok.length, ok.length === 1 ? "page scanned" : "pages scanned", false],
     [noH1, noH1 === 1 ? "page with no H1" : "pages with no H1", noH1 > 0],
     [multi, multi === 1 ? "page with several H1s" : "pages with several H1s", multi > 0],
-    [styled, "texts styled like headings, not tagged", styled > 0],
+    [styled, "styled like headings but untagged", styled > 0],
   ]
   return (
-    <Block label="Free scan · no AI" title={<>Scanned {plural(ok.length, "page")}{tookSec ? <span className="font-normal text-muted-foreground"> in {fmtDur(tookSec)}</span> : null}</>} right={<span className="text-xs text-muted-foreground">{ago(run.crawledAt || run.created)}</span>}>
+    <Block label="Scan · runs on your Mac" title={<>Scanned {plural(ok.length, "page")}{tookSec ? <span className="font-normal text-muted-foreground"> in {fmtDur(tookSec)}</span> : null}</>} right={<span className="text-xs text-muted-foreground">{ago(run.crawledAt || run.created)}</span>}>
       <div className="grid grid-cols-2 gap-px overflow-hidden border-y bg-border sm:grid-cols-4">
         {stats.map(([n, l, bad]) => (
           <div key={l} className="bg-card px-5 py-3.5">
-            <div className={cn("font-mono text-2xl font-semibold tracking-tight tabular", bad && "text-brand")}>{n}</div>
+            <div className={cn("text-2xl font-medium tracking-tight tabular", bad && "text-brand")}>{n}</div>
             <div className="text-xs text-muted-foreground">{l}</div>
           </div>
         ))}
@@ -154,14 +154,14 @@ export function PagesBlock({ run, selected, setSelected, locked }: { run: Run; s
                     <Checkbox checked={on} disabled={bad || uns || locked} onCheckedChange={(v) => toggle(p.id, !!v)} aria-label={`Plan ${p.name}`} />
                     <button className="min-w-0 text-left" onClick={() => !bad && !uns && setPeek(p)}>
                       <span className={cn("block truncate text-sm font-medium", on && "text-foreground")}>{p.navGroup ? <span className="text-muted-foreground">{p.navGroup} › </span> : null}{p.name}</span>
-                      <span className="block truncate font-mono text-xs text-muted-foreground">{p.path}</span>
+                      <span className="block truncate tabular text-xs text-muted-foreground">{p.path}</span>
                     </button>
                     <span className="flex items-center gap-1.5">
                       {bad ? <Tag tone="brand">{p.status ? `HTTP ${p.status}` : "Didn’t load"}</Tag> : uns ? <Tag tone="muted">Not scanned</Tag> : (
                         <>
                           {c.H1 === 0 && <Tag tone="brand">No H1</Tag>}
                           {(c.H1 || 0) > 1 && <Tag tone="brand">{c.H1} H1s</Tag>}
-                          <span className="font-mono text-xs text-muted-foreground tabular">{p.headings || 0} h</span>
+                          <span className="text-xs text-muted-foreground tabular">{p.headings || 0} h</span>
                         </>
                       )}
                     </span>
@@ -180,7 +180,7 @@ export function PagesBlock({ run, selected, setSelected, locked }: { run: Run; s
   )
 }
 
-/** Free preview of a scanned page: current heading outline beside the screenshot. */
+/** Preview of a scanned page (no AI): current heading outline beside the screenshot. */
 export function PreviewSheet({ run, page, onClose }: { run: Run; page: ScanPage | null; onClose: () => void }) {
   const [data, setData] = React.useState<CrawlData | null>(null)
   const [active, setActive] = React.useState<string | null>(null)
@@ -195,7 +195,7 @@ export function PreviewSheet({ run, page, onClose }: { run: Run; page: ScanPage 
       <SheetContent className="w-[min(1080px,94vw)]! max-w-none! gap-0 p-0" side="right">
         <SheetHeader className="border-b px-5 py-4">
           <SheetTitle>{page?.name}</SheetTitle>
-          <SheetDescription className="flex items-center gap-2 font-mono text-xs">
+          <SheetDescription className="flex items-center gap-2 tabular text-xs">
             {page?.path}
             <a href={(run.origin || "") + (page?.path || "")} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:text-foreground"><ExternalLink className="size-3" />Open</a>
           </SheetDescription>
@@ -208,7 +208,7 @@ export function PreviewSheet({ run, page, onClose }: { run: Run; page: ScanPage 
               const h = /^H[1-6]$/.test(it.kind), lvl = h ? +it.kind[1]! : 0
               return (
                 <button key={it.key} onMouseEnter={() => setActive(it.key)} onClick={() => setActive(it.key)} className={cn("flex w-full items-start gap-2 py-1.5 pr-4 text-left text-sm hover:bg-muted/60", active === it.key && "bg-muted")} style={{ paddingLeft: 20 + (h ? (lvl - 1) * 12 : 0) }}>
-                  <span className="mt-px font-mono text-[10.5px] text-muted-foreground tabular">{i + 1}</span>
+                  <span className="mt-px text-[10.5px] text-muted-foreground tabular">{i + 1}</span>
                   {h ? <HTag tag={it.kind} /> : <Tag tone="brand">styled</Tag>}
                   <span className={cn("min-w-0 flex-1", it.hidden && "opacity-50")}>{it.text.slice(0, 120)}{it.hidden && <span className="text-muted-foreground"> · hidden</span>}{it.zone && <span className="text-muted-foreground"> · {it.zone}</span>}{!it.rect && !it.hidden && <span className="text-muted-foreground"> · not in the screenshot (closed tab or menu)</span>}</span>
                 </button>
@@ -264,7 +264,7 @@ export function PlanBlock({ run, progress, log, result, onStop }: { run: Run; pr
           <div className="px-5 pt-1 pb-2">
             <Bar value={progress?.percent || 1} tone="brand" className="h-1.5" />
             <div className="mt-2 flex items-baseline justify-between text-sm">
-              <span className="font-mono text-2xl font-semibold tracking-tight tabular">{progress?.percent || 0}%</span>
+              <span className="text-2xl font-medium tracking-tight tabular">{progress?.percent || 0}%</span>
               <span className="text-muted-foreground">{progress?.etaSec != null ? `About ${fmtDur(progress.etaSec)} left · ` : ""}{fmtClock(progress?.elapsedSec)} elapsed</span>
             </div>
           </div>
@@ -279,15 +279,15 @@ export function PlanBlock({ run, progress, log, result, onStop }: { run: Run; pr
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {sel.map((p) =>
                         planned.has(p.id) ? (
-                          <button key={p.id} onClick={() => go(routes.review(run.id, "p:" + p.id))} className="inline-flex items-center gap-1 rounded-full bg-foreground px-2 py-0.5 text-xs text-background hover:opacity-85" title="Review this page now"><Check className="size-3" />{p.name}</button>
+                          <button key={p.id} onClick={() => go(routes.review(run.id, "p:" + p.id))} className="inline-flex items-center gap-1 rounded-full border bg-card px-2 py-0.5 text-xs text-foreground hover:bg-muted" title="Review this page now"><Check className="size-3" />{p.name}</button>
                         ) : progress?.current?.id === p.id ? (
-                          <span key={p.id} className="inline-flex items-center gap-1.5 rounded-full border border-brand px-2 py-0.5 text-xs text-brand"><Spinner className="size-3" />{p.name}</span>
+                          <span key={p.id} className="inline-flex items-center gap-1.5 rounded-full border border-brand/40 px-2 py-0.5 text-xs text-brand-ink"><Spinner className="size-3" />{p.name}</span>
                         ) : <span key={p.id} className="rounded-full border px-2 py-0.5 text-xs text-muted-foreground">{p.name}</span>
                       )}
                     </div>
                   )}
                 </div>
-                <span className="font-mono text-xs text-muted-foreground tabular">{st.key === "plan" ? `${st.done} of ${st.total}` : st.key === "keywords" && st.at != null ? fmtClock(st.at) : ""}</span>
+                <span className="text-xs text-muted-foreground tabular">{st.key === "plan" ? `${st.done} of ${st.total}` : st.key === "keywords" && st.at != null ? fmtClock(st.at) : ""}</span>
               </li>
             ))}
           </ol>
@@ -304,9 +304,9 @@ export function PlanBlock({ run, progress, log, result, onStop }: { run: Run; pr
           </CollapsibleTrigger>
           <span className="flex-1" />
           {took && !running && <span>Took {took}</span>}
-          <span>Tokens <b className="font-mono text-foreground tabular">{tok ? fmtTok(tok.input + tok.output + tok.cached) : "–"}</b></span>
-          {running && f5 && l5 ? <span>5-hour window <b className="font-mono text-foreground tabular">{pct(f5.utilization)}% → {pct(l5.utilization)}%</b></span>
-            : j?.limitDelta != null ? <span><b className="font-mono text-foreground tabular">{Math.max(1, pct(j.limitDelta))}%</b> of your 5-hour window</span> : null}
+          <span>Tokens <b className="text-foreground tabular">{tok ? fmtTok(tok.input + tok.output + tok.cached) : "–"}</b></span>
+          {running && f5 && l5 ? <span>5-hour window <b className="text-foreground tabular">{pct(f5.utilization)}% → {pct(l5.utilization)}%</b></span>
+            : j?.limitDelta != null ? <span><b className="text-foreground tabular">{Math.max(1, pct(j.limitDelta))}%</b> of your 5-hour window</span> : null}
         </div>
         <CollapsibleContent><ActivityLog log={log} /></CollapsibleContent>
       </Collapsible>
@@ -326,7 +326,7 @@ function ResultStats({ result }: { result: Result }) {
   cells.push([fails || "All", fails ? "automatic checks to look at" : "automatic checks pass", !!fails])
   return (
     <div className="grid gap-px border-t bg-border" style={{ gridTemplateColumns: `repeat(${cells.length}, minmax(0, 1fr))` }}>
-      {cells.map(([v, l, hi]) => <div key={l} className="bg-card px-5 py-3.5"><div className={cn("font-mono text-2xl font-semibold tabular", hi && "text-brand")}>{v}</div><div className="text-xs text-muted-foreground">{l}</div></div>)}
+      {cells.map(([v, l, hi]) => <div key={l} className="bg-card px-5 py-3.5"><div className={cn("text-2xl font-medium tabular", hi && "text-brand")}>{v}</div><div className="text-xs text-muted-foreground">{l}</div></div>)}
     </div>
   )
 }
@@ -369,7 +369,7 @@ function ActivityLog({ log }: { log: LogEntry[] }) {
             <li key={i} className="grid grid-cols-[16px_1fr_auto] gap-2.5 text-[13px]">
               <Icon className={cn("mt-0.5 size-4", e.kind === "error" ? "text-destructive" : e.kind === "step" ? "text-brand" : "text-muted-foreground")} />
               <p className={cn("min-w-0 break-words", e.kind === "ai" ? "whitespace-pre-wrap text-foreground" : e.kind === "step" ? "font-medium" : "text-muted-foreground")}>{e.kind === "ai" ? e.text.slice(0, 700) : e.text}</p>
-              <time className="font-mono text-[10.5px] text-muted-foreground/80">{new Date(e.t).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</time>
+              <time className="tabular text-[10.5px] text-muted-foreground/80">{new Date(e.t).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</time>
             </li>
           )
         })}

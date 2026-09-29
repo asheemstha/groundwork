@@ -2,7 +2,6 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
-@import "@fontsource-variable/geist-mono";
 
 @custom-variant dark (&:is(.dark *));
 /* desktop: inside the Mac app, where the window buttons sit in the top-left corner; web: in a browser tab */
@@ -17,10 +16,12 @@
 @theme inline {
   --font-heading: var(--font-sans);
   --font-sans: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "Geist Mono Variable", ui-monospace, "SF Mono", Menlo, monospace;
   --color-canvas: var(--canvas);
   --color-brand: var(--brand);
   --color-brand-foreground: var(--brand-foreground);
+  --color-brand-ink: var(--brand-ink);
+  --color-done: var(--done);
+  --color-strong: var(--strong);
   --color-surface: var(--surface);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -81,6 +82,11 @@
   --accent-foreground: #161716;
   --brand: #ff4500;
   --brand-foreground: #fefcf6;
+  /* orange for small text (the accent itself is too light to read at small sizes) */
+  --brand-ink: #b83700;
+  /* soft states: finished items and meters, never solid black */
+  --done: #bdbbb5;
+  --strong: #5f5d58;
   --destructive: #c4260f;
   --border: #e3e2dd;
   --input: #d1d0cd;
@@ -120,6 +126,9 @@
   --accent-foreground: #fefcf6;
   --brand: #ff4500;
   --brand-foreground: #fefcf6;
+  --brand-ink: #ff7a45;
+  --done: #5d5a55;
+  --strong: #c9c6bf;
   --destructive: #ff6a4d;
   --border: #2c2a28;
   --input: #3a3734;
@@ -164,15 +173,20 @@
   h3 {
     letter-spacing: -0.025em;
   }
+  /* Nothing heavier than medium, including <b> and <strong> */
+  b,
+  strong {
+    font-weight: 500;
+  }
   ::selection {
     background: color-mix(in oklab, var(--brand) 22%, transparent);
   }
 }
 
 @layer utilities {
-  /* label: small mono caps in a thin pill */
-  .tag-mono {
-    @apply inline-flex h-fit shrink-0 items-center gap-1 rounded-full border px-2 py-px font-mono text-[10.5px] leading-4 font-medium tracking-tight whitespace-nowrap uppercase;
+  /* label: small text in a thin pill */
+  .tag-label {
+    @apply inline-flex h-fit shrink-0 items-center gap-1 rounded-full border px-2 py-px text-[11.5px] leading-4 whitespace-nowrap;
   }
   .scrollbar-thin {
     scrollbar-width: thin;

@@ -32,11 +32,11 @@ Needs Node.js (LTS). `git clone https://github.com/asheemstha/groundwork.git`, t
 
 ## How it works
 
-1. **Free scan** (no AI). Opens each page in headless Chrome and waits for preloaders and page-transition curtains to finish. It closes popups, scrolls to load lazy images and reveal scroll animations, then records every heading, heading-styled text and a full-page screenshot.
+1. **Scan** (runs on your Mac, no AI). Opens each page in headless Chrome and waits for preloaders and page-transition curtains to finish. It closes popups, scrolls to load lazy images and reveal scroll animations, then records every heading, heading-styled text and a full-page screenshot.
 2. **AI plan** (your plan's usage). You pick the pages, country, output, engine, model and effort, and see the time and usage estimate first. It runs `claude -p` or `codex exec` with the `h-tag-planner` skill in `tools/h-tag-planner/`. The AI can only read files and write JSON: no shell, web or connectors. It writes `plan/_site.json` first, then one file per page, which drives the real progress bar and time left. The composer's text box passes extra instructions to the AI. The browser tab shows progress, and you get a desktop notification when it's done.
 3. **Checks and guide.** Runs the skill's automatic checks and gives the AI one pass to fix failures. It builds the skill's HTML guide (Export) and the in-app to-do list.
 4. **To-do list.** Numbered pins on the screenshot match the list. Hovering or selecting a change scrolls the screenshot to it, and a scroll track shows where every change sits. Keyboard: `j`/`k` move, `x` ticks, `n`/`p` change page.
-5. **Check live site** re-reads the live pages and ticks off changes that are really there. **Retake screenshots** (site menu) is free.
+5. **Check live site** re-reads the live pages and ticks off changes that are really there. **Retake screenshots** (site menu) uses no AI.
 
 ## Usage transparency
 
@@ -52,7 +52,7 @@ Needs Node.js (LTS). `git clone https://github.com/asheemstha/groundwork.git`, t
 - `lib/crawl.js`: browser scan, preloader handling, screenshots and live checks.
 - `lib/headings.js`: prompts, turning the AI's plan into to-dos, export and verification.
 - `shared/checks.mjs`: automatic checks used by both server and app.
-- `web/`: the app. React + Vite + Tailwind v4, shadcn/ui on **Base UI**, Lucide icons, Geist fonts. Warm neutral palette with one orange accent (`web/src/index.css`), no gradients.
+- `web/`: the app. React + Vite + Tailwind v4, shadcn/ui on **Base UI**, Lucide icons, the Geist font. Warm neutral palette with one orange accent (`web/src/index.css`), no gradients.
   - Develop: `node server.js`, then `cd web && npx vite` (it proxies `/api` to the server).
   - Build: `npm run build` (writes `web/dist`, which the server serves).
 

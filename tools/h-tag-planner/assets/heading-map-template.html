@@ -265,6 +265,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));
 const byId = id => PAGES.find(p => p.id === id);
 const isH = t => /^H[1-6]$/.test(t);
+const tn = t => (!t || t === "—") ? "text" : t; // "—" marks plain text in the data; show it as a word
 const lvl = t => isH(t) ? +t[1] : 0;
 const WORK = ["retag","tag","rewrite","add","remove"];
 const changes = p => p.rows.filter(r => WORK.includes(r.act));
@@ -411,11 +412,11 @@ function renderPage(p){
     if (WORK.includes(r.act)) secHas = true;
     let tags;
     if (r.act === "keep") tags = '<span class="tg new">' + r.rec + '</span>';
-    else if (r.act === "none") tags = '<span class="tg txt">' + esc(r.cur) + '</span>';
+    else if (r.act === "none") tags = '<span class="tg txt">' + esc(tn(r.cur)) + '</span>';
     else if (r.act === "add") tags = '<span class="tg txt">new</span><span class="arrow">→</span><span class="tg new">' + r.rec + '</span>';
-    else if (r.act === "remove" || (r.act === "retag" && !isH(r.rec))) tags = '<span class="tg old">' + esc(r.cur) + '</span><span class="arrow">→</span><span class="tg txt">text</span>';
+    else if (r.act === "remove" || (r.act === "retag" && !isH(r.rec))) tags = '<span class="tg old">' + esc(tn(r.cur)) + '</span><span class="arrow">→</span><span class="tg txt">text</span>';
     else if (r.cur === r.rec) tags = '<span class="tg new">' + r.rec + '</span>';
-    else tags = '<span class="tg old">' + esc(r.cur) + '</span><span class="arrow">→</span><span class="tg new">' + r.rec + '</span>';
+    else tags = '<span class="tg old">' + esc(tn(r.cur)) + '</span><span class="arrow">→</span><span class="tg new">' + r.rec + '</span>';
     let text;
     if (r.act === "rewrite" && r.to) text = '<div class="ht was">' + esc(r.text) + '</div><div class="ht now">' + esc(r.to) + '</div>';
     else if (r.act === "add") text = '<div class="ht now">' + esc(r.to || r.text) + '</div>';
@@ -474,7 +475,7 @@ function renderOverview(){
        (LIVE ? '<th>Make this the H1</th>' : '<th>Current H1</th><th>New H1</th>') + '<th>Changes</th><th>After changes</th></tr></thead><tbody>';
   PAGES.forEach(p => {
     const k = p.keywords && p.keywords.primary;
-    h += '<tr><td><a href="#' + p.id + '">' + esc(p.name) + '</a></td><td>' + (k ? fmtKw(k) : "—") + '</td>' +
+    h += '<tr><td><a href="#' + p.id + '">' + esc(p.name) + '</a></td><td>' + (k ? fmtKw(k) : "None") + '</td>' +
          (LIVE ? '<td><b>' + esc(p.h1.cur) + '</b></td>' : '<td>' + esc(p.h1.cur) + '</td><td><b>' + esc(p.h1.proposed || p.h1.cur) + '</b></td>') +
          '<td class="num">' + changes(p).length + '</td><td class="num">' + countStr(p) + '</td></tr>';
   });
@@ -516,7 +517,7 @@ function renderKeywords(){
     const k = p.keywords || {}, pri = k.primary;
     const inH1 = pri && pri[0] ? kwIn(finalH1(p), pri[0]) : null;
     h += '<tr><td><a href="#' + p.id + '">' + esc(p.name) + '</a></td><td>' + esc(p.purpose || "") + '</td><td>' + (pri ? fmtKw(pri) : "Brand page") + '</td><td>' + (k.secondary || []).map(fmtKw).join("<br>") + '</td><td>' +
-         (inH1 === null ? "—" : '<span class="pill ' + (inH1 ? "p-pass" : "p-fail") + '">' + (inH1 ? "Yes" : "No") + '</span>') + '</td></tr>';
+         (inH1 === null ? "n/a" : '<span class="pill ' + (inH1 ? "p-pass" : "p-fail") + '">' + (inH1 ? "Yes" : "No") + '</span>') + '</td></tr>';
   });
   h += '</tbody></table></div><p class="src" style="margin-top:8px">' + esc(SITE.kwSource) + '. Volumes are monthly searches.</p></section>';
   if (GAPS && GAPS.length) h += '<section class="block"><h2>Keywords no page owns yet</h2><p class="lede">Demand with no matching page. Possible new pages or sections, for later.</p><ul class="notes">' + GAPS.map(g => '<li>' + SUGG + '<span><b>' + esc(g.cluster) + '</b>' + (g.volume !== undefined ? ' (' + g.volume + '/mo)' : "") + '. ' + esc(g.note || "") + '</span></li>').join("") + '</ul></section>';

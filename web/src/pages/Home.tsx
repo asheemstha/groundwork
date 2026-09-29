@@ -8,7 +8,7 @@ import { useApp } from "@/hooks/useApp"
 import { api } from "@/lib/api"
 import { go, routes } from "@/lib/router"
 
-/** Scanning is free, so the first screen only asks for an address. AI settings come at plan time. */
+/** Scanning uses no AI, so the first screen only asks for an address. AI settings come at plan time. */
 export function Home() {
   const { status, refreshRuns } = useApp()
   const [url, setUrl] = React.useState("")
@@ -38,10 +38,10 @@ export function Home() {
       <div className="grid flex-1 place-items-center overflow-auto px-6">
         <div className="flex max-w-2xl flex-col items-center text-center">
           <Logo className="size-10 rounded-xl [&_svg]:size-5" />
-          <h1 className="mt-5 text-3xl font-semibold tracking-[-0.035em] sm:text-4xl">What site are we planning?</h1>
-          <p className="mt-2 text-[15px] text-muted-foreground">Paste an address. The scan is free. You choose the AI and see the cost before anything is planned.</p>
+          <h1 className="mt-5 text-3xl font-medium tracking-[-0.035em] sm:text-4xl">What site are we planning?</h1>
+          <p className="mt-2 text-[15px] text-muted-foreground">Paste an address. The scan runs on your Mac and doesn’t use your AI plan. You choose the AI and see the cost before anything is planned.</p>
           <div className="mt-5 flex flex-wrap items-center justify-center gap-2 text-xs text-muted-foreground">
-            <MonoTag>01 Free scan</MonoTag><ArrowRight className="size-3" /><MonoTag>02 AI plan</MonoTag><ArrowRight className="size-3" /><MonoTag>03 To-do list</MonoTag>
+            <MonoTag>01 Scan</MonoTag><ArrowRight className="size-3" /><MonoTag>02 AI plan</MonoTag><ArrowRight className="size-3" /><MonoTag>03 To-do list</MonoTag>
           </div>
         </div>
       </div>
@@ -58,7 +58,7 @@ export function Home() {
             {busy ? <Loader2 className="animate-spin" /> : <ArrowUp />}
           </Button>
         }
-        footer={<span>Scanning is free and uses no AI. The name is for you, e.g. the client’s name. You can change it later.</span>}
+        footer={<span>Scanning runs on your Mac and doesn’t use your AI plan. The name is for you, e.g. the client’s name. You can change it later.</span>}
       >
         <form onSubmit={(e) => { e.preventDefault(); submit() }} className="flex items-center gap-2 px-3 pt-3 pb-1">
           <Globe className="size-4 shrink-0 text-muted-foreground" />

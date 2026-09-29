@@ -43,7 +43,7 @@ function Thread() {
   const busy = run.status === "running" || run.status === "scanning"
   const rescan = async () => { const { id } = await api.rescan(run.id); await app.refreshRuns(); go(routes.run(id)) }
   const reshoot = async () => {
-    const t = toast.loading("Retaking screenshots…", { description: "Free. Uses the browser, no AI." })
+    const t = toast.loading("Retaking screenshots…", { description: "Runs on your Mac. No AI plan usage." })
     try { const r = await api.reshoot(run.id); toast.success(`New screenshots for ${plural(r.pages, "page")}`, { id: t, description: "" }) } catch (e) { toast.error((e as Error).message, { id: t }) }
   }
   const remove = async () => { await api.remove(run.id); await app.refreshRuns(); toast(`Removed ${app.siteLabel(hostOf(run))}`); go(routes.home) }

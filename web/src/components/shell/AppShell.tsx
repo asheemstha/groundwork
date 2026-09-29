@@ -148,22 +148,23 @@ function SiteRow({ host, list, cur, onRemove }: { host: string; list: RunSummary
   const active = list.some((r) => r.id === cur)
   const busy = list.some((r) => r.status === "running" || r.status === "scanning")
   return (
-    <div className={cn("group flex items-center rounded-lg hover:bg-sidebar-accent", active && "bg-sidebar-accent")}>
-      <button onClick={() => openRun(latest)} className="flex min-w-0 flex-1 items-center gap-2 py-1.5 pl-2 text-left text-[13.5px]">
+    <div className={cn("group relative flex items-center rounded-lg hover:bg-sidebar-accent", active && "bg-sidebar-accent")}>
+      {/* Fixed columns so the rings and counts line up from row to row. The menu button sits over the count on hover. */}
+      <button onClick={() => openRun(latest)} className="grid min-w-0 flex-1 grid-cols-[20px_minmax(0,1fr)_14px_38px] items-center gap-2 py-1.5 pl-2 text-left text-[13.5px]">
         <SiteIcon runId={(list.find((r) => r.hasIcon) || latest).id} name={label} className="size-5 rounded-[5px] text-[10px]" />
-        <span className="min-w-0 flex-1 truncate" title={label !== host ? host : undefined}>{label}</span>
-        {busy ? <Spinner className="size-3" /> : l.total ? <Ring done={l.done!} total={l.total} size={13} /> : l.tone === "bad" ? <Dot tone="bad" /> : null}
-        <span className="pr-2 font-mono text-[11px] text-muted-foreground tabular group-hover:hidden">{l.busy ? l.sub : l.total ? l.sub : latest.status === "scanned" ? "scan" : ""}</span>
+        <span className="min-w-0 truncate" title={label !== host ? host : undefined}>{label}</span>
+        <span className="grid place-items-center">{busy ? <Spinner className="size-3" /> : l.total ? <Ring done={l.done!} total={l.total} size={13} /> : l.tone === "bad" ? <Dot tone="bad" /> : null}</span>
+        <span className="pr-2 text-right text-[11px] text-muted-foreground tabular group-hover:invisible group-has-[[data-popup-open]]:invisible">{l.busy ? l.sub : l.total ? l.sub : latest.status === "scanned" ? "scan" : ""}</span>
       </button>
       <DropdownMenu>
-        <DropdownMenuTrigger render={<button className="mr-1 hidden size-6 place-items-center rounded-md text-muted-foreground group-hover:grid hover:bg-background/60 data-[popup-open]:grid" aria-label={`${host} options`} />}><MoreHorizontal className="size-3.5" /></DropdownMenuTrigger>
+        <DropdownMenuTrigger render={<button className="absolute top-1/2 right-1 hidden size-6 -translate-y-1/2 place-items-center rounded-md text-muted-foreground group-hover:grid hover:bg-background/60 data-[popup-open]:grid" aria-label={`${host} options`} />}><MoreHorizontal className="size-3.5" /></DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-64">
           <DropdownMenuGroup>
             <DropdownMenuLabel>Versions</DropdownMenuLabel>
             {list.map((r, i) => (
               <DropdownMenuItem key={r.id} onClick={() => openRun(r)}>
                 <span className="flex-1">{versionLabel(r)}{i === 0 && <span className="text-muted-foreground"> · latest</span>}</span>
-                <span className="font-mono text-[11px] text-muted-foreground">{when(r.created)}</span>
+                <span className="tabular text-[11px] text-muted-foreground">{when(r.created)}</span>
               </DropdownMenuItem>
             ))}
           </DropdownMenuGroup>
@@ -195,7 +196,7 @@ export function VersionMenu({ runId }: { runId: string }) {
           {list.map((r, i) => (
             <DropdownMenuItem key={r.id} onClick={() => openRun(r)}>
               <span className="flex-1">{versionLabel(r)}{i === 0 && <span className="text-muted-foreground"> · latest</span>}</span>
-              <span className="font-mono text-[11px] text-muted-foreground">{when(r.created)}</span>
+              <span className="tabular text-[11px] text-muted-foreground">{when(r.created)}</span>
               {r.id === runId && <Check className="size-3.5" />}
             </DropdownMenuItem>
           ))}
@@ -288,7 +289,7 @@ function UsageCard() {
   const bar = (label: string, x?: { utilization: number }) =>
     x && (
       <div className="grid grid-cols-[48px_1fr_30px] items-center gap-2 text-[11.5px] text-muted-foreground">
-        <span>{label}</span><Bar value={Math.max(2, pct(x.utilization))} tone={x.utilization > 0.8 ? "brand" : "ink"} /><span className="text-right font-mono tabular">{pct(x.utilization)}%</span>
+        <span>{label}</span><Bar value={Math.max(2, pct(x.utilization))} tone={x.utilization > 0.8 ? "brand" : "ink"} /><span className="text-right tabular">{pct(x.utilization)}%</span>
       </div>
     )
   return (
@@ -306,7 +307,7 @@ function UsageCard() {
       {sub && (w.five_hour || w.seven_day) && <div className="grid gap-1.5 px-1 py-1">{bar("5-hour", w.five_hour)}{bar("Weekly", w.seven_day)}</div>}
       <button onClick={() => go(routes.settings())} className={cn("flex items-center gap-2 rounded-md px-1 py-1 text-left text-[13px] text-muted-foreground hover:bg-sidebar-accent hover:text-foreground", route.name === "settings" && "text-foreground")}>
         <Settings className="size-3.5" /><span className="flex-1">Engines & settings</span>
-        {!ready("claude") && !ready("codex") && <span className="text-xs font-medium text-brand">Set up</span>}
+        {!ready("claude") && !ready("codex") && <span className="text-xs font-medium text-brand-ink">Set up</span>}
       </button>
     </div>
   )
@@ -358,7 +359,7 @@ export function SiteMenu({ host, onRescan, onDelete, onReshoot, children }: { ho
         <DropdownMenuGroup>
           {host && <DropdownMenuItem onClick={() => renameSite(host)}><Pencil /> Rename…</DropdownMenuItem>}
           <DropdownMenuItem onClick={onRescan}><RefreshCw /> Rescan the site</DropdownMenuItem>
-          {onReshoot && <DropdownMenuItem onClick={onReshoot}><Camera /> Retake screenshots <span className="ml-auto text-xs text-muted-foreground">free</span></DropdownMenuItem>}
+          {onReshoot && <DropdownMenuItem onClick={onReshoot}><Camera /> Retake screenshots <span className="ml-auto text-xs text-muted-foreground">no AI</span></DropdownMenuItem>}
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem variant="destructive" onClick={onDelete}><Trash2 /> Remove…</DropdownMenuItem>

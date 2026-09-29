@@ -61,7 +61,7 @@ export function ReviewPage({ view }: { view: string }) {
   }
   const rescan = async () => { const { id } = await api.rescan(run.id); await app.refreshRuns(); go(routes.run(id)) }
   const reshoot = async () => {
-    const t = toast.loading("Retaking screenshots…", { description: "Free. Uses the browser, no AI." })
+    const t = toast.loading("Retaking screenshots…", { description: "Runs on your Mac. No AI plan usage." })
     try { const r = await api.reshoot(run.id); toast.success(`New screenshots for ${plural(r.pages, "page")}`, { id: t, description: "" }) } catch (e) { toast.error((e as Error).message, { id: t }) }
   }
   const page = view.startsWith("p:") ? pages.find((p) => p.id === view.slice(2)) : null
@@ -71,16 +71,16 @@ export function ReviewPage({ view }: { view: string }) {
     const p = pages.find((x) => x.id === id)
     if (!p) return null
     const c = pageCounts(p, cstate.done), on = view === "p:" + id
-    if (!p.planned) return <div key={id} className="flex items-center gap-2 px-2 py-1.5 text-[13px] text-muted-foreground">{running ? <Spinner className="size-3.5" /> : <Ring done={0} total={0} />}<span className="flex-1 truncate">{p.name}</span><span className="font-mono text-[11px]">{running ? "planning" : "–"}</span></div>
+    if (!p.planned) return <div key={id} className="flex items-center gap-2 px-2 py-1.5 text-[13px] text-muted-foreground">{running ? <Spinner className="size-3.5" /> : <Ring done={0} total={0} />}<span className="flex-1 truncate">{p.name}</span><span className="tabular text-[11px]">{running ? "planning" : "–"}</span></div>
     return (
       <button key={id} onClick={() => go(routes.review(run.id, "p:" + id))} className={cn("flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[13px] hover:bg-muted", on && "bg-muted font-medium")}>
-        <Ring done={c.done} total={c.tasks} /><span className="flex-1 truncate">{p.name}</span><span className="font-mono text-[11px] text-muted-foreground tabular">{c.tasks ? `${c.done}/${c.tasks}` : "✓"}</span>
+        <Ring done={c.done} total={c.tasks} /><span className="flex-1 truncate">{p.name}</span><span className="text-[11px] text-muted-foreground tabular">{c.tasks ? `${c.done}/${c.tasks}` : "✓"}</span>
       </button>
     )
   }
   const top = (v: string, Icon: React.ElementType, label: string, count?: number) => (
     <button onClick={() => go(routes.review(run.id, v))} className={cn("flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[13px] hover:bg-muted", view === v && "bg-muted font-medium")}>
-      <Icon className="size-4 text-muted-foreground" /><span className="flex-1">{label}</span>{count ? <span className="font-mono text-[11px] text-muted-foreground">{count}</span> : null}
+      <Icon className="size-4 text-muted-foreground" /><span className="flex-1">{label}</span>{count ? <span className="tabular text-[11px] text-muted-foreground">{count}</span> : null}
     </button>
   )
 
@@ -100,7 +100,7 @@ export function ReviewPage({ view }: { view: string }) {
         {running && <button onClick={() => go(routes.run(run.id))} className="flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs"><Spinner className="size-3" />Planning {progress?.percent || 0}%</button>}
         <div className="hidden items-center gap-2 lg:flex" title="Changes done across all pages">
           <Bar value={tot.tasks ? (100 * tot.done) / tot.tasks : 0} className="w-28" />
-          <span className="text-xs whitespace-nowrap text-muted-foreground"><b className="font-mono text-foreground tabular">{tot.done}</b> / {tot.tasks} done</span>
+          <span className="text-xs whitespace-nowrap text-muted-foreground"><b className="text-foreground tabular">{tot.done}</b> / {tot.tasks} done</span>
         </div>
         <Tooltip>
           <TooltipTrigger render={<Button variant="outline" size="sm" onClick={checkLive} disabled={checking || running} />}>
@@ -211,7 +211,7 @@ function PageView({ page, setDone, setApproved, planned }: { page: ResultPage; s
       const t = sec.rows.filter(isTask), d = t.filter(isDone).length
       return (
         <div key={sec.s} className="border-t first:border-t-0">
-          <div className="flex items-center gap-2 px-4 pt-3 pb-1 text-xs text-muted-foreground"><span className="font-medium text-foreground/70">{sec.s}</span><span className="flex-1" />{t.length > 0 && <span className="font-mono tabular">{d}/{t.length}</span>}</div>
+          <div className="flex items-center gap-2 px-4 pt-3 pb-1 text-xs text-muted-foreground"><span className="font-medium text-foreground/70">{sec.s}</span><span className="flex-1" />{t.length > 0 && <span className="tabular">{d}/{t.length}</span>}</div>
           {shown.map((r) => {
             const k = keyOf(page.id, r)
             return <TaskRow key={k} rowKey={k} r={r} n={num.get(k)} done={isDone(r)} locked={locked(r)} verified={verify(r)} active={active === k} focused={focus === k} onToggle={(v) => setDone([k], v)} onHover={hover} onPick={() => pick(k)} />
@@ -230,8 +230,8 @@ function PageView({ page, setDone, setApproved, planned }: { page: ResultPage; s
           <div className="flex items-start gap-3">
             <div className="min-w-0 flex-1">
               <Tag tone="muted">Page {idx + 1} of {planned.length}{page.group ? ` · ${page.group}` : ""}</Tag>
-              <h1 className="mt-2 text-[28px] leading-tight font-semibold">{page.name}</h1>
-              <a href={result!.site.url.replace(/\/$/, "") + page.path} target="_blank" rel="noreferrer" className="mt-1 inline-flex items-center gap-1 font-mono text-xs text-muted-foreground hover:text-foreground">{page.path}<ExternalLink className="size-3" /></a>
+              <h1 className="mt-2 text-[28px] leading-tight font-medium">{page.name}</h1>
+              <a href={result!.site.url.replace(/\/$/, "") + page.path} target="_blank" rel="noreferrer" className="mt-1 inline-flex items-center gap-1 tabular text-xs text-muted-foreground hover:text-foreground">{page.path}<ExternalLink className="size-3" /></a>
             </div>
             <div className="flex gap-1">
               <Button variant="outline" size="icon-sm" disabled={!prev} onClick={() => prev && go(routes.review(run!.id, "p:" + prev.id))} aria-label="Previous page"><ChevronLeft /></Button>
@@ -242,7 +242,7 @@ function PageView({ page, setDone, setApproved, planned }: { page: ResultPage; s
           <div className="mt-3 flex flex-wrap items-center gap-1.5">
             {page.keywords ? (
               <>
-                <span className="inline-flex items-center gap-1 rounded-md bg-brand px-2 py-0.5 text-xs font-medium text-brand-foreground"><KeyRound className="size-3" />{page.keywords.primary[0]}</span>
+                <span className="inline-flex items-center gap-1 rounded-md bg-brand/10 px-2 py-0.5 text-xs font-medium text-brand-ink"><KeyRound className="size-3" />{page.keywords.primary[0]}</span>
                 {page.keywords.secondary.map((k) => <span key={k[0]} className="rounded-md border px-2 py-0.5 text-xs">{k[0]}</span>)}
                 <Tooltip><TooltipTrigger render={<span />}><Tag tone="muted">Unverified</Tag></TooltipTrigger><TooltipContent>No keyword tool is connected, so there are no search volumes.</TooltipContent></Tooltip>
               </>
@@ -250,7 +250,7 @@ function PageView({ page, setDone, setApproved, planned }: { page: ResultPage; s
           </div>
           <HoverCard>
             <HoverCardTrigger render={<button className="mt-3 inline-flex items-center gap-2 text-xs" />}>
-              {fails.length ? <span className="inline-flex items-center gap-1 font-medium text-brand"><X className="size-3.5" />{plural(fails.length, "check")} to fix</span> : <span className="inline-flex items-center gap-1 font-medium"><Check className="size-3.5" />All {checks.length} checks pass</span>}
+              {fails.length ? <span className="inline-flex items-center gap-1 font-medium text-brand-ink"><X className="size-3.5" />{plural(fails.length, "check")} to fix</span> : <span className="inline-flex items-center gap-1 font-medium"><Check className="size-3.5" />All {checks.length} checks pass</span>}
               {notes.length > 0 && <span className="inline-flex items-center gap-1 text-muted-foreground"><Info className="size-3.5" />{plural(notes.length, "note")}</span>}
             </HoverCardTrigger>
             <HoverCardContent className="w-96" align="start">
@@ -262,7 +262,7 @@ function PageView({ page, setDone, setApproved, planned }: { page: ResultPage; s
           <div className="mt-6 overflow-hidden rounded-2xl border bg-card">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 pt-3.5 pb-3 whitespace-nowrap">
               <ListTodo className="size-4" /><span className="font-medium">{combined ? "Tag fixes · do now" : "To do"}</span>
-              <span className="font-mono text-xs text-muted-foreground tabular">{p1Tasks.length ? `${p1Tasks.filter(isDone).length} of ${p1Tasks.length} done` : "nothing to change"}</span>
+              <span className="text-xs text-muted-foreground tabular">{p1Tasks.length ? `${p1Tasks.filter(isDone).length} of ${p1Tasks.length} done` : "nothing to change"}</span>
               <span className="flex-1" />
               {workable.length > 0 && <Button variant="ghost" size="xs" onClick={() => setDone(allDone ? workable.map((r) => keyOf(page.id, r)) : undone, !allDone)}>{allDone ? "Untick all" : "Tick all"}</Button>}
               <label className="flex items-center gap-2 text-xs text-muted-foreground"><Switch checked={showAll} onCheckedChange={(v) => { setShowAll(v); store.set("showAll", v) }} />Show unchanged</label>
@@ -276,7 +276,7 @@ function PageView({ page, setDone, setApproved, planned }: { page: ResultPage; s
             <div className={cn("mt-4 overflow-hidden rounded-2xl border bg-card", !approved && "border-dashed")}>
               <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 pt-3.5 pb-3 whitespace-nowrap">
                 <Lightbulb className="size-4" /><span className="font-medium">Rewrites · after client sign-off</span>
-                <span className="font-mono text-xs text-muted-foreground tabular">{p2Tasks.filter(isDone).length} of {p2Tasks.length} done</span>
+                <span className="text-xs text-muted-foreground tabular">{p2Tasks.filter(isDone).length} of {p2Tasks.length} done</span>
                 <span className="flex-1" />
                 <ApprovalBar approved={approved} onChange={setApproved} />
               </div>
@@ -298,7 +298,7 @@ function PageView({ page, setDone, setApproved, planned }: { page: ResultPage; s
               <ul className="mt-2 grid gap-2">{primary.notes.map((n, i) => <li key={i} className="text-sm text-foreground/80">{n}</li>)}</ul>
             </div>
           )}
-          <div className={cn("mt-4 flex items-center gap-3 rounded-2xl border p-4", allDone && "border-foreground bg-foreground text-background")}>
+          <div className={cn("mt-4 flex items-center gap-3 rounded-2xl border p-4", allDone && "bg-muted")}>
             {allDone
               ? <><Check className="size-5" /><span className="font-medium">{waiting ? "All tag fixes on this page are done." : `All ${plural(workable.length, "change")} on this page are done.`}</span></>
               : <span className="text-sm text-muted-foreground">{workable.length - workable.filter(isDone).length} left on this page{waiting ? ", plus the rewrites once approved" : ""}.</span>}
@@ -330,7 +330,7 @@ function TaskRow({ rowKey, r, n, done, locked, verified, active, focused, onTogg
       className={cn("group relative grid grid-cols-[20px_22px_minmax(0,1fr)] gap-x-3 px-4 py-2.5 transition-colors", active && "bg-muted/70", focused && "shadow-[inset_2px_0_0_var(--brand)]", !task && "opacity-75")}
     >
       {task ? <Checkbox checked={done} disabled={locked} onCheckedChange={(v) => onToggle(!!v)} className="mt-0.5" aria-label={locked ? "Waiting on client sign-off" : `Mark change ${n} done`} title={locked ? "Waiting on client sign-off" : undefined} /> : <span />}
-      <span className={cn("mt-px grid h-5 min-w-5 place-items-center rounded-full font-mono text-[10.5px] font-semibold", !task ? "text-muted-foreground" : active ? "bg-brand text-brand-foreground" : done ? "bg-foreground text-background" : "border border-foreground")}>{task ? n : "·"}</span>
+      <span className={cn("mt-px grid h-5 min-w-5 place-items-center rounded-full tabular text-[10.5px] font-medium", !task ? "text-muted-foreground" : active ? "bg-brand text-brand-foreground" : done ? "bg-done text-background" : "border border-input")}>{task ? n : "·"}</span>
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-1.5">
           <ActBadge act={r.act === "tag" && isH(from) ? "retag" : r.act!} />{change}
@@ -380,34 +380,34 @@ function Overview() {
   return (
     <div>
       <Tag tone="muted">{combined ? "Tags + rewrites" : R.site.modes[0] === "live" ? "Tags only" : "Rewrites"}</Tag>
-      <h1 className="mt-2 text-3xl font-semibold">{R.site.name}</h1>
+      <h1 className="mt-2 text-3xl font-medium">{R.site.name}</h1>
       {s && <p className="mt-2 text-sm text-muted-foreground">Planned {ago(j?.ended || r.updated)} with {status?.catalog[s.engine].name} · {modelName(status, s.engine, s.model)} · {status?.effort[s.effort]?.name || s.effort} effort · keywords are unverified (no keyword tool connected)</p>}
       {R.warnings.length > 0 && <div className="mt-4 rounded-xl border border-brand/40 p-3 text-sm">{R.warnings.join(" ")}</div>}
       <div className="mt-6 grid grid-cols-2 gap-px overflow-hidden rounded-2xl border bg-border sm:grid-cols-4">
-        {stats.map(([v, l, b]) => <div key={l} className="bg-card p-4"><div className={cn("font-mono text-3xl font-semibold tracking-tight tabular", b && "text-brand")}>{v}</div><div className="text-xs text-muted-foreground">{l}</div></div>)}
+        {stats.map(([v, l, b]) => <div key={l} className="bg-card p-4"><div className={cn("text-3xl font-medium tracking-tight tabular", b && "text-brand")}>{v}</div><div className="text-xs text-muted-foreground">{l}</div></div>)}
       </div>
-      <h2 className="mt-10 mb-3 text-lg font-semibold">Pages</h2>
+      <h2 className="mt-10 mb-3 text-lg font-medium">Pages</h2>
       <div className="overflow-hidden rounded-2xl border bg-card">
         {planned.map((p) => {
           const c = pageCounts(p, cstate.done), f = pageChecks(p, finalMode(p)).filter((x) => !x.ok).length
           return (
             <button key={p.id} onClick={() => go(routes.review(r.id, "p:" + p.id))} className="grid w-full grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(110px,24%)] items-center gap-5 border-b px-4 py-3 text-left last:border-b-0 hover:bg-muted/50">
-              <span className="min-w-0"><span className="block truncate font-medium">{p.name}{f ? <span className="ml-2 align-middle"><Tag tone="brand">{f} to fix</Tag></span> : null}</span><span className="block truncate font-mono text-xs text-muted-foreground">{p.path}</span></span>
-              <span className="min-w-0 truncate text-sm">{p.keywords ? <><span className="text-brand">{p.keywords.primary[0]}</span>{p.keywords.secondary.length ? <span className="text-muted-foreground"> +{p.keywords.secondary.length}</span> : null}</> : <span className="text-muted-foreground">Brand page</span>}</span>
-              <span className="flex items-center gap-2"><Bar value={c.tasks ? (100 * c.done) / c.tasks : 100} /><span className="w-9 text-right font-mono text-xs text-muted-foreground tabular">{c.tasks ? `${c.done}/${c.tasks}` : "–"}</span></span>
+              <span className="min-w-0"><span className="block truncate font-medium">{p.name}{f ? <span className="ml-2 align-middle"><Tag tone="brand">{f} to fix</Tag></span> : null}</span><span className="block truncate tabular text-xs text-muted-foreground">{p.path}</span></span>
+              <span className="min-w-0 truncate text-sm">{p.keywords ? <><span className="text-brand-ink">{p.keywords.primary[0]}</span>{p.keywords.secondary.length ? <span className="text-muted-foreground"> +{p.keywords.secondary.length}</span> : null}</> : <span className="text-muted-foreground">Brand page</span>}</span>
+              <span className="flex items-center gap-2"><Bar value={c.tasks ? (100 * c.done) / c.tasks : 100} /><span className="w-9 text-right text-xs text-muted-foreground tabular">{c.tasks ? `${c.done}/${c.tasks}` : "–"}</span></span>
             </button>
           )
         })}
       </div>
       {notes.length > 0 && (
         <>
-          <h2 className="mt-10 mb-3 text-lg font-semibold">Across the site</h2>
+          <h2 className="mt-10 mb-3 text-lg font-medium">Across the site</h2>
           <ul className="grid gap-3 rounded-2xl border bg-card p-4 text-sm">{notes.map((n, i) => <li key={i} className="grid grid-cols-[4.5rem_1fr] items-start gap-3"><Tag className="mt-px justify-self-start" tone={n.t === "Fix" ? "brand" : n.t === "Re-tag" ? "solid" : "muted"}>{n.t}</Tag><span>{n.x.replace(/~(\w[\w.-]*)~/g, "$1")}</span></li>)}</ul>
         </>
       )}
       {R.gaps.length > 0 && (
         <>
-          <h2 className="mt-10 mb-3 text-lg font-semibold">Keyword gaps</h2>
+          <h2 className="mt-10 mb-3 text-lg font-medium">Keyword gaps</h2>
           <ul className="grid gap-2 rounded-2xl border bg-card p-4 text-sm">{R.gaps.map((g) => <li key={g.cluster}><b>{g.cluster}</b> <span className="text-muted-foreground">{g.note}</span></li>)}</ul>
         </>
       )}
@@ -434,14 +434,14 @@ function SignOff({ setApproved }: { setApproved: (v: boolean) => void }) {
     <div>
       <Tag tone="muted">{hasRewrites ? "Needs approval" : "Not part of the tag fixes"}</Tag>
       <div className="mt-2 flex flex-wrap items-center gap-3">
-        <h1 className="text-3xl font-semibold">{hasRewrites ? "Client sign-off" : "Suggestions for later"}</h1>
+        <h1 className="text-3xl font-medium">{hasRewrites ? "Client sign-off" : "Suggestions for later"}</h1>
         <span className="flex-1" />
         {combined && <ApprovalBar approved={!!cstate.approved} onChange={setApproved} />}
       </div>
       <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
         {combined ? "The rewrites wait for the client. Send them this list, then tick “Client approved” to unlock the rewrites on each page." : hasRewrites ? "Every H1 change needs the client’s approval. Send them this list." : "Wording ideas the developer shouldn’t apply now. H1 changes need the client’s OK first."}
       </p>
-      <div className="mt-8 flex items-center gap-3"><h2 className="text-lg font-semibold">H1 changes</h2><span className="flex-1" />{h1.length > 0 && <Button onClick={() => { navigator.clipboard.writeText(msg); toast.success("Message copied", { description: "Paste it into an email or Slack." }) }}><Copy /> Copy message for the client</Button>}</div>
+      <div className="mt-8 flex items-center gap-3"><h2 className="text-lg font-medium">H1 changes</h2><span className="flex-1" />{h1.length > 0 && <Button onClick={() => { navigator.clipboard.writeText(msg); toast.success("Message copied", { description: "Paste it into an email or Slack." }) }}><Copy /> Copy message for the client</Button>}</div>
       {h1.length ? (
         <div className="mt-3 overflow-hidden rounded-2xl border bg-card">
           {h1.map((p) => { const x = p.modes[mode]!.h1; return (
@@ -453,7 +453,7 @@ function SignOff({ setApproved }: { setApproved: (v: boolean) => void }) {
       ) : <p className="mt-3 rounded-2xl border bg-card p-4 text-sm text-muted-foreground">No H1 changes suggested.</p>}
       {withNotes.length > 0 && (
         <>
-          <h2 className="mt-10 mb-3 text-lg font-semibold">{hasRewrites ? "Ideas" : "Other suggestions"}</h2>
+          <h2 className="mt-10 mb-3 text-lg font-medium">{hasRewrites ? "Ideas" : "Other suggestions"}</h2>
           <div className="grid gap-3">
             {withNotes.map((p) => (
               <div key={p.id} className="rounded-2xl border bg-card p-4">

@@ -73,9 +73,9 @@ export function useUsageConfirm() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="grid grid-cols-3 gap-2 text-sm">
-            <div className="rounded-lg bg-muted p-2.5"><div className="text-xs text-muted-foreground">Pages</div><div className="font-semibold">{pending.pages}</div></div>
-            <div className="rounded-lg bg-muted p-2.5"><div className="text-xs text-muted-foreground">Time</div><div className="font-semibold">{pending.estimate ? fmtRange(pending.estimate.total) : "–"}</div></div>
-            <div className="rounded-lg bg-muted p-2.5"><div className="text-xs text-muted-foreground">Usage</div><div className="font-semibold">{pending.estimate?.usage || "–"}</div></div>
+            <div className="rounded-lg bg-muted p-2.5"><div className="text-xs text-muted-foreground">Pages</div><div className="font-medium">{pending.pages}</div></div>
+            <div className="rounded-lg bg-muted p-2.5"><div className="text-xs text-muted-foreground">Time</div><div className="font-medium">{pending.estimate ? fmtRange(pending.estimate.total) : "–"}</div></div>
+            <div className="rounded-lg bg-muted p-2.5"><div className="text-xs text-muted-foreground">Usage</div><div className="font-medium">{pending.estimate?.usage || "–"}</div></div>
           </div>
           {pending.engine === "claude" && !api && w && (
             <p className="text-xs text-muted-foreground">Your 5-hour window is {pct(w.utilization)}% used{w.resetsAt ? ` and resets at ${clock(w.resetsAt * 1000)}` : ""}.{pending.estimate?.limitPct != null ? ` Similar runs used about ${Math.max(1, Math.round(pending.estimate.limitPct * 100))}%.` : ""}</p>

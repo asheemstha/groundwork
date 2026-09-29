@@ -89,7 +89,7 @@ export function EnginePicker({ value, onChange }: { value: EngineId; onChange: (
   const ready = (k: EngineId) => E[k].installed && E[k].loggedIn
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger render={<ChipButton className={cn(E[value].billing === "api" && "text-brand")} />}>
+      <DropdownMenuTrigger render={<ChipButton className={cn(E[value].billing === "api" && "text-brand-ink")} />}>
         <Dot tone={ready(value) ? "ink" : "muted"} />{status.catalog[value].name}
         <span className="text-muted-foreground">{!ready(value) ? "· not set up" : E[value].billing === "api" ? "· API key" : E[value].plan ? `· ${cap(E[value].plan)} plan` : "· your plan"}</span>
         <ChevronDown className="opacity-60" />
@@ -136,7 +136,7 @@ export function ModelPicker({ engine, model, effort, custom, onChange }: { engin
         {cat.models.map((x) => (
           <button key={x.id} onClick={() => onChange({ model: x.id })} className={cn("flex w-full items-start gap-3 rounded-md px-2 py-2 text-left hover:bg-accent", model === x.id && "bg-accent/70")}>
             <span className="flex-1">
-              <span className="flex items-center gap-2 font-medium">{x.name}{x.rec && <span className="tag-mono border-brand text-brand">Recommended</span>}</span>
+              <span className="flex items-center gap-2 font-medium">{x.name}{x.rec && <span className="tag-label border-brand/40 text-brand-ink">Recommended</span>}</span>
               <span className="block text-xs text-muted-foreground">{x.desc}</span>
             </span>
             <Meter value={x.usage} className="mt-1" />
