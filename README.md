@@ -6,11 +6,15 @@ Plan site improvements with your own Claude Code or Codex account. The first too
 
 You need **Google Chrome** and **Claude Code or Codex** signed in to your own plan. The app walks you through installing and signing in to either one (sidebar → Engines & settings).
 
-1. Download **Groundwork-x.y.z-mac.dmg** from the [latest release](https://github.com/asheemstha/groundwork/releases/latest).
-2. Open it and drag **Groundwork** into **Applications**.
-3. Open Groundwork. The first time, macOS says it can't check the app for malicious software, because it isn't signed with an Apple developer certificate. Click **Done**, then go to **System Settings → Privacy & Security**, scroll down and click **Open Anyway** next to Groundwork. You only do this once.
+Open **Terminal** (Applications → Utilities), paste this and press Return:
 
-   Or, in Terminal: `xattr -dr com.apple.quarantine /Applications/Groundwork.app`
+```bash
+curl -fsSL https://raw.githubusercontent.com/asheemstha/groundwork/main/install.sh | bash
+```
+
+It downloads the latest version into Applications and opens it. There's no security prompt, because macOS only asks about apps downloaded through a browser. Running it again reinstalls the latest version. [install.sh](install.sh) is short if you want to read it first.
+
+**Or download the .dmg** from the [latest release](https://github.com/asheemstha/groundwork/releases/latest) and drag **Groundwork** into **Applications**. The app isn't signed with an Apple developer certificate, so the first time you open it macOS says it can't check it for malicious software. Click **Done**, go to **System Settings → Privacy & Security**, and click **Open Anyway** next to Groundwork. You only do this once.
 
 Your sites, plans and to-do progress stay on your Mac in `~/Library/Application Support/Groundwork/data` (Help → Show app data in Finder). Nothing is uploaded.
 
