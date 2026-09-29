@@ -65,5 +65,5 @@ module.exports = function updater({ app, shell, repo, log }) {
     return { ok: true, restart: 'auto' };
   }
 
-  return { check, install };
+  return { enabled: app.isPackaged, check, install };
 };

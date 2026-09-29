@@ -365,7 +365,7 @@ async function checkLive(run) {
 const { execFile } = require('child_process');
 const VERSION = readJson(path.join(ROOT, 'package.json'), {}).version || '0';
 const git = (args, ms = 20000) => new Promise(r => execFile('git', args, { cwd: ROOT, timeout: ms }, (e, out, err) => r({ ok: !e, out: String(out || '').trim(), err: String(err || '').trim() })));
-let update = { enabled: false, version: VERSION, app: !!process.env.GW_APP, commit: null, behind: 0, latest: null, checkedAt: 0, error: null, launcher: !!process.env.GW_LAUNCHER };
+let update = { enabled: !!(DESKTOP() && DESKTOP().enabled), version: VERSION, app: !!process.env.GW_APP, commit: null, behind: 0, latest: null, checkedAt: 0, error: null, launcher: !!process.env.GW_LAUNCHER };
 async function checkUpdate() {
   if (DESKTOP()) return (update = await DESKTOP().check());
   if (!fs.existsSync(path.join(ROOT, '.git'))) return (update = { ...update, enabled: false });
@@ -379,6 +379,9 @@ async function checkUpdate() {
   update = { ...update, enabled: true, commit: head.out, behind, latest, checkedAt: Date.now(), error: f.ok ? null : 'Couldn’t reach GitHub.' };
   return update;
 }
+// One check at a time; the first request after start waits for it so the app never shows a stale state.
+let checking = null;
+const checkOnce = () => checking || (checking = checkUpdate().catch(() => update).finally(() => { checking = null; }));
 const busyRuns = () => Object.values(active).filter(r => r.status === 'running' || r.status === 'scanning');
 
 // ---------- HTTP ----------
@@ -390,7 +393,7 @@ const server = http.createServer(async (req, res) => {
   const u = new URL(req.url, 'http://x'), p = u.pathname, M = req.method;
   try {
     if (p === '/api/status') return json(res, await status(u.searchParams.has('fresh')));
-    if (p === '/api/version' && M === 'GET') { if (u.searchParams.has('check')) await checkUpdate(); return json(res, update); }
+    if (p === '/api/version' && M === 'GET') { if (u.searchParams.has('check') || !update.checkedAt) await checkOnce(); return json(res, update); }
     if (p === '/api/update' && M === 'POST') {
       if (busyRuns().length) return json(res, { error: 'Wait until the running scan or plan finishes.' }, 409);
       if (DESKTOP()) { try { return json(res, await DESKTOP().install()); } catch (e) { return json(res, { error: e.message }, 400); } }
@@ -536,7 +539,7 @@ import('./shared/checks.mjs').then(mod => {
     markReady(PORT);
     console.log(`${APP_NAME} ${VERSION} is running: http://localhost:${PORT}`);
     status(true).catch(() => {});
-    setTimeout(() => checkUpdate().catch(() => {}), 4000);
-    setInterval(() => checkUpdate().catch(() => {}), 6 * 3600e3);
+    setTimeout(checkOnce, 4000);
+    setInterval(checkOnce, 6 * 3600e3);
   });
 });
