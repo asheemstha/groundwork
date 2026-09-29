@@ -5,6 +5,9 @@
 @import "@fontsource-variable/geist-mono";
 
 @custom-variant dark (&:is(.dark *));
+/* desktop: inside the Mac app, where the window buttons sit in the top-left corner; web: in a browser tab */
+@custom-variant desktop (&:where(html.desktop *));
+@custom-variant web (&:where(html:not(.desktop) *));
 
 /*
   Palette:
@@ -180,22 +183,10 @@
   }
 }
 
-/* Desktop app (Electron): native title bar area */
-.app-titlebar {
-  display: none;
-}
-html.desktop .app-titlebar {
-  display: block;
-  height: 30px;
-  flex-shrink: 0;
-  -webkit-app-region: drag;
-}
+/* Desktop app (Electron): the top edge drags the window; buttons and links stay clickable. */
 html.desktop .app-drag {
   -webkit-app-region: drag;
 }
 html.desktop .app-drag :is(button, a, input, select, [role="button"], [role="tab"]) {
   -webkit-app-region: no-drag;
-}
-html.desktop nav[aria-label="App"] {
-  width: 84px;
 }

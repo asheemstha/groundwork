@@ -2,11 +2,13 @@
 const { app, BrowserWindow, Menu, dialog, nativeTheme, shell } = require('electron');
 const path = require('path'), fs = require('fs'), net = require('net');
 
+const ROOT = path.join(__dirname, '..');
+// Running from source (npm run app) gets its own lock and uses the source folder's data, so it can run next to the installed app.
+if (!app.isPackaged) app.setPath('userData', path.join(app.getPath('appData'), 'Groundwork Dev'));
 if (!app.requestSingleInstanceLock()) { app.quit(); process.exit(0); }
 app.setName('Groundwork');
 
-const ROOT = path.join(__dirname, '..');
-const DATA = path.join(app.getPath('userData'), 'data');
+const DATA = app.isPackaged ? path.join(app.getPath('userData'), 'data') : path.join(ROOT, 'data');
 fs.mkdirSync(DATA, { recursive: true });
 
 // Main-process log, for troubleshooting: ~/Library/Application Support/Groundwork/main.log
@@ -26,7 +28,8 @@ let win = null, port = 0, server = null;
 function createWindow() {
   win = new BrowserWindow({
     width: 1440, height: 900, minWidth: 980, minHeight: 640, show: false,
-    titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 18, y: 18 },
+    // The window buttons sit on the same line as the sidebar toggle and the page header (32px from the top).
+    titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 20, y: 25 },
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#080807' : '#eae9e5',
     webPreferences: { contextIsolation: true, sandbox: true },
   });

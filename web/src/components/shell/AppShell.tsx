@@ -44,9 +44,10 @@ function MiniRail() {
   const r = useRoute()
   const { setSidebar } = useApp()
   return (
-    <nav className="app-drag flex w-14 shrink-0 flex-col items-center gap-1 py-3" aria-label="App">
-      <div className="app-titlebar w-full" />
-      <button onClick={() => go(routes.home)} className="mb-3" aria-label="Groundwork home"><Logo className="size-7" /></button>
+    <nav className="app-drag flex w-14 shrink-0 flex-col items-center gap-1 py-3 desktop:w-[100px]" aria-label="App">
+      {/* In the Mac app the window buttons take the top row, so the logo gives way to them. */}
+      <div className="mb-2 h-10 w-full shrink-0 web:hidden" />
+      <button onClick={() => go(routes.home)} className="mb-3 desktop:hidden" aria-label="Groundwork home"><Logo className="size-7" /></button>
       <RailButton label="Show sidebar" onClick={() => setSidebar(true)}><PanelLeftOpen className="size-[18px]" /></RailButton>
       <RailButton label="New plan" active={r.name === "home"} onClick={() => go(routes.home)}><SquarePen className="size-[18px]" /></RailButton>
       <div className="flex-1" />
@@ -149,10 +150,10 @@ function Sidebar() {
   }
   return (
     <aside className="hidden w-64 shrink-0 flex-col py-3 pr-2 pl-3 md:flex" aria-label="Sites">
-      <div className="app-titlebar -mx-3 -mt-3 mb-1" />
-      <div className="app-drag flex items-center gap-2 pb-3 pl-1">
-        <Logo />
-        <span className="flex-1 text-[15px] font-semibold tracking-tight">Groundwork</span>
+      {/* One header row, centred on the same line as the page header. In the Mac app the window buttons sit on its left instead of the logo. */}
+      <div className="app-drag mb-2 flex h-10 shrink-0 items-center gap-2 pl-1">
+        <Logo className="desktop:hidden" />
+        <span className="flex-1 text-[15px] font-semibold tracking-tight desktop:invisible">Groundwork</span>
         <Tooltip>
           <TooltipTrigger render={<Button variant="ghost" size="icon-sm" onClick={() => setSidebar(false)} aria-label="Hide sidebar" />}><PanelLeftClose /></TooltipTrigger>
           <TooltipContent>Hide sidebar</TooltipContent>

@@ -28,7 +28,7 @@ Your sites, plans and to-do progress stay on your Mac in `~/Library/Application 
 
 ## Run from source (developers)
 
-Needs Node.js (LTS). `git clone https://github.com/asheemstha/groundwork.git`, then double-click **Start Groundwork.command** (Windows: **Start Groundwork.bat**). It opens http://localhost:4477, pulls the latest code each time it starts, and keeps its data in `groundwork/data`. `npm run app` runs the desktop app from source and `npm run dist` builds it into `release/`.
+Needs Node.js (LTS). `git clone https://github.com/asheemstha/groundwork.git`, then double-click **Start Groundwork.command** (Windows: **Start Groundwork.bat**). It opens http://localhost:4477, pulls the latest code each time it starts, and keeps its data in `groundwork/data`. `npm run app` runs the desktop app from source next to the installed one, using the same `groundwork/data` folder. `npm run dist` builds it into `release/`.
 
 ## How it works
 
