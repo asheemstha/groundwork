@@ -30,6 +30,17 @@ Your sites, plans and to-do progress stay on your Mac in `~/Library/Application 
 
 Needs Node.js (LTS). `git clone https://github.com/asheemstha/groundwork.git`, then double-click **Start Groundwork.command** (Windows: **Start Groundwork.bat**). It opens http://localhost:4477, pulls the latest code each time it starts, and keeps its data in `groundwork/data`. `npm run app` runs the desktop app from source next to the installed one, using the same `groundwork/data` folder. `npm run dist` builds it into `release/`.
 
+## Projects and templates
+
+- **New project** copies a checklist template (the default is "Website project": Setup, Discover, Design, Development, Launch, After launch) into a project with its own kickoff and launch dates. Optional parts, like replacing an existing site or online payments, switch groups of items on or off.
+- Each item is ours or the client’s, has a due date worked out from kickoff or launch, and can be ticked, marked not needed, or opened for notes and links.
+- Each phase ends with a **sign-off**: who approved, when, and the proof (an email or screenshot you drop in, or a link). Open items can move to the next phase.
+- The **Client** tab lists everything the client owes you and writes a request message from a message template. Groundwork never sends anything.
+- Items linked to a Groundwork tool tick themselves: the site scan ticks “Crawl the current site”, and the heading plan ticks “Heading structure” when its tag fixes are done.
+- **Templates** holds project checklists, messages and emails. Changing a template only affects new projects.
+
+Projects live in `data/projects/<id>/`, and templates in `data/templates.json`.
+
 ## How it works
 
 1. **Scan** (runs on your Mac, no AI). Opens each page in headless Chrome and waits for preloaders and page-transition curtains to finish. It closes popups, scrolls to load lazy images and reveal scroll animations, then records every heading, heading-styled text and a full-page screenshot.

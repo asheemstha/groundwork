@@ -30,6 +30,9 @@ const sitesFile = path.join(DATA, 'sites.json');
 const hostOf = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return String(u || ''); } };
 const siteName = host => (readJson(sitesFile, {})[host] || {}).name || null;
 const setSiteName = (host, name) => { const all = readJson(sitesFile, {}); name = String(name || '').trim().slice(0, 60); if (name) all[host] = { ...(all[host] || {}), name }; else if (all[host]) delete all[host].name; writeJson(sitesFile, all); };
+// Projects and templates (lib/projects.js). A project links to a site's scans and plans by its host.
+const runsFor = host => fs.readdirSync(RUNS).map(id => loadRun(id)).filter(r => r && hostOf(r.origin || r.url) === host).sort((a, b) => b.created - a.created);
+const P = require('./lib/projects')({ DATA, readJson, writeJson, runsFor, hostOf: u => hostOf(/^https?:\/\//i.test(u) ? u : 'https://' + u) });
 const ICON_EXT = { 'image/svg+xml': 'svg', 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif' };
 function saveFavicon(run, fav) {
   if (!fav) return;
@@ -427,7 +430,64 @@ const server = http.createServer(async (req, res) => {
     }
     if (p === '/api/scan' && M === 'POST') { const b = await body(req); try { const run = await startScan(b.url, b.name); return json(res, { id: run.id }); } catch (e) { return json(res, { error: e.message }, 400); } }
 
-    let m = p.match(/^\/api\/runs\/([a-z0-9]+)(\/.*)?$/);
+    // ---- templates ----
+    if (p === '/api/templates' && M === 'GET') return json(res, P.templateList());
+    if (p === '/api/templates' && M === 'POST') { const b = await body(req); return json(res, P.createTemplate(b)); }
+    let m = p.match(/^\/api\/templates\/([\w-]+)$/);
+    if (m) {
+      if (M === 'GET') { const t = P.getTemplate(m[1]); return t ? json(res, t) : json(res, { error: 'That template doesn’t exist any more.' }, 404); }
+      if (M === 'PUT') { const b = await body(req); try { return json(res, P.saveTemplate(m[1], b)); } catch (e) { return json(res, { error: e.message }, 400); } }
+      if (M === 'DELETE') { P.removeTemplate(m[1]); return json(res, { ok: true }); }
+    }
+    // ---- projects ----
+    if (p === '/api/home' && M === 'GET') return json(res, P.home());
+    if (p === '/api/projects' && M === 'GET') return json(res, P.list());
+    if (p === '/api/projects' && M === 'POST') {
+      const b = await body(req);
+      try {
+        let url = String(b.url || '').trim(), run = null;
+        if (url) {
+          if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+          // Reuse the site's scans if Groundwork already knows it; otherwise start one.
+          if (!runsFor(hostOf(url)).length) run = await startScan(url, b.name);
+          else if (b.name) setSiteName(hostOf(url), b.name);
+        }
+        const proj = P.create({ ...b, url: run ? run.url : url || null });
+        return json(res, { id: proj.id, runId: run ? run.id : null });
+      } catch (e) { return json(res, { error: e.message }, 400); }
+    }
+    m = p.match(/^\/api\/projects\/([a-z0-9]+)(\/.*)?$/);
+    if (m) {
+      const id = m[1], sub = m[2] || '';
+      if (!P.readRaw(id)) return json(res, { error: 'That project doesn’t exist any more.' }, 404);
+      try {
+        if (!sub && M === 'GET') return json(res, P.get(id));
+        if (!sub && M === 'PATCH') { const b = await body(req); P.update(id, b); if (b.name && P.readRaw(id).host) setSiteName(P.readRaw(id).host, b.name); return json(res, P.get(id)); }
+        if (!sub && M === 'DELETE') { P.remove(id); return json(res, { ok: true }); }
+        let mm = sub.match(/^\/items\/([\w-]+)$/);
+        if (mm && M === 'POST') { P.setItem(id, mm[1], await body(req)); return json(res, P.get(id)); }
+        if (sub === '/ask' && M === 'POST') { const b = await body(req); P.askItems(id, b.items || []); return json(res, P.get(id)); }
+        mm = sub.match(/^\/signoff\/([\w-]+)$/);
+        if (mm && M === 'POST') { P.signoff(id, mm[1], await body(req)); return json(res, P.get(id)); }
+        if (mm && M === 'DELETE') { P.unsign(id, mm[1]); return json(res, P.get(id)); }
+        if (sub === '/scan' && M === 'POST') {
+          const b = await body(req), raw = P.readRaw(id);
+          const run = await startScan(b.url || raw.url, raw.name);
+          P.update(id, { url: run.url });
+          return json(res, { runId: run.id });
+        }
+        mm = sub.match(/^\/files\/([^/]+)$/);
+        if (mm && M === 'GET') {
+          const f = P.filePath(id, decodeURIComponent(mm[1]));
+          if (!f || !fs.existsSync(f)) return json(res, { error: 'Not found' }, 404);
+          res.writeHead(200, { 'content-type': 'application/octet-stream', 'content-disposition': `attachment; filename="${path.basename(f).replace(/^[a-z0-9]+-/, '')}"` });
+          return fs.createReadStream(f).pipe(res);
+        }
+      } catch (e) { return json(res, { error: e.message }, 400); }
+      return json(res, { error: 'Not found' }, 404);
+    }
+
+    m = p.match(/^\/api\/runs\/([a-z0-9]+)(\/.*)?$/);
     if (m) {
       const run = loadRun(m[1]); if (!run) return json(res, { error: 'Not found' }, 404);
       const sub = m[2] || '';

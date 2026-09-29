@@ -8,7 +8,7 @@ if (!app.isPackaged) app.setPath('userData', path.join(app.getPath('appData'), '
 if (!app.requestSingleInstanceLock()) { app.quit(); process.exit(0); }
 app.setName('Groundwork');
 
-const DATA = app.isPackaged ? path.join(app.getPath('userData'), 'data') : path.join(ROOT, 'data');
+const DATA = app.isPackaged ? path.join(app.getPath('userData'), 'data') : process.env.GW_DEV_DATA || path.join(ROOT, 'data');
 fs.mkdirSync(DATA, { recursive: true });
 
 // Main-process log, for troubleshooting: ~/Library/Application Support/Groundwork/main.log

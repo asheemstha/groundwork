@@ -150,7 +150,7 @@ function Preferences() {
   return (
     <div className="grid gap-px overflow-hidden rounded-2xl border bg-border">
       <label className="grid gap-3 bg-card p-4 text-sm sm:grid-cols-[1fr_260px] sm:items-center">
-        <span><span className="block font-medium">Your name</span><span className="text-muted-foreground">Shown on exported guides as the person who applies the changes.</span></span>
+        <span><span className="block font-medium">Your name</span><span className="text-muted-foreground">Signs your client messages, and shows on exported guides as the person who applies the changes.</span></span>
         <Input value={name} placeholder="e.g. Alex" onChange={(e) => setName(e.target.value)} onBlur={save} onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()} />
       </label>
       <div className="grid gap-3 bg-card p-4 text-sm sm:grid-cols-[1fr_260px] sm:items-center">

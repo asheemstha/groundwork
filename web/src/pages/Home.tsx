@@ -34,7 +34,7 @@ export function Home() {
 
   return (
     <div className="flex h-full flex-col">
-      <TopBar><span className="text-sm font-medium">New plan</span><span className="flex-1" /><MonoTag tone="muted">Heading structure</MonoTag></TopBar>
+      <TopBar><span className="text-sm font-medium">New scan</span><span className="flex-1" /><MonoTag tone="muted">Heading structure</MonoTag></TopBar>
       <div className="grid flex-1 place-items-center overflow-auto px-6">
         <div className="flex max-w-2xl flex-col items-center text-center">
           <Logo className="size-10 rounded-xl [&_svg]:size-5" />

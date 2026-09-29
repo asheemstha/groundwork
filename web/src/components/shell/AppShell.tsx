@@ -1,6 +1,6 @@
 import * as React from "react"
 import { cn } from "cn"
-import { ArrowLeft, ArrowRight, Camera, Check, ChevronDown, Download, Loader2, MoreHorizontal, PanelLeft, Pencil, RefreshCw, Settings, SquarePen, Trash2 } from "lucide-react"
+import { ArrowLeft, ArrowRight, Camera, Check, ChevronDown, Download, FolderPlus, House, LayoutTemplate, Loader2, MoreHorizontal, PanelLeft, Pencil, RefreshCw, Settings, SquarePen, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -8,7 +8,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem,
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { useApp } from "@/hooks/useApp"
 import { go, routes, useRoute } from "@/lib/router"
-import { api, type RunSummary } from "@/lib/api"
+import { api, type ProjectSummary, type RunSummary } from "@/lib/api"
+import { NewProjectDialog, newProject } from "@/components/project/NewProjectDialog"
 import { ago, pct, plural } from "@/lib/format"
 import { OUTPUTS } from "@/components/composer/pickers"
 import { Bar, Dot, Logo, Ring, SiteIcon, Spinner, renameSite, runLabel } from "@/components/common/bits"
@@ -47,7 +48,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       if (k === "b") { e.preventDefault(); setSidebar(!sidebar) }
       else if (DESKTOP() && k === "[") { e.preventDefault(); history.back() }
       else if (DESKTOP() && k === "]") { e.preventDefault(); history.forward() }
-      else if (DESKTOP() && k === "n") { e.preventDefault(); go(routes.home) }
+      else if (DESKTOP() && k === "n") { e.preventDefault(); newProject() }
       else if (DESKTOP() && k === ",") { e.preventDefault(); go(routes.settings()) }
     }
     window.addEventListener("keydown", onKey)
@@ -56,6 +57,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="relative flex h-full bg-canvas" data-sidebar={sidebar ? "open" : "closed"}>
       <RenameDialog />
+      <NewProjectDialog />
       {sidebar ? (
         <Sidebar />
       ) : (
@@ -169,6 +171,7 @@ function SiteRow({ host, list, cur, onRemove }: { host: string; list: RunSummary
             ))}
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => newProject({ url: latest.url, name: label !== host ? label : "" })}><FolderPlus /> Make it a project…</DropdownMenuItem>
           <DropdownMenuItem onClick={() => renameSite(host)}><Pencil /> Rename…</DropdownMenuItem>
           <DropdownMenuItem variant="destructive" onClick={onRemove}><Trash2 /> Remove site…</DropdownMenuItem>
         </DropdownMenuContent>
@@ -206,12 +209,36 @@ export function VersionMenu({ runId }: { runId: string }) {
   )
 }
 
+function NavItem({ icon: Icon, label, active, onClick }: { icon: React.ComponentType<{ className?: string }>; label: string; active?: boolean; onClick: () => void }) {
+  return (
+    <button onClick={onClick} className={cn("flex h-8 items-center gap-2.5 rounded-lg px-2 text-[13.5px] hover:bg-sidebar-accent", active && "bg-sidebar-accent")}>
+      <Icon className="size-4 text-foreground/70" />{label}
+    </button>
+  )
+}
+
+/** A project in the sidebar: its current phase number and how far that phase is. */
+function ProjectRow({ p, active }: { p: ProjectSummary; active: boolean }) {
+  const c = p.current
+  return (
+    <button onClick={() => go(routes.project(p.id))} className={cn("grid h-8 w-full grid-cols-[20px_minmax(0,1fr)_18px_14px] items-center gap-2 rounded-lg px-2 text-left text-[13.5px] hover:bg-sidebar-accent", active && "bg-sidebar-accent")}>
+      <SiteIcon runId={p.iconRun || undefined} name={p.name} className="size-5 rounded-[5px] text-[10px]" />
+      <span className="truncate">{p.name}</span>
+      <span className="text-right text-[11px] text-muted-foreground tabular">{c ? String(c.index).padStart(2, "0") : ""}</span>
+      <span className="grid place-items-center">{c ? <Ring done={c.ready ? 1 : c.done} total={c.ready ? 1 : c.total} size={13} /> : <Ring done={1} total={1} size={13} />}</span>
+    </button>
+  )
+}
+
 /** The sidebar: pinned beside the page, or floating over it while previewed from the collapsed state. */
 function Sidebar({ floating, open, onHover, panelRef }: { floating?: boolean; open?: boolean; onHover?: (on: boolean) => void; panelRef?: React.Ref<HTMLElement> }) {
-  const { runs, status, refreshRuns, siteLabel } = useApp()
+  const { runs, projects, status, refreshRuns, siteLabel } = useApp()
   const route = useRoute()
   const cur = route.name === "run" || route.name === "review" ? route.id : null
-  const groups = groupBySite(runs)
+  const curHost = cur ? runs.find((r) => r.id === cur)?.host : null
+  const projectHosts = new Set(projects.map((p) => p.host).filter(Boolean))
+  // Sites that aren't part of a project yet keep their own list.
+  const groups = groupBySite(runs).filter(([host]) => !projectHosts.has(host))
   const [removing, setRemoving] = React.useState<{ host: string; list: RunSummary[] } | null>(null)
   const remove = async (x: { host: string; list: RunSummary[] }) => {
     for (const r of x.list) await api.remove(r.id)
@@ -234,13 +261,21 @@ function Sidebar({ floating, open, onHover, panelRef }: { floating?: boolean; op
     >
       {/* The top row belongs to the window buttons and the toggle cluster, which float above it. */}
       <div className={cn("app-drag shrink-0", floating ? "h-12" : "h-14")} />
-      <button onClick={() => go(routes.home)} className={cn("flex items-center gap-2 rounded-lg px-2 py-1.5 text-[13.5px] hover:bg-sidebar-accent", route.name === "home" && "bg-sidebar-accent")}>
-        <SquarePen className="size-4" /> New plan
-      </button>
+      <nav aria-label="Main" className="grid gap-px">
+        <NavItem icon={SquarePen} label="New project" onClick={() => newProject()} />
+        <NavItem icon={House} label="Home" active={route.name === "home"} onClick={() => go(routes.home)} />
+        <NavItem icon={LayoutTemplate} label="Templates" active={route.name === "templates" || route.name === "template"} onClick={() => go(routes.templates)} />
+      </nav>
       <div className="scrollbar-thin mt-4 min-h-0 flex-1 overflow-auto">
-        <div className="px-2 pb-1 text-xs text-muted-foreground">Sites</div>
-        {!groups.length && <p className="px-2 py-1 text-[13px] text-muted-foreground">Sites you scan show up here.</p>}
-        {groups.map(([host, list]) => <SiteRow key={host} host={host} list={list} cur={cur} onRemove={() => setRemoving({ host, list })} />)}
+        <div className="px-2 pb-1 text-xs text-muted-foreground">Projects</div>
+        {!projects.length && <p className="px-2 py-1 text-[13px] text-muted-foreground">Projects you start show up here.</p>}
+        {projects.map((p) => <ProjectRow key={p.id} p={p} active={(route.name === "project" && route.id === p.id) || (!!curHost && curHost === p.host)} />)}
+        {groups.length > 0 && (
+          <>
+            <div className="mt-4 px-2 pb-1 text-xs text-muted-foreground">Other sites</div>
+            {groups.map(([host, list]) => <SiteRow key={host} host={host} list={list} cur={cur} onRemove={() => setRemoving({ host, list })} />)}
+          </>
+        )}
       </div>
       <UpdateCard />
       {status && <UsageCard />}

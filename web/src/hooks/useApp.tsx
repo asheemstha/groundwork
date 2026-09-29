@@ -1,12 +1,14 @@
 /* eslint-disable react-refresh/only-export-components */
 import * as React from "react"
 import { toast } from "sonner"
-import { api, type AppStatus, type Limits, type RunSummary, type Settings, type UpdateInfo } from "@/lib/api"
+import { api, type AppStatus, type Limits, type ProjectSummary, type RunSummary, type Settings, type UpdateInfo } from "@/lib/api"
 import { store } from "@/lib/store"
 
 interface AppCtx {
   status: AppStatus | null
   runs: RunSummary[]
+  projects: ProjectSummary[]
+  refreshProjects: () => Promise<void>
   prefs: Partial<Settings>
   sidebar: boolean
   setSidebar: (v: boolean) => void
@@ -28,6 +30,7 @@ const Ctx = React.createContext<AppCtx | null>(null)
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = React.useState<AppStatus | null>(null)
   const [runs, setRuns] = React.useState<RunSummary[]>([])
+  const [projects, setProjects] = React.useState<ProjectSummary[]>([])
   const [prefs, setPrefsState] = React.useState<Partial<Settings>>({})
   const [sidebar, setSidebarState] = React.useState(() => store.get("sidebar", true))
   const [update, setUpdate] = React.useState<UpdateInfo | null>(null)
@@ -59,8 +62,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const refreshStatus = React.useCallback(async (fresh = false) => {
     setStatus(await api.status(fresh))
   }, [])
+  const refreshProjects = React.useCallback(async () => {
+    setProjects(await api.projects())
+  }, [])
+  // Runs feed the projects' tool items (scans and plans), so refreshing runs refreshes projects too.
   const refreshRuns = React.useCallback(async () => {
     setRuns(await api.runs())
+    api.projects().then(setProjects).catch(() => {})
   }, [])
 
   React.useEffect(() => {
@@ -80,6 +88,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     () => ({
       status,
       runs,
+      projects,
+      refreshProjects,
       prefs,
       sidebar,
       setSidebar: (v) => {
@@ -94,7 +104,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       siteLabel: (host) => runs.find((r) => r.host === host && r.siteName)?.siteName || host,
       update, checkUpdate, installUpdate, updating,
     }),
-    [status, runs, prefs, sidebar, refreshStatus, refreshRuns, update, checkUpdate, installUpdate, updating]
+    [status, runs, projects, refreshProjects, prefs, sidebar, refreshStatus, refreshRuns, update, checkUpdate, installUpdate, updating]
   )
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

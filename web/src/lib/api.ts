@@ -201,6 +201,40 @@ export interface CState {
 export interface CrawlItem { ref?: string; kind: string; text: string; hidden?: boolean; zone?: string | null; styled?: boolean; rect?: Rect | null }
 export interface CrawlData { status: number; title: string; items: CrawlItem[]; height: number; counts: Record<string, number> }
 
+// ---------- projects and templates ----------
+export type ToolId = "scan" | "headings" | "seo" | "launch" | "redirects"
+export interface DueRule { from: "kickoff" | "launch"; days: number }
+export interface TItem { id: string; title: string; who: "us" | "client"; done: string; part: string | null; tool: ToolId | null; due: DueRule | null }
+export interface TGroup { id: string; name: string; items: TItem[] }
+export interface TPhase { id: string; name: string; due: DueRule | null; groups: TGroup[]; handoff: { title: string; needs: "us" | "client"; items: TItem[] } }
+export interface TPart { id: string; name: string; desc: string }
+export interface ChecklistTemplate { id: string; kind: "checklist"; name: string; version: number; updated: number; parts: TPart[]; phases: TPhase[] }
+export interface MessageTemplate { id: string; kind: "message" | "email"; name: string; subject: string; body: string; use: string[]; updated: number }
+export type Template = ChecklistTemplate | MessageTemplate
+export interface TemplateSummary { id: string; kind: Template["kind"]; name: string; updated: number; used: number; items?: number; phases?: number; subject?: string; preview?: string; use?: string[] }
+export interface ToolInfo { id: ToolId; name: string; ready: boolean; text?: string; runId?: string; progress?: { done: number; total: number } }
+export interface PItem { id: string; title: string; doneMeans: string; who: "us" | "client"; part: string | null; tool: ToolId | null; toolInfo: ToolInfo | null; due: string | null; status: "todo" | "done" | "na"; auto: boolean; at: number | null; note: string; link: string; asked: number | null; phaseId: string; phaseName: string; late: boolean; carriedFrom?: string; askBy?: string | null }
+export interface Signoff { by: string; date: string; note: string; link: string; file: { name: string; stored: string } | null; at: number }
+export interface PPhase { id: string; name: string; index: number; due: string | null; groups: { id: string; name: string; items: PItem[] }[]; handoff: { title: string; needs: "us" | "client"; items: PItem[] }; signoff: Signoff | null; state: "signed" | "current" | "upcoming"; done: number; total: number; ready: boolean }
+export interface ProjectRun { id: string; status: RunStatus; created: number; pages: number; output: Output | null; progress: RunProgress | null; hasIcon: boolean }
+export interface Project {
+  id: string; name: string; url: string | null; host: string | null; created: number; updated: number; kickoff: string | null; launch: string | null
+  clientName: string; templateId: string; templateName: string; parts: string[]
+  phases: PPhase[]; current: string | null
+  client: { late: PItem[]; soon: PItem[]; notAsked: PItem[]; received: number }
+  tools: { runs: ProjectRun[]; scan: { runId: string; urls: number; at: number } | null; plan: { runId: string; done: number; total: number; at: number; output: Output | null } | null; iconRun: string | null }
+}
+export interface ProjectSummary {
+  id: string; name: string; host: string | null; url: string | null; launch: string | null; iconRun: string | null
+  current: { index: number; id: string; name: string; done: number; total: number; ready: boolean; needs: "us" | "client"; handoffTitle: string } | null
+  phases: { state: PPhase["state"]; done: number; total: number }[]
+  clientOpen: number; clientLate: number
+}
+export interface NextUp { key: string; kind: "item" | "client" | "signoff"; projectId: string; projectName: string; iconRun: string | null; itemId?: string; title: string; phaseId: string; phaseName: string; due: string | null; late: boolean }
+export interface HomeData { next: NextUp[]; stats: { dueThisWeek: number; overdue: number; waiting: number; late: number; signoffs: number; nextLaunch: { name: string; date: string } | null }; projects: ProjectSummary[] }
+export interface NewProject { name: string; url?: string; templateId: string; kickoff?: string; launch?: string; parts: string[]; clientName?: string }
+export interface SignoffInput { by: string; date: string; note?: string; link?: string; file?: { name: string; data: string } | null; carry?: string[]; skip?: string[] }
+
 export interface UpdateInfo { enabled: boolean; version: string; commit: string | null; behind: number; latest: string | null; checkedAt: number; error: string | null; launcher: boolean; app?: boolean; url?: string }
 
 async function req<T>(method: string, url: string, body?: unknown): Promise<T> {
@@ -232,8 +266,26 @@ export const api = {
   estimate: (settings: Partial<Settings>, pages: number) => req<Estimate>("POST", "/api/estimate", { settings, pages }),
   refreshLimits: () => req<Limits | null>("POST", "/api/limits/refresh"),
   crawl: (id: string, pid: string) => req<CrawlData>("GET", `/api/runs/${id}/crawl/${pid}`),
+  // projects and templates
+  home: () => req<HomeData>("GET", "/api/home"),
+  projects: () => req<ProjectSummary[]>("GET", "/api/projects"),
+  project: (id: string) => req<Project>("GET", `/api/projects/${id}`),
+  createProject: (b: NewProject) => req<{ id: string; runId: string | null }>("POST", "/api/projects", b),
+  updateProject: (id: string, b: Partial<{ name: string; kickoff: string | null; launch: string | null; clientName: string; url: string }>) => req<Project>("PATCH", `/api/projects/${id}`, b),
+  removeProject: (id: string) => req<{ ok: boolean }>("DELETE", `/api/projects/${id}`),
+  setItem: (id: string, itemId: string, b: Partial<{ status: PItem["status"]; note: string; link: string; asked: boolean | number; due: string | null }>) => req<Project>("POST", `/api/projects/${id}/items/${itemId}`, b),
+  askItems: (id: string, items: string[]) => req<Project>("POST", `/api/projects/${id}/ask`, { items }),
+  signoff: (id: string, phaseId: string, b: SignoffInput) => req<Project>("POST", `/api/projects/${id}/signoff/${phaseId}`, b),
+  unsign: (id: string, phaseId: string) => req<Project>("DELETE", `/api/projects/${id}/signoff/${phaseId}`),
+  scanProject: (id: string, url?: string) => req<{ runId: string }>("POST", `/api/projects/${id}/scan`, { url }),
+  templates: () => req<TemplateSummary[]>("GET", "/api/templates"),
+  template: (id: string) => req<Template>("GET", `/api/templates/${id}`),
+  saveTemplate: (id: string, doc: Partial<Template>) => req<Template>("PUT", `/api/templates/${id}`, doc),
+  createTemplate: (b: { kind: Template["kind"]; name?: string; copyFrom?: string }) => req<Template>("POST", "/api/templates", b),
+  removeTemplate: (id: string) => req<{ ok: boolean }>("DELETE", `/api/templates/${id}`),
 }
 // Screenshots are versioned by capture time so a retake always shows the new image.
 export const shotUrl = (run: Pick<Run, "id" | "shotsAt" | "crawledAt">, pid: string) => `/api/runs/${run.id}/shot/${pid}?v=${run.shotsAt || run.crawledAt || 0}`
 export const faviconUrl = (id: string) => `/api/runs/${id}/favicon`
 export const exportUrl = (id: string, mode: Mode, download = false) => `/api/runs/${id}/export/${mode}${download ? "?download" : ""}`
+export const proofUrl = (id: string, stored: string) => `/api/projects/${id}/files/${encodeURIComponent(stored)}`
