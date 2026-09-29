@@ -1,0 +1,566 @@
+<title>Example Co Heading Plan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+:root{
+  --bg:#F3F6FA; --surface:#FFFFFF; --surface-2:#EDF1F7; --ink:#0D2137; --ink-2:#3F5268; --muted:#6A7B8F; --line:#DAE2EC;
+  --accent:#1F6FC5; --accent-soft:#E2EDFA; --bar:#0D2137;
+  --keep:#56687C; --keep-bg:#ECF0F5;
+  --retag:#1B63B5; --retag-bg:#DFEBFA;
+  --tag:#17744A; --tag-bg:#DDF2E7;
+  --rewrite:#7A4A00; --rewrite-bg:#FDEFD6;
+  --remove:#A12A2A; --remove-bg:#FBE3E3;
+  --content:#8A3576; --content-bg:#F6E4F1;
+  --none:#7D8B9B;
+  --display:"Poppins","Segoe UI",system-ui,sans-serif;
+  --body:"IBM Plex Sans","Segoe UI",system-ui,-apple-system,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#0A1521; --surface:#101E2D; --surface-2:#162739; --ink:#E5ECF4; --ink-2:#B2C0CF; --muted:#8597AA; --line:#233548;
+    --accent:#6EB0F3; --accent-soft:#15314C; --bar:#07111B;
+    --keep:#A8B6C5; --keep-bg:#1B2A3A; --retag:#86BDF6; --retag-bg:#14304D; --tag:#71D5A4; --tag-bg:#123426;
+    --rewrite:#F3B862; --rewrite-bg:#382811; --remove:#F08C8C; --remove-bg:#3A1717; --content:#E7A1D8; --content-bg:#361A31; --none:#8292A4;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#0A1521; --surface:#101E2D; --surface-2:#162739; --ink:#E5ECF4; --ink-2:#B2C0CF; --muted:#8597AA; --line:#233548;
+  --accent:#6EB0F3; --accent-soft:#15314C; --bar:#07111B;
+  --keep:#A8B6C5; --keep-bg:#1B2A3A; --retag:#86BDF6; --retag-bg:#14304D; --tag:#71D5A4; --tag-bg:#123426;
+  --rewrite:#F3B862; --rewrite-bg:#382811; --remove:#F08C8C; --remove-bg:#3A1717; --content:#E7A1D8; --content-bg:#361A31; --none:#8292A4;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.55;margin:0}
+a{color:var(--accent)}
+a:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+h1,h2,h3,h4{font-family:var(--display);font-weight:600;letter-spacing:-0.01em;text-wrap:balance;margin:0}
+.topbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--bar);color:#fff;padding-inline:16px}
+.topbar-in{max-width:1320px;margin:0 auto;display:flex;align-items:center;gap:16px;min-height:56px;flex-wrap:wrap;padding-block:8px}
+.brand{display:flex;align-items:baseline;gap:10px;color:#fff;text-decoration:none}
+.brand b{font-family:var(--display);font-weight:600;font-size:19px}
+.brand span{font-size:13px;color:#A9C3DE}
+.spacer{flex:1}
+.stg{color:#CFE2F6;font-size:13px;text-decoration:none;border:1px solid rgba(255,255,255,.22);border-radius:999px;padding:5px 12px;white-space:nowrap}
+.stg:hover{background:rgba(255,255,255,.08)}
+.picker{display:none;width:100%;padding-bottom:4px}
+.picker select{width:100%;font:inherit;font-size:15px;padding:9px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.25);background:#132C47;color:#fff}
+.sr{position:absolute;left:-9999px}
+.shell{max-width:1320px;margin:0 auto;display:grid;grid-template-columns:268px minmax(0,1fr);gap:32px;padding-inline:16px;padding-block:24px 64px}
+.side{position:sticky;top:calc(env(safe-area-inset-top,0px) + 72px);align-self:start;max-height:calc(100vh - 96px);overflow:auto;padding-right:4px}
+.navlabel{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:600;margin:18px 0 6px 10px}
+.navlabel:first-child{margin-top:0}
+.nav a{display:flex;align-items:center;gap:8px;text-decoration:none;color:var(--ink-2);padding:6px 10px;border-radius:8px;font-size:14px;line-height:1.3}
+.nav a:hover{background:var(--surface-2);color:var(--ink)}
+.nav a[aria-current="page"]{background:var(--accent-soft);color:var(--ink);font-weight:600}
+.nav a .nm{flex:1}
+.nav .sub a{padding-left:24px}
+.nav .grp{font-size:14px;color:var(--ink);font-weight:600;padding:8px 10px 2px}
+.cnt{font-family:var(--mono);font-size:11px;min-width:22px;text-align:center;padding:1px 6px;border-radius:999px;background:var(--retag-bg);color:var(--retag)}
+.cnt.zero{background:var(--keep-bg);color:var(--keep)}
+.navkey{font-size:12px;color:var(--muted);margin:14px 10px 0}
+@media (max-width:900px){.shell{grid-template-columns:minmax(0,1fr);gap:0;padding-block:16px 48px}.side{display:none}.picker{display:block}.topbar{position:static}}
+main{min-width:0}
+.crumb{font-size:13px;color:var(--muted);display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.crumb code{font-family:var(--mono);font-size:12px;background:var(--surface-2);padding:1px 6px;border-radius:5px;color:var(--ink-2)}
+.pagehead{display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px 20px;margin:6px 0 18px}
+.pagehead h1{font-size:clamp(26px,3.2vw,34px);line-height:1.15;flex:1 1 320px}
+.btn{font:inherit;font-size:13px;font-weight:500;display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:7px 12px;border-radius:8px;cursor:pointer;text-decoration:none;white-space:nowrap}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--surface)}
+.stats{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px}
+.stat{font-size:13px;padding:5px 10px;border-radius:8px;background:var(--surface);border:1px solid var(--line);color:var(--ink-2)}
+.stat b{font-family:var(--mono);font-weight:500;color:inherit}
+.stat.s-retag{background:var(--retag-bg);border-color:transparent;color:var(--retag)}
+.stat.s-tag{background:var(--tag-bg);border-color:transparent;color:var(--tag)}
+.stat.s-rewrite{background:var(--rewrite-bg);border-color:transparent;color:var(--rewrite)}
+.stat.s-remove{background:var(--remove-bg);border-color:transparent;color:var(--remove)}
+.stat.s-content{background:var(--content-bg);border-color:transparent;color:var(--content)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:20px}
+.block{margin-top:28px}
+.block > h2{font-size:19px;margin-bottom:4px}
+.lede{color:var(--muted);font-size:14px;margin:0 0 12px;max-width:72ch}
+.lbl{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.h1card{border-left:4px solid var(--accent);display:grid;gap:14px}
+.h1top{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between}
+.h1main{border-radius:10px;padding:14px 16px;background:var(--accent-soft)}
+.h1main small,.h1alt small{display:block;font-size:12px;font-weight:600;margin-bottom:4px;color:var(--accent)}
+.h1main .t,.h1alt .t{font-family:var(--display);font-weight:600;font-size:21px;line-height:1.25}
+.h1main .how{font-size:13px;color:var(--ink-2);margin-top:6px}
+.h1cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.h1alt{border-radius:10px;padding:14px 16px;background:var(--surface-2)}
+.h1alt small{color:var(--muted)}
+.h1alt.cur .t{font-size:17px;color:var(--ink-2)}
+.sugg{border:1px dashed var(--content);border-radius:10px;padding:12px 14px;display:grid;gap:8px}
+.sugg .t{font-family:var(--display);font-weight:600;font-size:16px}
+.why{margin:0;color:var(--ink-2);font-size:14px;max-width:75ch}
+.kw{display:flex;flex-wrap:wrap;gap:6px}
+.kw span{font-size:12px;padding:3px 8px;border-radius:999px;background:var(--surface-2);color:var(--ink-2)}
+.kw span b{font-family:var(--mono);font-weight:500;color:var(--ink)}
+.kw span.pri{background:var(--accent-soft);color:var(--ink)}
+.focus{display:grid;gap:10px}
+.focus p{margin:0}
+.pill{display:inline-block;font-size:12px;font-weight:600;padding:3px 9px;border-radius:999px;white-space:nowrap}
+.p-keep{background:var(--keep-bg);color:var(--keep)} .p-retag{background:var(--retag-bg);color:var(--retag)} .p-tag{background:var(--tag-bg);color:var(--tag)}
+.p-rewrite{background:var(--rewrite-bg);color:var(--rewrite)} .p-add{background:var(--tag-bg);color:var(--tag)} .p-remove{background:var(--remove-bg);color:var(--remove)}
+.p-none{background:transparent;color:var(--none);border:1px dashed var(--line)} .p-content{background:var(--content-bg);color:var(--content)}
+.p-pass{background:var(--tag-bg);color:var(--tag)} .p-fail{background:var(--remove-bg);color:var(--remove)}
+.tg{font-family:var(--mono);font-size:12px;font-weight:500;padding:2px 6px;border-radius:5px;background:var(--surface-2);color:var(--ink-2);display:inline-block;min-width:34px;text-align:center}
+.tg.new{background:var(--ink);color:var(--surface)}
+.tg.old{text-decoration:line-through;color:var(--muted);background:transparent;border:1px solid var(--line)}
+.tg.txt{background:transparent;border:1px dashed var(--line);color:var(--none)}
+.arrow{color:var(--muted);font-size:12px}
+.toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;margin-bottom:10px}
+.toolbar label{font-size:14px;display:flex;align-items:center;gap:8px;cursor:pointer;color:var(--ink-2)}
+.toolbar input{width:16px;height:16px;accent-color:var(--accent)}
+.map{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.sec{font-size:11px;letter-spacing:.09em;text-transform:uppercase;font-weight:600;color:var(--muted);padding:12px 16px 6px;background:var(--surface-2);border-top:1px solid var(--line)}
+.sec:first-child{border-top:0}
+.row{display:grid;grid-template-columns:132px minmax(0,1fr) auto;gap:12px;align-items:start;padding:10px 16px;border-top:1px solid var(--line)}
+.sec + .row{border-top:0}
+.row .tags{display:flex;align-items:center;gap:5px;padding-top:2px}
+.row .txt{padding-left:calc((var(--lvl,1) - 1) * 16px);min-width:0}
+.row .ht{font-weight:500;overflow-wrap:anywhere}
+.row .ht.was{font-weight:400;color:var(--muted);text-decoration:line-through;font-size:14px}
+.row .ht.now{color:var(--ink)}
+.row.lv1 .ht:not(.was){font-family:var(--display);font-weight:600;font-size:17px}
+.row.lv2 .ht:not(.was){font-weight:600}
+.row.act-none .ht{font-weight:400;font-style:italic;color:var(--ink-2)}
+.row .rn{font-size:13px;color:var(--muted);margin-top:2px}
+.row.act-retag{background:linear-gradient(90deg,var(--retag-bg),transparent 55%)}
+.row.act-tag,.row.act-add{background:linear-gradient(90deg,var(--tag-bg),transparent 55%)}
+.row.act-rewrite{background:linear-gradient(90deg,var(--rewrite-bg),transparent 55%)}
+.row.act-remove{background:linear-gradient(90deg,var(--remove-bg),transparent 55%)}
+.hide-keep .row.act-keep,.hide-keep .row.act-none{display:none}
+.hide-keep .sec.empty{display:none}
+@media (max-width:620px){.row{grid-template-columns:minmax(0,1fr) auto;row-gap:4px}.row .tags{grid-column:1 / -1}.row .txt{padding-left:calc((var(--lvl,1) - 1) * 10px)}}
+.notes{margin:0;padding:0;list-style:none;display:grid;gap:8px}
+.notes li{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 14px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;align-items:start;font-size:14px}
+.outline{margin:0;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px;font-family:var(--mono);font-size:13px;line-height:1.75;overflow-x:auto;white-space:pre;color:var(--ink)}
+.outline .l1{color:var(--accent);font-weight:500}
+.outline .lv{color:var(--muted)}
+.copyrow{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+.copied{font-size:13px;color:var(--tag)}
+.intro{font-size:16px;color:var(--ink-2);max-width:72ch;margin:0}
+.legend{display:grid;gap:10px}
+.legend div{display:grid;grid-template-columns:130px minmax(0,1fr);gap:10px;align-items:start;font-size:14px}
+.rules{margin:0;padding:0;list-style:none;display:grid;gap:12px}
+.rules li{font-size:14.5px;max-width:78ch}
+.steps{margin:0;padding-left:20px;display:grid;gap:10px;font-size:14.5px;max-width:78ch}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:14px;min-width:720px}
+th,td{text-align:left;padding:9px 12px;border-top:1px solid var(--line);vertical-align:top}
+thead th{border-top:0;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600;background:var(--surface-2)}
+td.num{font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+td a{text-decoration:none;font-weight:500}
+.src{font-size:13px;color:var(--muted)}
+.src a{color:var(--muted)}
+.clientlist{display:grid;gap:10px}
+.cq{display:grid;gap:8px}
+.cq .pg{font-weight:600}
+.backlog h3{font-size:16px;margin:18px 0 8px}
+.backlog h3 a{text-decoration:none;color:var(--ink)}
+@media (prefers-reduced-motion:no-preference){.nav a,.btn{transition:background .15s,border-color .15s}}
+</style>
+
+<header class="topbar"><div class="topbar-in">
+  <a class="brand" href="#overview"><b id="brandName"></b><span id="brandSub"></span></a>
+  <div class="spacer"></div>
+  <a class="stg" id="siteLink" href="#" target="_blank" rel="noopener">Open site ↗</a>
+  <div class="picker"><label for="pagePick" class="sr">Choose a page</label><select id="pagePick"></select></div>
+</div></header>
+<div class="shell">
+  <aside class="side" aria-label="Site pages"><nav class="nav" id="nav"></nav></aside>
+  <main id="main" tabindex="-1"></main>
+</div>
+
+<script>
+/* ---------- row helpers (used by the DATA block) ---------- */
+const S = t => ({s:t});
+// R(current tag, current text, recommended tag, action, note, new text)
+// actions: keep | retag | tag | none   (both modes)
+//          rewrite | add | remove      (optimize mode only)
+// For "add", pass cur "—" and put the new heading text in `to` (text can be "").
+const R = (cur, text, rec, act, note, to) => ({cur, text, rec, act, note: note || "", to: to || ""});
+const keepH = (lvl, list) => list.map(t => R(lvl, t, lvl, "keep"));
+
+/* ==================== DATA START ==================== */
+const SITE = {
+  name: "Example Co",
+  url: "https://example-co.webflow.io",   // site the guide checks (staging or live)
+  liveDomain: "example.com",               // production domain used for rankings, or "" if not live
+  platform: "Webflow",                     // Webflow | WordPress | Shopify | Wix | Other
+  mode: "optimize",                        // "live" (tags only, current content) | "optimize" (rewrites)
+  checked: "28 September 2026",
+  market: "United States",
+  kwSource: "Ahrefs Keywords Explorer, United States, September 2026",
+  appliedBy: "Alex",
+  sharedHeadings: ["Ready for a cleaner workplace?"]  // H2s that repeat on purpose on many pages (footer CTA etc.)
+};
+
+const NAV = [
+  {label:"Site navigation", items:[
+    {id:"home"},
+    {group:"Services", items:["office-cleaning"]}
+  ]}
+];
+
+const PAGES = [
+{ id:"home", name:"Home", path:"/", group:null,
+  purpose:"Introduces the company and routes buyers to its services and industries.",
+  keywords:{ primary:["commercial cleaning services",90], secondary:[["commercial cleaning company",70],["facility services",40]], note:"Owns the brand and the broad category. Service terms stay on service pages." },
+  h1:{ cur:"Your all-in-one partner for spotless spaces.", status:"client",
+       proposed:"Your all-in-one partner for commercial cleaning services.",
+       why:"“Spotless spaces” names no service. Adding “commercial cleaning services” (90/mo) names what buyers search for." },
+  rows:[
+    S("Hero"),
+    R("H1","Your all-in-one partner for spotless spaces.","H1","rewrite","Adds the primary keyword. Needs client sign-off.","Your all-in-one partner for commercial cleaning services."),
+    S("Why choose us"), R("H2","Why Choose Example Co","H2","keep"),
+    R("strong","Built to scale.","H3","rewrite","Split the bold lead-in into its own H3 above its paragraph.","Built to Scale"),
+    S("Services"),
+    R("H2","One partner. Four flexible solutions.","H2","rewrite","Names the services instead of a slogan.","Office Cleaning, Floor Care, Day Porters & Window Washing"),
+    ...keepH("H3",["Office Cleaning","Floor Care"]),
+    S("Footer call to action (shared)"), R("H2","Ready for a cleaner workplace?","H2","keep","Same H2 on every page.")
+  ],
+  notes:["The Healthcare card links to “#” and no Healthcare page exists."] },
+
+{ id:"office-cleaning", name:"Office Cleaning", path:"/services/office-cleaning", group:"Services",
+  purpose:"Sells recurring office cleaning to workplaces.",
+  keywords:{ primary:["office cleaning services",500], secondary:[["janitorial services",150],["office deep cleaning",150],["after hours office cleaning",90]] },
+  h1:{ cur:"Clean, re-engineered", status:"client", proposed:"Office cleaning, re-engineered",
+       why:"The primary keyword “office cleaning services” (500/mo) is missing from the H1. Naming the service fixes it." },
+  rows:[
+    S("Hero"), R("H1","Clean, re-engineered","H1","rewrite","Adds the primary keyword.","Office cleaning, re-engineered"),
+    S("Service plans (tabs)"),
+    R("H2","Our Cleaning Plan's","H2","rewrite","Grammar fix.","Our Cleaning Plans"),
+    R("—","","H3","add","New H3 at the top of the Nightly tab panel. Uses a secondary keyword.","After-Hours Office Cleaning"),
+    R("—","","H3","add","New H3 at the top of the Deep Clean tab panel.","Office Deep Cleaning"),
+    S("Features"), R("H2","Technology That Works for You","H2","rewrite","Uses a secondary keyword and makes the H2 unique on the site.","Janitorial Services, Tracked and Verified"),
+    R("H3","Eco-friendly supplies","H3","rewrite","The card text is about quality checks.","Quality Checks After Every Visit"),
+    R("H3","Flexible scheduling","—","remove","Duplicate card. Remove it or replace it with another feature."),
+    S("Benefits"),
+    R("H3","Benefits to your organization","H2","retag","Starts its own visual block."),
+    R("H4","Healthier workplaces","H3","retag"),
+    S("Footer call to action (shared)"), R("H2","Ready for a cleaner workplace?","H2","keep")
+  ],
+  notes:["The Deep Clean tab says “include” where it should say “includes”."] }
+];
+
+const SITEWIDE = [
+  ["keep","Nav and footer contain no heading tags."],
+  ["content","SEO titles are just page names and no page has a meta description."]
+];
+
+const GAPS = [
+  {cluster:"carpet cleaning", volume:400, note:"No page targets it. Could be an H2 section on the Floor Care page."}
+];
+/* ==================== DATA END ==================== */
+
+/* ---------- helpers ---------- */
+const LIVE = SITE.mode !== "optimize";
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));
+const byId = id => PAGES.find(p => p.id === id);
+const isH = t => /^H[1-6]$/.test(t);
+const lvl = t => isH(t) ? +t[1] : 0;
+const WORK = ["retag","tag","rewrite","add","remove"];
+const changes = p => p.rows.filter(r => WORK.includes(r.act));
+const countAct = (p, a) => p.rows.filter(r => r.act === a).length;
+const finalRows = p => p.rows.filter(r => !r.s && r.act !== "remove" && isH(r.rec));
+const finalText = r => r.to || r.text;
+const counts = p => { const c = {}; finalRows(p).forEach(r => c[r.rec] = (c[r.rec]||0) + 1); return c; };
+const countStr = p => { const c = counts(p); return ["H1","H2","H3","H4","H5","H6"].filter(k => c[k]).map(k => k + " × " + c[k]).join(" · "); };
+const suggCount = p => (p.notes ? p.notes.length : 0) + (LIVE && p.h1.proposed ? 1 : 0);
+// Close-variant match: every meaningful word of the keyword (plural-insensitive) appears in the text.
+const STOP = new Set(["a","an","the","and","or","for","of","to","in","on","with","near","me","&"]);
+const stem = w => w.toLowerCase().replace(/[^a-z0-9]/g,"").replace(/(ies)$/,"y").replace(/(es|s)$/,"");
+const kwIn = (text, kw) => { const words = new Set(String(text).split(/[\s\-\/,.:;!?’'"()]+/).map(stem).filter(Boolean)); return String(kw).split(/\s+/).filter(w => !STOP.has(w.toLowerCase())).map(stem).filter(Boolean).every(w => words.has(w)); };
+const finalH1 = p => { const r = finalRows(p).find(r => r.rec === "H1"); return r ? finalText(r) : ""; };
+// Optimize mode: the H1 row in `rows` is the source of truth for the new H1.
+if (!LIVE) PAGES.forEach(p => { const f = finalH1(p); p.h1.proposed = (f && f !== p.h1.cur) ? f : ""; });
+const SUGG = '<span class="pill p-content">' + (LIVE ? "Suggestion · later" : "Idea") + '</span>';
+const ACT = { keep:["p-keep","Keep"], retag:["p-retag","Re-tag"], tag:["p-tag","Make heading"], none:["p-none","Not a heading"], rewrite:["p-rewrite","Rewrite"], add:["p-add","Add heading"], remove:["p-remove","Remove heading"] };
+const fmtKw = k => esc(k[0]) + (k[1] !== undefined && k[1] !== null ? ' <b>' + k[1] + '</b>/mo' : "");
+function store(k, v){ try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch(e) { return null; } }
+
+/* ---------- automatic checks ---------- */
+function pageChecks(p){
+  const out = [], rows = finalRows(p), h1s = rows.filter(r => r.rec === "H1");
+  out.push([h1s.length === 1, "Exactly one H1 (" + h1s.length + ")"]);
+  let prev = 0, skip = null;
+  rows.forEach(r => { const L = lvl(r.rec); if (prev && L > prev + 1 && !skip) skip = r.rec + " “" + finalText(r) + "” follows H" + prev; prev = L; });
+  out.push([!skip, skip ? "Skipped level: " + skip : "No skipped levels"]);
+  if (rows[0]) out.push([rows[0].rec === "H1", rows[0].rec === "H1" ? "H1 is the first heading" : "First heading is " + rows[0].rec + ", not the H1"]);
+  const seen = {}, dup = [];
+  rows.forEach(r => { const t = finalText(r).toLowerCase(); if (seen[t]) dup.push(finalText(r)); seen[t] = 1; });
+  out.push([!dup.length, dup.length ? "Duplicate headings on the page: " + [...new Set(dup)].join(", ") : "No duplicate headings on the page"]);
+  if (p.keywords && p.keywords.primary && p.keywords.primary[0]){
+    const has = kwIn(finalH1(p), p.keywords.primary[0]);
+    out.push([has || LIVE, (has ? "H1 contains" : "H1 does not contain") + " the primary keyword “" + p.keywords.primary[0] + "”" + (!has && LIVE ? " (see the H1 suggestion)" : "")]);
+  }
+  return out;
+}
+function siteChecks(){
+  const out = [], h1 = {}, kw = {}, h2 = {};
+  PAGES.forEach(p => {
+    const t = finalH1(p).toLowerCase(); (h1[t] = h1[t] || []).push(p.name);
+    if (p.keywords && p.keywords.primary && p.keywords.primary[0]){ const k = p.keywords.primary[0].toLowerCase(); (kw[k] = kw[k] || []).push(p.name); }
+    finalRows(p).filter(r => r.rec === "H2").forEach(r => { const x = finalText(r); if ((SITE.sharedHeadings||[]).includes(x)) return; (h2[x.toLowerCase()] = h2[x.toLowerCase()] || new Set()).add(p.name); });
+  });
+  const dH1 = Object.entries(h1).filter(([k,v]) => v.length > 1), dKw = Object.entries(kw).filter(([k,v]) => v.length > 1);
+  out.push([!dH1.length, dH1.length ? "Same H1 on several pages: " + dH1.map(([k,v]) => "“" + k + "” (" + v.join(", ") + ")").join("; ") : "Every page has its own H1"]);
+  out.push([!dKw.length, dKw.length ? "Primary keyword owned by several pages: " + dKw.map(([k,v]) => "“" + k + "” (" + v.join(", ") + ")").join("; ") : "Every primary keyword has one owner page"]);
+  const dH2 = Object.entries(h2).filter(([k,v]) => v.size > 1);
+  out.push([!dH2.length || LIVE, dH2.length ? "H2 repeated across pages (not marked shared): " + dH2.slice(0,6).map(([k,v]) => "“" + k + "” (" + [...v].join(", ") + ")").join("; ") + (LIVE ? " (wording suggestion)" : "") : "No H2 repeats across pages except shared sections"]);
+  const pageFails = PAGES.filter(p => pageChecks(p).some(c => !c[0])).map(p => p.name);
+  out.push([!pageFails.length, pageFails.length ? "Pages with a failing check: " + pageFails.join(", ") : "All page checks pass"]);
+  return out;
+}
+const checkList = list => '<ul class="notes">' + list.map(c => '<li><span class="pill ' + (c[0] ? "p-pass" : "p-fail") + '">' + (c[0] ? "Pass" : "Fix") + '</span><span>' + esc(c[1]) + '</span></li>').join("") + '</ul>';
+
+/* ---------- nav ---------- */
+const EXTRA_TOP = [{id:"overview", name:"Overview & rules"},{id:"keywords", name:"Keyword map"}];
+const LATER = {id:"later", name: LIVE ? "All suggestions" : "Client sign-off & ideas"};
+function navLink(id, label){
+  const p = byId(id); let right = "";
+  if (p){ const n = changes(p).length; right = '<span class="cnt' + (n ? "" : " zero") + '" title="' + n + ' changes">' + n + '</span>'; }
+  return '<a href="#' + id + '" data-id="' + id + '"><span class="nm">' + esc(label || (p ? p.name : id)) + '</span>' + right + '</a>';
+}
+function buildNav(){
+  let h = '<div class="navlabel">Guide</div>' + EXTRA_TOP.map(i => navLink(i.id, i.name)).join("");
+  let opts = '<optgroup label="Guide">' + EXTRA_TOP.map(i => '<option value="' + i.id + '">' + esc(i.name) + '</option>').join("") + '</optgroup>';
+  NAV.forEach(sec => {
+    h += '<div class="navlabel">' + esc(sec.label) + '</div>'; opts += '<optgroup label="' + esc(sec.label) + '">';
+    sec.items.forEach(it => {
+      if (it.group){
+        h += '<div class="grp">' + esc(it.group) + '</div><div class="sub">' + it.items.map(id => navLink(id)).join("") + '</div>';
+        it.items.forEach(id => opts += '<option value="' + id + '">' + esc(it.items.length > 1 ? it.group + " › " + byId(id).name : byId(id).name) + '</option>');
+      } else { h += navLink(it.id, it.name); opts += '<option value="' + it.id + '">' + esc(it.name || byId(it.id).name) + '</option>'; }
+    });
+    opts += '</optgroup>';
+  });
+  h += '<div class="navlabel">Later</div>' + navLink(LATER.id, LATER.name);
+  opts += '<optgroup label="Later"><option value="' + LATER.id + '">' + esc(LATER.name) + '</option></optgroup>';
+  h += '<div class="navkey"><span class="cnt">3</span> changes to make on the page</div>';
+  $("#nav").innerHTML = h; $("#pagePick").innerHTML = opts;
+  $("#pagePick").addEventListener("change", e => { location.hash = e.target.value; });
+}
+
+/* ---------- page view ---------- */
+function outlineText(p, html){
+  return finalRows(p).map(r => { const pad = "  ".repeat(lvl(r.rec) - 1);
+    return html ? pad + '<span class="' + (r.rec === "H1" ? "l1" : "lv") + '">' + r.rec + '</span>  ' + esc(finalText(r)) : pad + r.rec + "  " + finalText(r); }).join("\n");
+}
+function statChips(p){
+  const s = (cls, label, n) => n ? '<span class="stat ' + cls + '">' + label + ' <b>' + n + '</b></span>' : "";
+  let h = s("s-retag","Re-tag",countAct(p,"retag")) + s("s-tag","Make heading",countAct(p,"tag"));
+  if (!LIVE) h += s("s-rewrite","Rewrite",countAct(p,"rewrite")) + s("s-tag","Add",countAct(p,"add")) + s("s-remove","Remove",countAct(p,"remove"));
+  if (!changes(p).length) h += '<span class="stat">No changes</span>';
+  h += '<span class="stat">After changes: <b>' + countStr(p) + '</b></span>';
+  if (LIVE && suggCount(p)) h += s("s-content","Suggestions for later",suggCount(p));
+  return h;
+}
+function renderPage(p){
+  const hideKeep = store("hmap-hide-keep") === "1";
+  let h = '<div class="crumb"><span>' + esc(p.group || "Page") + '</span><span>›</span><code>' + esc(p.path) + '</code></div>';
+  h += '<div class="pagehead"><h1>' + esc(p.name) + '</h1><a class="btn" href="' + esc(SITE.url.replace(/\/$/,"") + p.path) + '" target="_blank" rel="noopener">Open page ↗</a></div>';
+  h += '<div class="stats">' + statChips(p) + '</div>';
+
+  // page focus (purpose + keywords)
+  if (p.purpose || p.keywords){
+    const k = p.keywords || {};
+    h += '<section class="card focus" aria-label="Page focus"><div class="h1top"><span class="lbl">What this page is for</span></div>';
+    if (p.purpose) h += '<p>' + esc(p.purpose) + '</p>';
+    if (k.primary) h += '<div class="kw"><span class="pri">Primary: ' + fmtKw(k.primary) + '</span>' + (k.secondary||[]).map(s => '<span>' + fmtKw(s) + '</span>').join("") + '</div>';
+    if (k.note) h += '<p class="why">' + esc(k.note) + '</p>';
+    h += '</section>';
+  }
+
+  // H1 card
+  const H = p.h1, h1row = p.rows.find(r => r.rec === "H1" || r.cur === "H1");
+  h += '<section class="card h1card block" aria-label="H1"><div class="h1top"><span class="lbl">The H1 for this page</span>';
+  if (LIVE){
+    h += '<span class="pill p-keep">Use current text</span></div>';
+    h += '<div class="h1main"><small>Make this the H1</small><div class="t">' + esc(H.cur) + '</div><div class="how">' +
+         (h1row && h1row.cur === "H1" && h1row.act === "keep" ? "It is already the H1 on the site. Leave it as H1 and make sure nothing else on the page is an H1." : "Set this element to H1.") +
+         ' Keep the wording exactly as it is on the page.</div></div>';
+    if (H.proposed) h += '<div class="sugg"><div>' + SUGG + ' <span style="font-size:12px;color:var(--muted)">Possible H1 wording, only if the client agrees. Not for now.</span></div><div class="t">' + esc(H.proposed) + '</div><p class="why">' + esc(H.why||"") + '</p></div>';
+  } else {
+    const changed = H.proposed && H.proposed !== H.cur;
+    h += (changed ? '<span class="pill p-rewrite">Needs client sign-off</span>' : '<span class="pill p-keep">No change</span>') + '</div>';
+    h += '<div class="h1cols">' + (changed ? '<div class="h1alt cur"><small>Current H1</small><div class="t">' + esc(H.cur) + '</div></div>' : "") +
+         '<div class="h1main"><small>' + (changed ? "New H1" : "H1") + '</small><div class="t">' + esc(changed ? H.proposed : H.cur) + '</div></div></div>';
+    if (H.why) h += '<p class="why">' + esc(H.why) + '</p>';
+  }
+  h += '</section>';
+
+  // map
+  h += '<section class="block"><h2>Heading map, in page order</h2><p class="lede">Top to bottom as the page renders. Rows with a coloured action need work. Indent shows the final level.</p>';
+  h += '<div class="toolbar"><label><input type="checkbox" id="onlyChanges"' + (hideKeep ? " checked" : "") + '> Show only rows that need work</label></div>';
+  h += '<div class="map' + (hideKeep ? " hide-keep" : "") + '" id="map">';
+  let lastLvl = 1, secHtml = "", rowsHtml = "", secHas = false, open = false;
+  const flush = () => { if (open) h += secHtml.replace('class="sec"', 'class="sec' + (secHas ? "" : " empty") + '"') + rowsHtml; open = false; secHas = false; secHtml = ""; rowsHtml = ""; };
+  p.rows.forEach(r => {
+    if (r.s){ flush(); open = true; secHtml = '<div class="sec">' + esc(r.s) + '</div>'; return; }
+    if (!open){ open = true; secHtml = '<div class="sec">Page</div>'; }
+    const L = isH(r.rec) && r.act !== "remove" ? lvl(r.rec) : Math.min(lastLvl + 1, 6);
+    if (isH(r.rec) && r.act !== "remove") lastLvl = L;
+    if (WORK.includes(r.act)) secHas = true;
+    let tags;
+    if (r.act === "keep") tags = '<span class="tg new">' + r.rec + '</span>';
+    else if (r.act === "none") tags = '<span class="tg txt">' + esc(r.cur) + '</span>';
+    else if (r.act === "add") tags = '<span class="tg txt">new</span><span class="arrow">→</span><span class="tg new">' + r.rec + '</span>';
+    else if (r.act === "remove" || (r.act === "retag" && !isH(r.rec))) tags = '<span class="tg old">' + esc(r.cur) + '</span><span class="arrow">→</span><span class="tg txt">text</span>';
+    else if (r.cur === r.rec) tags = '<span class="tg new">' + r.rec + '</span>';
+    else tags = '<span class="tg old">' + esc(r.cur) + '</span><span class="arrow">→</span><span class="tg new">' + r.rec + '</span>';
+    let text;
+    if (r.act === "rewrite" && r.to) text = '<div class="ht was">' + esc(r.text) + '</div><div class="ht now">' + esc(r.to) + '</div>';
+    else if (r.act === "add") text = '<div class="ht now">' + esc(r.to || r.text) + '</div>';
+    else text = '<div class="ht">' + esc(r.text) + '</div>';
+    const a = ACT[r.act] || ACT.keep;
+    rowsHtml += '<div class="row act-' + r.act + (isH(r.rec) ? " lv" + L : "") + '" style="--lvl:' + L + '"><div class="tags">' + tags + '</div><div class="txt">' + text + (r.note ? '<div class="rn">' + esc(r.note) + '</div>' : "") + '</div><div><span class="pill ' + a[0] + '">' + a[1] + '</span></div></div>';
+  });
+  flush();
+  h += '</div></section>';
+
+  if (p.notes && p.notes.length){
+    h += '<section class="block"><h2>' + (LIVE ? "Suggestions for later" : "Other content ideas") + '</h2><p class="lede">' +
+         (LIVE ? "Content and wording ideas spotted while checking headings. Not part of the tag work. Skip these for now." : "Copy and structure ideas beyond the headings. Review with the client.") +
+         '</p><ul class="notes">' + p.notes.map(n => '<li>' + SUGG + '<span>' + esc(n) + '</span></li>').join("") + '</ul></section>';
+  }
+
+  h += '<section class="block"><h2>Checks</h2>' + checkList(pageChecks(p)) + '</section>';
+
+  h += '<section class="block"><h2>Exact H tags for this page</h2><p class="lede">' + (LIVE ? "The final list after the tag changes, using the content on the page today." : "The final list after every change on this page, with the new wording.") + ' Everything not listed here is not a heading.</p>';
+  h += '<div class="copyrow"><button class="btn primary" id="copyOutline" type="button">Copy list</button><span class="copied" id="copied" aria-live="polite"></span></div>';
+  h += '<pre class="outline" id="outline">' + outlineText(p, true) + '</pre></section>';
+
+  $("#main").innerHTML = h;
+  $("#onlyChanges").addEventListener("change", e => { $("#map").classList.toggle("hide-keep", e.target.checked); store("hmap-hide-keep", e.target.checked ? "1" : "0"); });
+  $("#copyOutline").addEventListener("click", () => copyText(p.name + " (" + p.path + ")\n" + outlineText(p, false), $("#outline")));
+}
+function copyText(t, el){
+  const done = () => { const c = $("#copied"); if (c){ c.textContent = "Copied"; setTimeout(() => c.textContent = "", 1800); } };
+  const sel = () => { if (!el) return; const r = document.createRange(); r.selectNodeContents(el); const s = getSelection(); s.removeAllRanges(); s.addRange(r); const c = $("#copied"); if (c) c.textContent = "Selected. Press Ctrl/Cmd + C."; };
+  try { navigator.clipboard.writeText(t).then(done, sel); } catch(e) { sel(); }
+}
+
+/* ---------- overview ---------- */
+const PLATFORM_STEPS = {
+  Webflow:["<b>Re-tag:</b> select the heading, open the Settings panel (D) and pick the level under Heading Settings. The look comes from the class, so it should not change. Glance at the section afterwards.","<b>Make heading:</b> if a Div, Text Block or Paragraph won’t switch, drag a Heading element next to it, set the level, give it the same class(es), paste the same text and delete the old element.","<b>Shared sections:</b> edit the component once so every page updates. CMS rich-text headings are edited in the CMS item."],
+  WordPress:["<b>Re-tag:</b> select the Heading block and change the level in the block toolbar.","<b>Make heading:</b> select the Paragraph block → Transform → Heading, then set the level. In page builders, set the HTML tag in the widget’s settings.","<b>Theme parts:</b> site title, widget and footer headings are edited in the Site Editor or theme files."],
+  Shopify:["<b>Re-tag:</b> use the section’s heading-tag setting where the theme offers one. Otherwise edit the section’s Liquid file.","<b>Make heading:</b> change the element in the section’s Liquid file and keep its classes.","<b>Templates:</b> product and collection titles are the H1 in their templates."],
+  Wix:["<b>Re-tag:</b> select the text → Text settings → Heading 1–6.","<b>Keep the look, change the tag:</b> Text settings → SEO settings → HTML tag.","<b>Repeated sections:</b> check each page, because Wix has no shared components for most text."],
+  Other:["<b>Re-tag:</b> change the heading element’s level (h1–h6) and keep its classes.","<b>Make heading:</b> replace the div, span or p with the heading element and keep the same classes.","<b>Shared parts:</b> fix templates and partials once."]
+};
+function renderOverview(){
+  const tot = a => PAGES.reduce((n,p) => n + countAct(p,a), 0);
+  const sug = PAGES.reduce((n,p) => n + suggCount(p), 0) + SITEWIDE.filter(s => s[0] === "content").length;
+  const signoff = PAGES.filter(p => p.h1.proposed && p.h1.proposed !== p.h1.cur).length;
+  let h = '<div class="crumb"><span>Guide</span></div><div class="pagehead"><h1>' + esc(SITE.name) + (LIVE ? ' H-tag map' : ' heading plan') + '</h1></div>';
+  h += '<p class="intro">' + (LIVE
+     ? 'All ' + PAGES.length + ' main pages on ' + esc(SITE.url.replace(/^https?:\/\//,"")) + ', checked on ' + esc(SITE.checked) + '. ' + esc(SITE.appliedBy) + ': pick a page in the menu (it mirrors the site’s navigation) to see which text is the H1, every heading in page order, what to change it to, and the final list of H tags. Use the content that is on the page today. Anything tagged Suggestion is for later.'
+     : 'All ' + PAGES.length + ' main pages on ' + esc(SITE.url.replace(/^https?:\/\//,"")) + ', checked on ' + esc(SITE.checked) + '. Each page gets its own keywords from Ahrefs research, and its headings are rewritten to target them without competing with other pages. H1 changes need the client’s sign-off before ' + esc(SITE.appliedBy) + ' applies them.') + '</p>';
+  h += '<div class="stats" style="margin-top:16px"><span class="stat">Pages <b>' + PAGES.length + '</b></span><span class="stat s-retag">Re-tag <b>' + tot("retag") + '</b></span><span class="stat s-tag">Make heading <b>' + tot("tag") + '</b></span>' +
+       (LIVE ? '<span class="stat s-content">Suggestions for later <b>' + sug + '</b></span>'
+             : '<span class="stat s-rewrite">Rewrite <b>' + tot("rewrite") + '</b></span><span class="stat s-tag">Add <b>' + tot("add") + '</b></span><span class="stat s-remove">Remove <b>' + tot("remove") + '</b></span><span class="stat s-rewrite">H1s for sign-off <b>' + signoff + '</b></span>') + '</div>';
+
+  h += '<section class="block"><h2>Site checks</h2>' + checkList(siteChecks()) + '</section>';
+
+  h += '<section class="block"><h2>' + (LIVE ? "The H1 on every page" : "Every page at a glance") + '</h2><div class="tablewrap"><table><thead><tr><th>Page</th><th>Primary keyword</th>' +
+       (LIVE ? '<th>Make this the H1</th>' : '<th>Current H1</th><th>New H1</th>') + '<th>Changes</th><th>After changes</th></tr></thead><tbody>';
+  PAGES.forEach(p => {
+    const k = p.keywords && p.keywords.primary;
+    h += '<tr><td><a href="#' + p.id + '">' + esc(p.name) + '</a></td><td>' + (k ? fmtKw(k) : "—") + '</td>' +
+         (LIVE ? '<td><b>' + esc(p.h1.cur) + '</b></td>' : '<td>' + esc(p.h1.cur) + '</td><td><b>' + esc(p.h1.proposed || p.h1.cur) + '</b></td>') +
+         '<td class="num">' + changes(p).length + '</td><td class="num">' + countStr(p) + '</td></tr>';
+  });
+  h += '</tbody></table></div></section>';
+
+  const leg = [["p-keep","Keep","Already right. Nothing to do."],["p-retag","Re-tag","It is a heading, but the wrong level."],["p-tag","Make heading","It titles content but is built as a div, span or paragraph."],["p-none","Not a heading","Listed so nobody tags it by mistake."]];
+  if (!LIVE) leg.push(["p-rewrite","Rewrite","New wording for an existing heading (old text struck through)."],["p-add","Add heading","A new heading element with new text."],["p-remove","Remove heading","Turn it back into text, or delete it."]);
+  h += '<section class="block"><h2>How to read a page</h2><div class="card legend">' + leg.map(l => '<div><span><span class="pill ' + l[0] + '">' + l[1] + '</span></span><span>' + l[2] + '</span></div>').join("") +
+       (LIVE ? '<div><span>' + SUGG + '</span><span>Content or wording idea for later, including possible H1 wording. Skip for now.</span></div>' : '<div><span>' + SUGG + '</span><span>Copy or structure idea beyond the headings.</span></div>') + '</div></section>';
+
+  h += '<section class="block"><h2>The rules</h2><div class="card"><ul class="rules">' +
+       '<li><b>One H1 per page.</b> It is the main visible title, the first heading on the page, unique across the site, and says what the page is about in the words buyers search.</li>' +
+       '<li><b>H2 for each main section, H3 for items inside it, H4 only inside an H3.</b> Never skip a level going down. Going back up to start a new section is fine.</li>' +
+       '<li><b>Pick the tag by structure, not by size.</b> The look comes from the class.</li>' +
+       '<li><b>If it titles content under it, it’s a heading.</b> Eyebrows, stats, checklist items, buttons, tab labels, form labels and bold lead-ins are not.</li>' +
+       '<li><b>Nav and footer carry no headings,</b> so every page’s outline starts with its own H1.</li>' +
+       '<li><b>One page per keyword.</b> Each page owns its primary keyword. Sibling pages (industries, locations) use modifiers so they never compete with the main service page.</li>' +
+       '<li><b>What it does for SEO.</b> Google says tag order isn’t a ranking factor, but headings help Google, AI answers and screen readers understand the page, and the H1 feeds the title shown in results. The wording is the lever.</li>' +
+       '</ul></div><p class="src" style="margin-top:8px">Sources: <a href="https://www.w3.org/WAI/tutorials/page-structure/headings/" target="_blank" rel="noopener">W3C WAI</a> · <a href="https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/Heading_Elements" target="_blank" rel="noopener">MDN</a> · <a href="https://webaim.org/projects/screenreadersurvey10/" target="_blank" rel="noopener">WebAIM survey #10</a> · <a href="https://developers.google.com/search/docs/appearance/title-link" target="_blank" rel="noopener">Google title links</a> · <a href="https://developers.google.com/search/docs/fundamentals/seo-starter-guide" target="_blank" rel="noopener">Google SEO Starter Guide</a> · <a href="https://developers.google.com/search/docs/fundamentals/ai-optimization-guide" target="_blank" rel="noopener">Google AI optimization guide</a> · <a href="https://ahrefs.com/blog/h1-tag" target="_blank" rel="noopener">Ahrefs on H1s</a>. Keyword data: ' + esc(SITE.kwSource) + '.</p></section>';
+
+  const steps = PLATFORM_STEPS[SITE.platform] || PLATFORM_STEPS.Other;
+  h += '<section class="block"><h2>Applying it in ' + esc(SITE.platform) + '</h2><div class="card"><ol class="steps">' +
+       '<li><b>H1:</b> ' + (LIVE ? 'confirm the main title is the only H1 on the page and keep its wording.' : 'apply H1 changes only after the client signs off. Until then keep the current H1 text and apply everything else.') + '</li>' +
+       steps.map(s => '<li>' + s + '</li>').join("") +
+       (LIVE ? '<li><b>Don’t change any wording.</b> Everything tagged Suggestion is for later.</li>' : '<li><b>New and rewritten headings:</b> keep the class of the heading they replace, so the design stays the same.</li>') +
+       '<li><b>Check:</b> publish, run a headings checker (for example the HeadingsMap browser extension) on each page, and compare it with that page’s “Exact H tags” list here.</li></ol></div></section>';
+
+  h += '<section class="block"><h2>Site-wide</h2><ul class="notes">' + SITEWIDE.map(s => '<li>' + (s[0] === "keep" ? '<span class="pill p-pass">Good</span>' : s[0] === "retag" ? '<span class="pill p-retag">Re-tag</span>' : SUGG) + '<span>' + esc(s[1]) + '</span></li>').join("") + '</ul></section>';
+  $("#main").innerHTML = h;
+}
+
+/* ---------- keyword map ---------- */
+function renderKeywords(){
+  let h = '<div class="crumb"><span>Guide</span></div><div class="pagehead"><h1>Keyword map</h1></div>';
+  h += '<p class="intro">One owner page per keyword, so pages don’t compete. ' + (LIVE ? 'The H1 column shows whether today’s H1 already uses the page’s primary keyword; misses become suggestions on that page.' : 'The H1 column shows whether the new H1 uses the page’s primary keyword.') + '</p>';
+  h += '<section class="block"><h2>Checks</h2>' + checkList(siteChecks().slice(0,2)) + '</section>';
+  h += '<section class="block"><h2>Who owns what</h2><div class="tablewrap"><table><thead><tr><th>Page</th><th>Purpose</th><th>Primary</th><th>Secondary</th><th>In H1?</th></tr></thead><tbody>';
+  PAGES.forEach(p => {
+    const k = p.keywords || {}, pri = k.primary;
+    const inH1 = pri && pri[0] ? kwIn(finalH1(p), pri[0]) : null;
+    h += '<tr><td><a href="#' + p.id + '">' + esc(p.name) + '</a></td><td>' + esc(p.purpose || "") + '</td><td>' + (pri ? fmtKw(pri) : "Brand page") + '</td><td>' + (k.secondary || []).map(fmtKw).join("<br>") + '</td><td>' +
+         (inH1 === null ? "—" : '<span class="pill ' + (inH1 ? "p-pass" : "p-fail") + '">' + (inH1 ? "Yes" : "No") + '</span>') + '</td></tr>';
+  });
+  h += '</tbody></table></div><p class="src" style="margin-top:8px">' + esc(SITE.kwSource) + '. Volumes are monthly searches.</p></section>';
+  if (GAPS && GAPS.length) h += '<section class="block"><h2>Keywords no page owns yet</h2><p class="lede">Demand with no matching page. Possible new pages or sections, for later.</p><ul class="notes">' + GAPS.map(g => '<li>' + SUGG + '<span><b>' + esc(g.cluster) + '</b>' + (g.volume !== undefined ? ' (' + g.volume + '/mo)' : "") + '. ' + esc(g.note || "") + '</span></li>').join("") + '</ul></section>';
+  $("#main").innerHTML = h;
+}
+
+/* ---------- later: suggestions / sign-off ---------- */
+function signoffText(){
+  const list = PAGES.filter(p => p.h1.proposed && p.h1.proposed !== p.h1.cur);
+  let t = (LIVE ? "Suggested page title (H1) wording for SEO" : "Page title (H1) changes for your sign-off") + "\n\nThese keep the meaning and add the words buyers search for.\n\n";
+  list.forEach((p,i) => t += (i+1) + ". " + p.name + "\n   Current: " + p.h1.cur + "\n   " + (LIVE ? "Suggested" : "New") + ": " + p.h1.proposed + "\n\n");
+  return t.trim();
+}
+function renderLater(){
+  const list = PAGES.filter(p => p.h1.proposed && p.h1.proposed !== p.h1.cur);
+  const card = p => '<div class="card cq"><div class="pg"><a href="#' + p.id + '">' + esc(p.name) + '</a></div><div class="h1cols"><div class="h1alt cur"><small>Current H1</small><div class="t" style="font-size:16px">' + esc(p.h1.cur) + '</div></div><div class="h1main"><small>' + (LIVE ? "Suggested wording" : "New H1") + '</small><div class="t" style="font-size:16px">' + esc(p.h1.proposed) + '</div></div></div><p class="why">' + esc(p.h1.why || "") + '</p></div>';
+  let h = '<div class="crumb"><span>Later</span></div><div class="pagehead"><h1>' + esc(LATER.name) + '</h1></div>';
+  h += '<p class="intro">' + (LIVE ? "Wording and content ideas from the heading review, for later. None of these block the tag work." : "H1 changes to send the client, plus copy and structure ideas beyond the headings.") + '</p>';
+  if (list.length){
+    h += '<section class="block"><h2>H1 wording (' + list.length + ')</h2><div class="copyrow"><button class="btn primary" id="copySign" type="button">Copy as a message for the client</button><span class="copied" id="copied" aria-live="polite"></span></div>';
+    h += '<pre class="outline" id="signPre" style="white-space:pre-wrap;font-family:var(--body);font-size:14px;line-height:1.6">' + esc(signoffText()) + '</pre><div class="clientlist" style="margin-top:12px">' + list.map(card).join("") + '</div></section>';
+  }
+  h += '<section class="block backlog"><h2>' + (LIVE ? "Content suggestions" : "Other ideas") + '</h2>';
+  const sw = SITEWIDE.filter(s => s[0] === "content");
+  if (sw.length) h += '<h3>Site-wide</h3><ul class="notes">' + sw.map(s => '<li>' + SUGG + '<span>' + esc(s[1]) + '</span></li>').join("") + '</ul>';
+  PAGES.forEach(p => { if (!p.notes || !p.notes.length) return; h += '<h3><a href="#' + p.id + '">' + esc(p.name) + '</a></h3><ul class="notes">' + p.notes.map(n => '<li>' + SUGG + '<span>' + esc(n) + '</span></li>').join("") + '</ul>'; });
+  h += '</section>';
+  $("#main").innerHTML = h;
+  const b = $("#copySign"); if (b) b.addEventListener("click", () => copyText(signoffText(), $("#signPre")));
+}
+
+/* ---------- router ---------- */
+function route(){
+  let id = (location.hash || "#overview").slice(1);
+  if (!["overview","keywords","later"].includes(id) && !byId(id)) id = "overview";
+  document.querySelectorAll(".nav a").forEach(a => a.getAttribute("data-id") === id ? a.setAttribute("aria-current","page") : a.removeAttribute("aria-current"));
+  $("#pagePick").value = id;
+  if (id === "overview") renderOverview(); else if (id === "keywords") renderKeywords(); else if (id === "later") renderLater(); else renderPage(byId(id));
+  window.scrollTo(0,0);
+}
+$("#brandName").textContent = SITE.name;
+$("#brandSub").textContent = LIVE ? "H-tag map · tags only" : "Heading plan · with rewrites";
+$("#siteLink").href = SITE.url; $("#siteLink").textContent = "Open site ↗";
+buildNav();
+window.addEventListener("hashchange", route);
+route();
+</script>

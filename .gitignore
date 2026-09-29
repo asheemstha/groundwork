@@ -1,0 +1,10 @@
+# Dependencies (installed on each computer)
+node_modules/
+web/node_modules/
+
+# Your sites, plans, usage and settings stay on your computer
+data/
+legacy-runs/
+
+.DS_Store
+*.log
