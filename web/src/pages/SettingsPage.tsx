@@ -172,9 +172,10 @@ function Updates() {
   return (
     <div className="flex flex-wrap items-center gap-3 rounded-2xl border bg-card p-4 text-sm">
       <div className="min-w-0 flex-1">
-        <div className="font-medium">Groundwork {update?.version}{update?.commit && <span className="ml-1 font-mono text-xs text-muted-foreground">{update.commit}</span>}</div>
+        <div className="font-medium">Groundwork {update?.version}{update?.commit && !update.app && <span className="ml-1 font-mono text-xs text-muted-foreground">{update.commit}</span>}</div>
         <div className="text-muted-foreground">
-          {!update ? "Checking…" : !update.enabled ? "This copy wasn’t installed from GitHub, so it doesn’t update itself." : update.error ? update.error : update.behind ? `${update.behind === 1 ? "An update is" : `${update.behind} updates are`} ready${update.latest ? `: ${update.latest}` : ""}.` : `Up to date${update.checkedAt ? `, checked ${ago(update.checkedAt)}` : ""}. It also updates itself each time it starts.`}
+          {!update ? "Checking…" : !update.enabled ? "This copy wasn’t installed from GitHub, so it doesn’t update itself." : update.error ? update.error : update.behind ? `Version ${update.latest || "update"} is ready.` : `Up to date${update.checkedAt ? `, checked ${ago(update.checkedAt)}` : ""}. ${update.app ? "It checks GitHub for new versions every few hours." : "It also updates itself each time it starts."}`}
+          {update?.url && <> <a href={update.url} target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-foreground">Release notes</a></>}
         </div>
       </div>
       {update?.enabled && (update.behind

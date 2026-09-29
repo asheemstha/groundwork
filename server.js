@@ -7,7 +7,9 @@ const crawl = require('./lib/crawl');
 const H = require('./lib/headings');
 
 const ROOT = __dirname, PORT = +process.env.PORT || 4477;
-const DATA = path.join(ROOT, 'data'), RUNS = path.join(DATA, 'runs'), PUB = path.join(ROOT, 'web', 'dist');
+// The desktop app keeps data in ~/Library/Application Support/Groundwork/data; a terminal run keeps it next to the code.
+const DATA = process.env.GW_DATA || path.join(ROOT, 'data'), RUNS = path.join(DATA, 'runs'), PUB = path.join(ROOT, 'web', 'dist');
+const DESKTOP = () => global.gwDesktop || null;
 fs.mkdirSync(RUNS, { recursive: true });
 
 // ---------- small helpers ----------
@@ -363,8 +365,9 @@ async function checkLive(run) {
 const { execFile } = require('child_process');
 const VERSION = readJson(path.join(ROOT, 'package.json'), {}).version || '0';
 const git = (args, ms = 20000) => new Promise(r => execFile('git', args, { cwd: ROOT, timeout: ms }, (e, out, err) => r({ ok: !e, out: String(out || '').trim(), err: String(err || '').trim() })));
-let update = { enabled: false, version: VERSION, commit: null, behind: 0, latest: null, checkedAt: 0, error: null, launcher: !!process.env.GW_LAUNCHER };
+let update = { enabled: false, version: VERSION, app: !!process.env.GW_APP, commit: null, behind: 0, latest: null, checkedAt: 0, error: null, launcher: !!process.env.GW_LAUNCHER };
 async function checkUpdate() {
+  if (DESKTOP()) return (update = await DESKTOP().check());
   if (!fs.existsSync(path.join(ROOT, '.git'))) return (update = { ...update, enabled: false });
   const head = await git(['rev-parse', '--short', 'HEAD']);
   const branch = (await git(['rev-parse', '--abbrev-ref', 'HEAD'])).out || 'main';
@@ -390,6 +393,7 @@ const server = http.createServer(async (req, res) => {
     if (p === '/api/version' && M === 'GET') { if (u.searchParams.has('check')) await checkUpdate(); return json(res, update); }
     if (p === '/api/update' && M === 'POST') {
       if (busyRuns().length) return json(res, { error: 'Wait until the running scan or plan finishes.' }, 409);
+      if (DESKTOP()) { try { return json(res, await DESKTOP().install()); } catch (e) { return json(res, { error: e.message }, 400); } }
       if (!update.enabled) return json(res, { error: 'This copy wasn’t installed from GitHub, so it can’t update itself.' }, 400);
       if (!process.env.GW_LAUNCHER) {
         // Started without the launcher: pull now, the user restarts.
@@ -519,14 +523,17 @@ for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(sig, async () => {
   await Promise.race([crawl.closeBrowser(), new Promise(r => setTimeout(r, 2000))]);
   process.exit(0);
 });
-server.on('error', e => { if (e.code === 'EADDRINUSE' && !process.env.GW_RESTARTED) { console.log(`${APP_NAME} is already running: http://localhost:${PORT}`); process.exit(0); } if (e.code !== 'EADDRINUSE') throw e; });
+server.on('error', e => { if (e.code === 'EADDRINUSE' && !process.env.GW_RESTARTED && !process.env.GW_APP) { console.log(`${APP_NAME} is already running: http://localhost:${PORT}`); process.exit(0); } if (e.code !== 'EADDRINUSE') throw e; });
 let SC = null; // shared/checks.mjs, loaded at boot
+let markReady;
+module.exports = { ready: new Promise(r => { markReady = r; }), busy: () => busyRuns().length };
 import('./shared/checks.mjs').then(mod => {
   SC = mod; H.init(mod);
   // After an update the old process may still be letting go of the port for a moment.
   let tries = 0;
   server.on('error', e => { if (e.code === 'EADDRINUSE' && process.env.GW_RESTARTED && tries++ < 20) setTimeout(() => server.listen(PORT, '127.0.0.1'), 250); });
   server.listen(PORT, '127.0.0.1', () => {
+    markReady(PORT);
     console.log(`${APP_NAME} ${VERSION} is running: http://localhost:${PORT}`);
     status(true).catch(() => {});
     setTimeout(() => checkUpdate().catch(() => {}), 4000);

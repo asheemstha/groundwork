@@ -201,7 +201,7 @@ export interface CState {
 export interface CrawlItem { ref?: string; kind: string; text: string; hidden?: boolean; zone?: string | null; styled?: boolean; rect?: Rect | null }
 export interface CrawlData { status: number; title: string; items: CrawlItem[]; height: number; counts: Record<string, number> }
 
-export interface UpdateInfo { enabled: boolean; version: string; commit: string | null; behind: number; latest: string | null; checkedAt: number; error: string | null; launcher: boolean }
+export interface UpdateInfo { enabled: boolean; version: string; commit: string | null; behind: number; latest: string | null; checkedAt: number; error: string | null; launcher: boolean; app?: boolean; url?: string }
 
 async function req<T>(method: string, url: string, body?: unknown): Promise<T> {
   const r = await fetch(url, { method, headers: body ? { "content-type": "application/json" } : {}, body: body ? JSON.stringify(body) : undefined })

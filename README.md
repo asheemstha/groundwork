@@ -2,25 +2,29 @@
 
 Plan site improvements with your own Claude Code or Codex account. The first tool is **Heading structure**. It plans H1–H6 for every page and turns the plan into a to-do list a developer can tick off.
 
-## Install (once)
+## Install (Mac)
 
-You need **Node.js** (nodejs.org, LTS), **Google Chrome**, and **Claude Code or Codex** signed in to your own plan. Then open Terminal and paste:
+You need **Google Chrome** and **Claude Code or Codex** signed in to your own plan. The app walks you through installing and signing in to either one (sidebar → Engines & settings).
 
-```bash
-cd ~/Documents && git clone https://github.com/asheemstha/groundwork.git
-```
+1. Download **Groundwork-x.y.z-mac.dmg** from the [latest release](https://github.com/asheemstha/groundwork/releases/latest).
+2. Open it and drag **Groundwork** into **Applications**.
+3. Open Groundwork. The first time, macOS says it can't check the app for malicious software, because it isn't signed with an Apple developer certificate. Click **Done**, then go to **System Settings → Privacy & Security**, scroll down and click **Open Anyway** next to Groundwork. You only do this once.
 
-Double-click **Start Groundwork.command** in the new `groundwork` folder (Windows: **Start Groundwork.bat**). It opens http://localhost:4477. Keep its window open while you use the app.
+   Or, in Terminal: `xattr -dr com.apple.quarantine /Applications/Groundwork.app`
+
+Your sites, plans and to-do progress stay on your Mac in `~/Library/Application Support/Groundwork/data` (Help → Show app data in Finder). Nothing is uploaded.
 
 ## Updates
 
-- Every time you start Groundwork it downloads the latest version first.
-- While it's open, it checks every few hours. When there's a new version, the sidebar shows **Update available**. Click **Update now** and it restarts on the new version.
-- Your sites, plans and to-do progress are in `groundwork/data` and are never touched by updates or uploaded anywhere.
+- Groundwork checks GitHub for a new version when it opens and every few hours. When there is one, the sidebar shows **Update available**.
+- Click **Update now**. It downloads the new version, replaces itself and reopens. Your data isn't touched.
+- Updating only works when the app is in Applications (or another folder you can write to).
 
-**Publishing an update (maintainer only):** double-click **Publish Update.command**. It builds the app, bumps the version, asks what changed and pushes to GitHub. Everyone else gets it the next time they open Groundwork or click Update now.
+**Publishing an update (maintainer only):** double-click **Publish Update.command**. It asks what changed, builds, bumps the version, and pushes a version tag. GitHub Actions then builds the Mac app (about 10 minutes) and publishes it as a Release. Everyone's app offers the update after that.
 
-The app walks you through installing and signing in to Claude Code or Codex (sidebar → Engines & settings).
+## Run from source (developers)
+
+Needs Node.js (LTS). `git clone https://github.com/asheemstha/groundwork.git`, then double-click **Start Groundwork.command** (Windows: **Start Groundwork.bat**). It opens http://localhost:4477, pulls the latest code each time it starts, and keeps its data in `groundwork/data`. `npm run app` runs the desktop app from source and `npm run dist` builds it into `release/`.
 
 ## How it works
 
@@ -38,7 +42,8 @@ The app walks you through installing and signing in to Claude Code or Codex (sid
 
 ## Code
 
-- `server.js`: local API and job runner (binds to 127.0.0.1). Data lives in `data/runs/<id>/`.
+- `desktop/`: the Electron app. `main.js` starts the server inside the app, `updater.js` updates it from GitHub Releases.
+- `server.js`: local API and job runner (binds to 127.0.0.1). Data lives in `data/runs/<id>/`, or the app's data folder.
 - `lib/engines.js`: Claude Code / Codex detection, models, efforts and the runner.
 - `lib/crawl.js`: browser scan, preloader handling, screenshots and live checks.
 - `lib/headings.js`: prompts, turning the AI's plan into to-dos, export and verification.

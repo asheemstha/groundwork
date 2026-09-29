@@ -1,0 +1,54 @@
+# Builds the Mac app and publishes it as a GitHub Release whenever a version tag (v1.2.3) is pushed.
+# The app checks the latest release on startup and updates itself from the .zip attached here.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            web/package-lock.json
+
+      - name: Check the tag matches package.json
+        run: |
+          v=$(node -p "require('./package.json').version")
+          [ "v$v" = "$GITHUB_REF_NAME" ] || { echo "Tag $GITHUB_REF_NAME doesn't match package.json version $v"; exit 1; }
+
+      - name: Install
+        run: |
+          npm ci
+          cd web && npm ci
+
+      - name: Build the web app
+        run: cd web && npm run build
+
+      # Unsigned: ad-hoc signed by desktop/after-sign.js, so first open needs "Open Anyway".
+      - name: Build the Mac app
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: npx electron-builder --mac --universal --publish never
+
+      - name: Release notes
+        run: git log -1 --format=%B | grep -v '^Co-Authored-By:' > notes.md
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: Groundwork ${{ github.ref_name }}
+          body_path: notes.md
+          files: |
+            release/Groundwork-*-mac.dmg
+            release/Groundwork-*-mac.zip

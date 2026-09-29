@@ -179,3 +179,23 @@
     font-variant-numeric: tabular-nums;
   }
 }
+
+/* Desktop app (Electron): native title bar area */
+.app-titlebar {
+  display: none;
+}
+html.desktop .app-titlebar {
+  display: block;
+  height: 30px;
+  flex-shrink: 0;
+  -webkit-app-region: drag;
+}
+html.desktop .app-drag {
+  -webkit-app-region: drag;
+}
+html.desktop .app-drag :is(button, a, input, select, [role="button"], [role="tab"]) {
+  -webkit-app-region: no-drag;
+}
+html.desktop nav[aria-label="App"] {
+  width: 84px;
+}

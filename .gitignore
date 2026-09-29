@@ -8,3 +8,6 @@ legacy-runs/
 
 .DS_Store
 *.log
+
+# App builds (published as GitHub Releases, not committed)
+release/

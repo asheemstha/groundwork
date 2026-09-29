@@ -44,7 +44,8 @@ function MiniRail() {
   const r = useRoute()
   const { setSidebar } = useApp()
   return (
-    <nav className="flex w-14 shrink-0 flex-col items-center gap-1 py-3" aria-label="App">
+    <nav className="app-drag flex w-14 shrink-0 flex-col items-center gap-1 py-3" aria-label="App">
+      <div className="app-titlebar w-full" />
       <button onClick={() => go(routes.home)} className="mb-3" aria-label="Groundwork home"><Logo className="size-7" /></button>
       <RailButton label="Show sidebar" onClick={() => setSidebar(true)}><PanelLeftOpen className="size-[18px]" /></RailButton>
       <RailButton label="New plan" active={r.name === "home"} onClick={() => go(routes.home)}><SquarePen className="size-[18px]" /></RailButton>
@@ -148,7 +149,8 @@ function Sidebar() {
   }
   return (
     <aside className="hidden w-64 shrink-0 flex-col py-3 pr-2 pl-3 md:flex" aria-label="Sites">
-      <div className="flex items-center gap-2 pb-3 pl-1">
+      <div className="app-titlebar -mx-3 -mt-3 mb-1" />
+      <div className="app-drag flex items-center gap-2 pb-3 pl-1">
         <Logo />
         <span className="flex-1 text-[15px] font-semibold tracking-tight">Groundwork</span>
         <Tooltip>

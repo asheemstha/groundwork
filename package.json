@@ -1,15 +1,66 @@
 {
   "name": "groundwork",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "private": true,
   "description": "Plan site improvements with your own Claude Code or Codex account.",
-  "main": "server.js",
+  "main": "desktop/main.js",
   "scripts": {
     "start": "node server.js",
+    "app": "electron .",
     "build": "cd web && npm install && npm run build",
-    "dev": "cd web && npx vite"
+    "dist": "npm run build && electron-builder --mac --universal --publish never"
   },
   "dependencies": {
     "playwright-core": "^1.63.0"
+  },
+  "devDependencies": {
+    "electron": "^44.4.5",
+    "electron-builder": "^26.15.3"
+  },
+  "productName": "Groundwork",
+  "author": "Groundwork",
+  "build": {
+    "appId": "app.groundwork.desktop",
+    "productName": "Groundwork",
+    "copyright": "Groundwork",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "asar": false,
+    "files": [
+      "desktop/**",
+      "server.js",
+      "lib/**",
+      "shared/**",
+      "tools/**",
+      "web/dist/**",
+      "package.json"
+    ],
+    "afterSign": "desktop/after-sign.js",
+    "mac": {
+      "category": "public.app-category.productivity",
+      "icon": "build/icon.png",
+      "identity": null,
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "universal"
+          ]
+        }
+      ],
+      "artifactName": "Groundwork-${version}-mac.${ext}"
+    },
+    "dmg": {
+      "title": "Groundwork ${version}",
+      "artifactName": "Groundwork-${version}-mac.${ext}"
+    }
   }
 }
