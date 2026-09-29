@@ -190,3 +190,10 @@ html.desktop .app-drag {
 html.desktop .app-drag :is(button, a, input, select, [role="button"], [role="tab"]) {
   -webkit-app-region: no-drag;
 }
+/* With the sidebar closed, page headers start after the fixed top-left cluster (logo or window buttons, then the toggle). */
+[data-sidebar="closed"] .app-topbar {
+  padding-left: 80px;
+}
+html.desktop [data-sidebar="closed"] .app-topbar {
+  padding-left: 180px;
+}

@@ -1,6 +1,6 @@
 import * as React from "react"
 import { cn } from "cn"
-import { Camera, Check, ChevronDown, Download, Loader2, MoreHorizontal, Pencil, PanelLeftClose, PanelLeftOpen, RefreshCw, Settings, SquarePen, Trash2 } from "lucide-react"
+import { ArrowLeft, ArrowRight, Camera, Check, ChevronDown, Download, Loader2, MoreHorizontal, PanelLeft, Pencil, RefreshCw, Settings, SquarePen, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -15,44 +15,111 @@ import { Bar, Dot, Logo, Ring, SiteIcon, Spinner, renameSite, runLabel } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 
+const MAC = /Mac/.test(navigator.platform)
+const DESKTOP = () => document.documentElement.classList.contains("desktop")
+const mod = (k: string) => (MAC ? `⌘${k}` : `Ctrl+${k}`)
+
+/**
+ * The sidebar works like Claude's desktop app: the window buttons, sidebar toggle and back/forward sit in one fixed
+ * cluster in the top-left corner that never moves. Closing the sidebar gives the page panel the full width; hovering the
+ * toggle (or the left edge) slides the sidebar over the page until the pointer leaves, and clicking pins it. ⌘B toggles it.
+ */
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const { sidebar } = useApp()
+  const { sidebar, setSidebar } = useApp()
+  const route = useRoute()
+  const [peek, setPeek] = React.useState(false)
+  const panel = React.useRef<HTMLElement>(null)
+  const timer = React.useRef(0)
+  const hover = React.useCallback((on: boolean) => {
+    window.clearTimeout(timer.current)
+    timer.current = window.setTimeout(() => {
+      // Keep it open while one of its menus is open (the menu sits outside the panel).
+      if (!on && panel.current?.querySelector("[data-popup-open]")) return
+      setPeek(on)
+    }, on ? 120 : 280)
+  }, [])
+  React.useEffect(() => setPeek(false), [route, sidebar])
+  React.useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") return setPeek(false)
+      if (!(MAC ? e.metaKey : e.ctrlKey) || e.altKey || e.shiftKey) return
+      const k = e.key.toLowerCase()
+      if (k === "b") { e.preventDefault(); setSidebar(!sidebar) }
+      else if (DESKTOP() && k === "[") { e.preventDefault(); history.back() }
+      else if (DESKTOP() && k === "]") { e.preventDefault(); history.forward() }
+      else if (DESKTOP() && k === "n") { e.preventDefault(); go(routes.home) }
+      else if (DESKTOP() && k === ",") { e.preventDefault(); go(routes.settings()) }
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [sidebar, setSidebar])
   return (
-    <div className="flex h-full bg-canvas">
+    <div className="relative flex h-full bg-canvas" data-sidebar={sidebar ? "open" : "closed"}>
       <RenameDialog />
-      {sidebar ? <Sidebar /> : <MiniRail />}
-      <main className="min-w-0 flex-1 py-2 pr-2">
+      <WindowBar sidebar={sidebar} onToggle={() => setSidebar(!sidebar)} onHover={sidebar ? undefined : hover} />
+      {sidebar ? (
+        <Sidebar />
+      ) : (
+        <>
+          <div className="absolute top-16 bottom-0 left-0 z-30 w-2" onMouseEnter={() => hover(true)} onMouseLeave={() => hover(false)} />
+          <Sidebar floating open={peek} onHover={hover} panelRef={panel} />
+        </>
+      )}
+      <main className={cn("min-w-0 flex-1 py-2 pr-2", !sidebar && "pl-2")}>
         <div className="flex h-full flex-col overflow-hidden rounded-xl border border-border/80 bg-background shadow-[0_1px_2px_rgba(22,23,22,0.04)]">{children}</div>
       </main>
     </div>
   )
 }
 
-function RailButton({ label, active, onClick, children }: { label: string; active?: boolean; onClick: () => void; children: React.ReactNode }) {
+/** Back/forward availability, from the browser's Navigation API. */
+function useHistoryState() {
+  const [s, set] = React.useState({ back: false, forward: false })
+  React.useEffect(() => {
+    const nav = (window as unknown as { navigation?: EventTarget & { canGoBack: boolean; canGoForward: boolean } }).navigation
+    if (!nav) return
+    const update = () => set({ back: nav.canGoBack, forward: nav.canGoForward })
+    update()
+    nav.addEventListener("currententrychange", update)
+    return () => nav.removeEventListener("currententrychange", update)
+  }, [])
+  return s
+}
+
+function BarButton({ label, keys, onClick, disabled, onHover, children }: { label: string; keys?: string; onClick: () => void; disabled?: boolean; onHover?: (on: boolean) => void; children: React.ReactNode }) {
   return (
     <Tooltip>
-      <TooltipTrigger render={<button onClick={onClick} aria-label={label} className={cn("grid size-9 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground", active && "bg-sidebar-accent text-foreground")} />}>
+      <TooltipTrigger
+        render={
+          <button
+            onClick={onClick}
+            disabled={disabled}
+            aria-label={label}
+            onMouseEnter={onHover && (() => onHover(true))}
+            onMouseLeave={onHover && (() => onHover(false))}
+            className="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-35 [&_svg]:size-4"
+          />
+        }
+      >
         {children}
       </TooltipTrigger>
-      <TooltipContent side="right">{label}</TooltipContent>
+      <TooltipContent side="bottom">{label}{keys && <span className="ml-2 opacity-60">{keys}</span>}</TooltipContent>
     </Tooltip>
   )
 }
 
-/** The collapsed sidebar: just the essentials, like ChatGPT's closed sidebar. */
-function MiniRail() {
-  const r = useRoute()
-  const { setSidebar } = useApp()
+/** The fixed top-left cluster, centred on the page header's line. In the Mac app it starts right after the window buttons; in a browser, after the logo. */
+function WindowBar({ sidebar, onToggle, onHover }: { sidebar: boolean; onToggle: () => void; onHover?: (on: boolean) => void }) {
+  const h = useHistoryState()
   return (
-    <nav className="app-drag flex w-14 shrink-0 flex-col items-center gap-1 py-3 desktop:w-[100px]" aria-label="App">
-      {/* In the Mac app the window buttons take the top row, so the logo gives way to them. */}
-      <div className="mb-2 h-10 w-full shrink-0 web:hidden" />
-      <button onClick={() => go(routes.home)} className="mb-3 desktop:hidden" aria-label="Groundwork home"><Logo className="size-7" /></button>
-      <RailButton label="Show sidebar" onClick={() => setSidebar(true)}><PanelLeftOpen className="size-[18px]" /></RailButton>
-      <RailButton label="New plan" active={r.name === "home"} onClick={() => go(routes.home)}><SquarePen className="size-[18px]" /></RailButton>
-      <div className="flex-1" />
-      <RailButton label="AI engines & settings" active={r.name === "settings"} onClick={() => go(routes.settings())}><Settings className="size-[18px]" /></RailButton>
-    </nav>
+    <div className="app-drag absolute top-0 left-0 z-50 flex h-16 items-center gap-0.5 pl-4 desktop:pl-[88px]">
+      <button onClick={() => go(routes.home)} className="mr-1.5 desktop:hidden" aria-label="Groundwork home"><Logo /></button>
+      <BarButton label={sidebar ? "Hide sidebar" : "Show sidebar"} keys={mod("B")} onClick={onToggle} onHover={onHover}><PanelLeft /></BarButton>
+      <span className="contents web:hidden">
+        <BarButton label="Back" keys={mod("[")} onClick={() => history.back()} disabled={!h.back}><ArrowLeft /></BarButton>
+        <BarButton label="Forward" keys={mod("]")} onClick={() => history.forward()} disabled={!h.forward}><ArrowRight /></BarButton>
+      </span>
+    </div>
   )
 }
 
@@ -136,8 +203,9 @@ export function VersionMenu({ runId }: { runId: string }) {
   )
 }
 
-function Sidebar() {
-  const { runs, status, setSidebar, refreshRuns, siteLabel } = useApp()
+/** The sidebar: pinned beside the page, or floating over it while previewed from the collapsed state. */
+function Sidebar({ floating, open, onHover, panelRef }: { floating?: boolean; open?: boolean; onHover?: (on: boolean) => void; panelRef?: React.Ref<HTMLElement> }) {
+  const { runs, status, refreshRuns, siteLabel } = useApp()
   const route = useRoute()
   const cur = route.name === "run" || route.name === "review" ? route.id : null
   const groups = groupBySite(runs)
@@ -149,16 +217,20 @@ function Sidebar() {
     if (x.list.some((r) => r.id === cur)) go(routes.home)
   }
   return (
-    <aside className="hidden w-64 shrink-0 flex-col py-3 pr-2 pl-3 md:flex" aria-label="Sites">
-      {/* One header row, centred on the same line as the page header. In the Mac app the window buttons sit on its left instead of the logo. */}
-      <div className="app-drag mb-2 flex h-10 shrink-0 items-center gap-2 pl-1">
-        <Logo className="desktop:hidden" />
-        <span className="flex-1 text-[15px] font-semibold tracking-tight desktop:invisible">Groundwork</span>
-        <Tooltip>
-          <TooltipTrigger render={<Button variant="ghost" size="icon-sm" onClick={() => setSidebar(false)} aria-label="Hide sidebar" />}><PanelLeftClose /></TooltipTrigger>
-          <TooltipContent>Hide sidebar</TooltipContent>
-        </Tooltip>
-      </div>
+    <aside
+      ref={panelRef}
+      aria-label="Sites"
+      inert={floating && !open}
+      onMouseEnter={onHover && (() => onHover(true))}
+      onMouseLeave={onHover && (() => onHover(false))}
+      className={cn(
+        "flex w-64 shrink-0 flex-col pr-2 pb-3 pl-3",
+        floating && "absolute top-2 bottom-2 left-2 z-40 rounded-xl border border-sidebar-border bg-canvas shadow-[0_12px_40px_rgba(22,23,22,0.18)] transition-transform duration-200 ease-out",
+        floating && !open && "-translate-x-[calc(100%+16px)] shadow-none"
+      )}
+    >
+      {/* The top row belongs to the window buttons and the toggle cluster, which float above it. */}
+      <div className={cn("app-drag shrink-0", floating ? "h-12" : "h-14")} />
       <button onClick={() => go(routes.home)} className={cn("flex items-center gap-2 rounded-lg px-2 py-1.5 text-[13.5px] hover:bg-sidebar-accent", route.name === "home" && "bg-sidebar-accent")}>
         <SquarePen className="size-4" /> New plan
       </button>

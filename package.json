@@ -1,6 +1,6 @@
 {
   "name": "groundwork",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "private": true,
   "description": "Plan site improvements with your own Claude Code or Codex account.",
   "main": "desktop/main.js",
