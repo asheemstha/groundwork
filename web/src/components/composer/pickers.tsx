@@ -52,6 +52,30 @@ export function OutputPicker({ value, onChange }: { value: Output; onChange: (v:
   )
 }
 
+export type PlanTool = "headings" | "seo"
+const TOOLS: Record<PlanTool, { label: string; desc: string }> = {
+  headings: { label: "Heading plan", desc: "H1 to H6 for every page: tag fixes, and keyword rewrites if you want them." },
+  seo: { label: "SEO plan", desc: "A title, meta description and URL for every page. Uses the heading plan’s keywords when there is one." },
+}
+export function ToolPicker({ value, onChange }: { value: PlanTool; onChange: (v: PlanTool) => void }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger render={<ChipButton />}><Sparkles />{TOOLS[value].label}<ChevronDown className="opacity-60" /></DropdownMenuTrigger>
+      <DropdownMenuContent className="w-80" align="start">
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>What to plan</DropdownMenuLabel>
+          {(Object.keys(TOOLS) as PlanTool[]).map((k) => (
+            <DropdownMenuItem key={k} className="items-start" onClick={() => onChange(k)}>
+              <span className="flex-1"><span className="block font-medium">{TOOLS[k].label}</span><span className="block text-xs text-muted-foreground">{TOOLS[k].desc}</span></span>
+              <Check className={cn("mt-0.5", k !== value && "invisible")} />
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
 export function CountryPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const [open, setOpen] = React.useState(false)
   const c = countryByName(value)

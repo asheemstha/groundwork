@@ -7,8 +7,9 @@ export type Route =
   | { name: "templates" }
   | { name: "template"; id: string }
   | { name: "settings"; engine?: "claude" | "codex" }
-  | { name: "run"; id: string }
+  | { name: "run"; id: string; tool?: "seo" }
   | { name: "review"; id: string; view: string }
+  | { name: "seo"; id: string; view: string }
 
 function parse(): Route {
   const parts = (location.hash.slice(1) || "/").split("/").filter(Boolean).map(decodeURIComponent)
@@ -18,7 +19,8 @@ function parse(): Route {
   if (parts[0] === "settings") return { name: "settings", engine: parts[1] === "codex" ? "codex" : parts[1] === "claude" ? "claude" : undefined }
   if (parts[0] === "run" && parts[1]) {
     if (parts[2] === "review") return { name: "review", id: parts[1], view: parts[3] || "overview" }
-    return { name: "run", id: parts[1] }
+    if (parts[2] === "seo") return { name: "seo", id: parts[1], view: parts[3] || "all" }
+    return { name: "run", id: parts[1], tool: parts[2] === "tool" && parts[3] === "seo" ? "seo" : undefined }
   }
   return { name: "home" }
 }
@@ -50,6 +52,7 @@ export const routes = {
   templates: "/templates",
   template: (id: string) => `/templates/${id}`,
   settings: (engine?: string) => (engine ? `/settings/${engine}` : "/settings"),
-  run: (id: string) => `/run/${id}`,
+  run: (id: string, tool?: "seo") => `/run/${id}${tool ? "/tool/" + tool : ""}`,
+  seo: (id: string, view?: string) => `/run/${id}/seo${view ? "/" + encodeURIComponent(view) : ""}`,
   review: (id: string, view = "overview") => `/run/${id}/review/${encodeURIComponent(view)}`,
 }

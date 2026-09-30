@@ -9,10 +9,11 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Bar, HTag, Spinner, Tag } from "@/components/common/bits"
 import { Screenshot, type Marker } from "@/components/common/Screenshot"
 import { useApp } from "@/hooks/useApp"
-import { api, exportUrl, shotUrl, type CrawlData, type LogEntry, type Progress, type Run, type ScanPage, type Result, type Mode } from "@/lib/api"
+import { api, exportUrl, seoCsvUrl, shotUrl, type CrawlData, type LogEntry, type Progress, type Run, type ScanPage, type Result, type Mode, type SeoResult, type SeoState } from "@/lib/api"
 import { ago, fmtClock, fmtDur, fmtTok, pct, plural } from "@/lib/format"
 import { go, routes } from "@/lib/router"
 import { finalMode, isTask, pageChecks, phases, siteChecks } from "@/lib/checks"
+import * as SEO from "@/lib/seo"
 
 /** A block in the run thread: mono label, title, optional right side, body. */
 export function Block({ label, title, right, children, className }: { label: string; title: React.ReactNode; right?: React.ReactNode; children?: React.ReactNode; className?: string }) {
@@ -30,7 +31,7 @@ export function Block({ label, title, right, children, className }: { label: str
   )
 }
 
-function StepIcon({ state }: { state: "done" | "active" | "todo" }) {
+export function StepIcon({ state }: { state: "done" | "active" | "todo" }) {
   if (state === "done") return <span className="grid size-5 place-items-center rounded-full bg-done text-background"><Check className="size-3" strokeWidth={2.5} /></span>
   if (state === "active") return <span className="grid size-5 place-items-center"><Spinner className="size-4" /></span>
   return <span className="size-5 rounded-full border border-dashed border-input" />
@@ -229,8 +230,9 @@ export function modelName(status: ReturnType<typeof useApp>["status"], engine: s
   return m ? m.name : model
 }
 
-export function PlanBlock({ run, progress, log, result, onStop }: { run: Run; progress: Progress | null; log: LogEntry[]; result: Result | null; onStop: () => void }) {
+export function PlanBlock({ run, progress, log: all, result, onStop }: { run: Run; progress: Progress | null; log: LogEntry[]; result: Result | null; onStop: () => void }) {
   const { status } = useApp()
+  const log = all.filter((e) => !e.job)
   const s = run.settings!, j = run.job
   const sel = run.pages.filter((p) => run.selected.includes(p.id))
   const planned = new Set(progress?.plannedIds || [])
@@ -354,7 +356,7 @@ export function FailedBlock({ run, onRetry }: { run: Run; onRetry: () => void })
 
 // ---------- activity ----------
 const LOG_ICON: Record<string, React.ElementType> = { tool: FileText, ai: Sparkles, step: Check, error: AlertTriangle, stderr: Wrench }
-function ActivityLog({ log }: { log: LogEntry[] }) {
+export function ActivityLog({ log }: { log: LogEntry[] }) {
   const ref = React.useRef<HTMLDivElement>(null)
   const items = log.filter((e) => e.kind !== "stderr")
   React.useEffect(() => { const el = ref.current; if (el && el.scrollTop + el.clientHeight > el.scrollHeight - 80) el.scrollTop = el.scrollHeight }, [items.length])
@@ -374,6 +376,97 @@ function ActivityLog({ log }: { log: LogEntry[] }) {
           )
         })}
       </ol>
+    </div>
+  )
+}
+
+// ---------- SEO plan ----------
+export function SeoBlock({ run, progress, log: all, result, state, onStop }: { run: Run; progress: Progress | null; log: LogEntry[]; result: SeoResult | null; state: SeoState; onStop: () => void }) {
+  const { status } = useApp()
+  const sq = run.seo!, s = sq.settings, j = sq.job
+  const log = all.filter((e) => e.job === "seo")
+  const sel = run.pages.filter((p) => sq.selected.includes(p.id))
+  const planned = new Set(progress?.plannedIds || [])
+  const running = sq.status === "running"
+  const done = (sq.status === "done" || sq.status === "partial") && result
+  const eng = status?.catalog[s.engine]?.name || s.engine
+  const tok = progress?.tokens || j?.tokens
+  const took = j?.ended && j?.started ? fmtDur((j.ended - j.started) / 1000) : null
+  const title = running ? <>Writing SEO for {plural(sel.length, "page")}</>
+    : done ? (sq.status === "partial" ? "SEO plan ready, some pages missing" : "SEO plan ready")
+    : sq.status === "cancelled" ? "SEO plan stopped" : "The SEO plan didn’t finish"
+  return (
+    <Block
+      label={`AI plan · SEO · ${eng} · ${modelName(status, s.engine, s.model)} · ${status?.effort[s.effort]?.name || s.effort} effort`}
+      title={title}
+      className={cn(done && "border-foreground/25")}
+      right={running ? <Button variant="outline" size="sm" onClick={onStop}><CircleStop /> Stop</Button> : done ? (
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" nativeButton={false} render={<a href={seoCsvUrl(run.id)} download />}><Download /> Export</Button>
+          <Button size="sm" onClick={() => go(routes.seo(run.id))}>Open SEO plan <ArrowRight /></Button>
+        </div>
+      ) : null}
+    >
+      {running && (
+        <>
+          <div className="px-5 pt-1 pb-2">
+            <Bar value={progress?.percent || 1} tone="brand" className="h-1.5" />
+            <div className="mt-2 flex items-baseline justify-between text-sm">
+              <span className="text-2xl font-medium tracking-tight tabular">{progress?.percent || 0}%</span>
+              <span className="text-muted-foreground">{progress?.etaSec != null ? `About ${fmtDur(progress.etaSec)} left · ` : ""}{fmtClock(progress?.elapsedSec)} elapsed</span>
+            </div>
+          </div>
+          <ol className="grid gap-1 px-5 pb-3">
+            {(progress?.stages || []).map((st) => (
+              <li key={st.key} className={cn("grid grid-cols-[20px_1fr_auto] items-start gap-3 rounded-lg px-2 py-2 text-sm", st.state === "active" && "bg-muted/70", st.state === "todo" && "text-muted-foreground")}>
+                <StepIcon state={st.state} />
+                <div className="min-w-0">
+                  <div>{st.label}</div>
+                  {st.key === "fix" && <p className="mt-0.5 text-xs text-muted-foreground">Some automatic checks failed, so the AI is fixing them.</p>}
+                  {st.key === "plan" && (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {sel.map((p) =>
+                        planned.has(p.id) ? <span key={p.id} className="inline-flex items-center gap-1 rounded-full border bg-card px-2 py-0.5 text-xs text-foreground"><Check className="size-3" />{p.name}</span>
+                        : progress?.current?.id === p.id ? <span key={p.id} className="inline-flex items-center gap-1.5 rounded-full border border-brand/40 px-2 py-0.5 text-xs text-brand-ink"><Spinner className="size-3" />{p.name}</span>
+                        : <span key={p.id} className="rounded-full border px-2 py-0.5 text-xs text-muted-foreground">{p.name}</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <span className="text-xs text-muted-foreground tabular">{st.key === "plan" || (st.key === "refresh" && st.state === "active") ? `${st.done} of ${st.total}` : st.key === "keywords" && st.at != null ? fmtClock(st.at) : ""}</span>
+              </li>
+            ))}
+          </ol>
+        </>
+      )}
+      {done && <SeoStats result={result!} state={state} />}
+      {!running && !done && sq.error && <p className="border-t px-5 py-3 text-sm text-muted-foreground">{sq.error}</p>}
+      {(sq.warnings || []).length > 0 && done && <div className="flex gap-2 border-t px-5 py-3 text-sm text-muted-foreground"><AlertTriangle className="mt-0.5 size-4 shrink-0 text-brand" />{sq.warnings!.join(" ")}</div>}
+      <Collapsible defaultOpen={running}>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t px-5 py-2.5 text-xs text-muted-foreground">
+          <CollapsibleTrigger className="group inline-flex items-center gap-1.5 hover:text-foreground">
+            <ChevronDown className="size-3.5 transition-transform group-data-[panel-open]:rotate-180" />
+            Activity{running && log.length ? <span className="max-w-[26ch] truncate">· {log[log.length - 1]!.text}</span> : null}
+          </CollapsibleTrigger>
+          <span className="flex-1" />
+          {took && !running && <span>Took {took}</span>}
+          <span>Tokens <b className="text-foreground tabular">{tok ? fmtTok(tok.input + tok.output + tok.cached) : "–"}</b></span>
+        </div>
+        <CollapsibleContent><ActivityLog log={log} /></CollapsibleContent>
+      </Collapsible>
+    </Block>
+  )
+}
+
+function SeoStats({ result, state }: { result: SeoResult; state: SeoState }) {
+  const pages = result.pages.filter((p) => p.planned)
+  const all = pages.flatMap((p) => SEO.tasks(p, state.edits))
+  const n = (f: string) => all.filter((t) => t.field === f).length
+  const fails = pages.reduce((a, p) => a + SEO.pageChecks(p, state.edits).filter((c) => !c.ok && !c.info).length, 0) + SEO.siteChecks(result.pages, state.edits).filter((c) => !c.ok).length
+  const cells: [React.ReactNode, string, boolean?][] = [[n("title"), "new titles", true], [n("description"), "new descriptions", true], [n("slug"), n("slug") === 1 ? "URL change" : "URL changes"], [fails || "All", fails ? "checks to look at" : "checks pass", !!fails]]
+  return (
+    <div className="grid grid-cols-4 gap-px border-t bg-border">
+      {cells.map(([v, l, hi]) => <div key={l} className="bg-card px-5 py-3.5"><div className={cn("text-2xl font-medium tabular", hi && "text-brand")}>{v}</div><div className="text-xs text-muted-foreground">{l}</div></div>)}
     </div>
   )
 }

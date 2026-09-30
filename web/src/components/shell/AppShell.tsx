@@ -133,12 +133,18 @@ function groupBySite(runs: RunSummary[]) {
   for (const list of map.values()) list.sort((a, b) => b.created - a.created)
   return [...map.entries()].sort((a, b) => Math.max(...b[1].map((r) => r.updated || r.created)) - Math.max(...a[1].map((r) => r.updated || r.created)))
 }
-const openRun = (r: RunSummary) => go(r.status === "done" || r.status === "partial" ? routes.review(r.id) : routes.run(r.id))
+const openRun = (r: RunSummary) => go(
+  r.seo?.status === "running" ? routes.run(r.id)
+  : r.status === "done" || r.status === "partial" ? routes.review(r.id)
+  : r.seo?.status === "done" || r.seo?.status === "partial" ? routes.seo(r.id)
+  : routes.run(r.id))
 const when = (t: number) => new Date(t).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
 /** What a version is, in a few words: "Tags only · 5 pages", "Scan", "Planning…". */
 const versionLabel = (r: RunSummary) => {
   const l = runLabel(r)
-  if (r.settings && (r.status === "done" || r.status === "partial")) return `${OUTPUTS[r.settings.output]?.short || "Plan"} · ${plural(r.pages, "page")}`
+  const seo = r.seo && (r.seo.status === "done" || r.seo.status === "partial") ? " + SEO" : ""
+  if (r.settings && (r.status === "done" || r.status === "partial")) return `${OUTPUTS[r.settings.output]?.short || "Plan"} · ${plural(r.pages, "page")}${seo}`
+  if (seo) return "SEO plan"
   return l.title
 }
 

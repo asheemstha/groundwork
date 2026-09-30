@@ -269,11 +269,13 @@ function ItemSheet({ p, it, onClose, setItem, reload }: { p: Project; it: PItem 
               {t && (
                 <section className="grid gap-3 rounded-xl border bg-card p-4">
                   <div className="grid grid-cols-[28px_minmax(0,1fr)] items-center gap-2.5"><span className="grid size-7 place-items-center rounded-md bg-brand text-brand-foreground"><Layers className="size-[15px]" strokeWidth={2.2} /></span><div className="grid gap-px"><h3 className="text-sm font-medium">{t.name}{t.checkName && <span className="font-normal text-muted-foreground">: {t.checkName}</span>}</h3><span className="text-[12.5px] text-muted-foreground">{t.ready ? t.text || "Not run yet" : "Coming soon to Groundwork"}</span></div></div>
-                  {t.progress && t.progress.total > 0 && <><div className="flex items-baseline gap-1.5"><span className="text-xl font-medium tabular">{t.progress.done}</span><span className="text-muted-foreground">of {t.progress.total} tag fixes done</span></div><div className="h-[5px] overflow-hidden rounded-full bg-muted"><span className="block h-full bg-brand" style={{ width: `${(100 * t.progress.done) / t.progress.total}%` }} /></div></>}
+                  {t.progress && t.progress.total > 0 && <><div className="flex items-baseline gap-1.5"><span className="text-xl font-medium tabular">{t.progress.done}</span><span className="text-muted-foreground">of {t.progress.total} {x.tool === "seo" ? "SEO changes" : "tag fixes"} done</span></div><div className="h-[5px] overflow-hidden rounded-full bg-muted"><span className="block h-full bg-brand" style={{ width: `${(100 * t.progress.done) / t.progress.total}%` }} /></div></>}
                   {x.tool === "launch" ? <LaunchItemPanel p={p} it={x} reload={reload} /> : t.ready && (t.runId
-                    ? <div className="flex gap-2"><Button size="sm" onClick={() => go(x.tool === "headings" ? routes.review(t.runId!) : routes.run(t.runId!))}>{x.tool === "headings" ? "Open the to-do list" : "Open the scan"}</Button></div>
+                    ? <div className="flex gap-2"><Button size="sm" onClick={() => go(x.tool === "headings" ? routes.review(t.runId!) : x.tool === "seo" ? routes.seo(t.runId!) : routes.run(t.runId!))}>{x.tool === "headings" ? "Open the to-do list" : x.tool === "seo" ? "Open the SEO plan" : "Open the scan"}</Button></div>
+                    : x.tool === "seo" && p.tools.seoRunning ? <div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => go(routes.run(p.tools.seoRunning!))}><Loader2 className="animate-spin" />Planning now</Button></div>
+                    : x.tool === "seo" && p.tools.scan ? <div className="flex gap-2"><Button size="sm" onClick={() => go(routes.run(p.tools.scan!.runId, "seo"))}>Plan SEO</Button></div>
                     : <div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => go(routes.project(p.id, "tools"))}>Go to Tools</Button></div>)}
-                  <p className="text-[12.5px] leading-relaxed text-muted-foreground">{!t.ready ? "When this tool is ready, it will do or check this item for you." : x.tool === "headings" ? "This item ticks itself once every tag fix in the plan is done. You can also tick it yourself." : x.tool === "launch" ? (x.check === "indexing" || x.check === "https" ? "This item ticks itself when a check of the live domain passes. A staging check shows the issues but doesn’t tick it." : "This item ticks itself when the check passes. You can also tick it yourself.") : "This item ticks itself when the scan finishes."}</p>
+                  <p className="text-[12.5px] leading-relaxed text-muted-foreground">{!t.ready ? "When this tool is ready, it will do or check this item for you." : x.tool === "headings" ? "This item ticks itself once every tag fix in the plan is done. You can also tick it yourself." : x.tool === "launch" ? (x.check === "indexing" || x.check === "https" ? "This item ticks itself when a check of the live domain passes. A staging check shows the issues but doesn’t tick it." : "This item ticks itself when the check passes. You can also tick it yourself.") : x.tool === "seo" ? (x.check === "plan" ? "This item ticks itself when the SEO plan is ready. Its H1s come from the heading plan." : "Counts the plan’s titles, descriptions and URLs as they go live. This item also covers OG images, alt text, schema and the 404 page, so you tick it yourself. The launch check covers several of those.") : "This item ticks itself when the scan finishes."}</p>
                 </section>
               )}
               <dl className="grid grid-cols-[92px_minmax(0,1fr)] items-center gap-3">
@@ -475,12 +477,20 @@ function ToolsTab({ p, reload }: { p: Project; reload: () => void }) {
             <div className="flex items-center gap-2"><h2 className="text-sm font-medium">Heading plan</h2><span className="text-[12.5px] text-muted-foreground">uses your AI plan</span><span className="flex-1" />{p.tools.plan ? <Button size="sm" onClick={() => go(routes.review(p.tools.plan!.runId))}>Open the to-do list</Button> : latestScan ? <Button size="sm" onClick={() => go(routes.run(latestScan.id))}>Plan headings</Button> : null}</div>
             <p className="text-[13px] text-muted-foreground">{p.tools.plan ? `${p.tools.plan.done} of ${p.tools.plan.total} tag fixes done. Ticks “Heading structure” in Design when they’re all done.` : latestScan ? "Pick the pages and plan H1 to H6 for each one." : "Scan the site first."}</p>
           </section>
+          <section className="grid gap-2.5 rounded-xl border bg-card p-4">
+            <div className="flex items-center gap-2"><h2 className="text-sm font-medium">SEO plan</h2><span className="text-[12.5px] text-muted-foreground">uses your AI plan</span><span className="flex-1" />
+              {p.tools.seoRunning ? <Button size="sm" variant="outline" onClick={() => go(routes.run(p.tools.seoRunning!))}><Loader2 className="animate-spin" />Planning now</Button>
+                : p.tools.seo ? <Button size="sm" onClick={() => go(routes.seo(p.tools.seo!.runId))}>Open the SEO plan</Button>
+                : latestScan ? <Button size="sm" onClick={() => go(routes.run(latestScan.id, "seo"))}>Plan SEO</Button> : null}
+            </div>
+            <p className="text-[13px] text-muted-foreground">{p.tools.seo ? `${p.tools.seo.done} of ${p.tools.seo.total} changes done across ${p.tools.seo.pages} pages. Ticks “SEO per page” in Design.` : latestScan ? "A title, meta description and URL for each page, using the heading plan’s keywords when there is one." : "Scan the site first."}</p>
+          </section>
           {p.tools.runs.length > 0 && (
             <section className="overflow-hidden rounded-xl border bg-card">
               <div className="flex h-11 items-center px-4 text-sm font-medium">All scans and plans</div>
               {p.tools.runs.map((r) => (
                 <button key={r.id} onClick={() => go(r.status === "done" || r.status === "partial" ? routes.review(r.id) : routes.run(r.id))} className="grid h-11 w-full grid-cols-[minmax(0,1fr)_120px_140px] items-center gap-3 border-t px-4 text-left text-[13.5px] hover:bg-muted/40">
-                  <span>{r.status === "done" || r.status === "partial" ? (r.output === "live" ? "Heading plan, tags only" : "Heading plan, tags and rewrites") : r.status === "scanning" ? "Scanning…" : r.status === "running" ? "Planning…" : r.status === "scan_failed" ? "Scan failed" : "Scan"}</span>
+                  <span>{r.status === "done" || r.status === "partial" ? (r.output === "live" ? "Heading plan (tags only)" : "Heading plan (tags and rewrites)") : r.status === "scanning" ? "Scanning…" : r.status === "running" ? "Planning…" : r.status === "scan_failed" ? "Scan failed" : "Scan"}{r.seo && (r.seo.status === "done" || r.seo.status === "partial") ? ", SEO plan" : r.seo?.status === "running" ? ", planning SEO" : ""}</span>
                   <span className="text-muted-foreground tabular">{r.pages} pages</span>
                   <span className="text-right text-muted-foreground">{new Date(r.created).toLocaleDateString([], { month: "short", day: "numeric" })}</span>
                 </button>
@@ -489,7 +499,6 @@ function ToolsTab({ p, reload }: { p: Project; reload: () => void }) {
           )}
           <section className="grid gap-2 rounded-xl border border-dashed p-4 text-[13px] text-muted-foreground">
             <span className="font-medium text-foreground">Coming soon</span>
-            <span>SEO plan: titles, meta descriptions and slugs for every page.</span>
             <span>Redirect check: old URLs to new ones, before and after launch.</span>
           </section>
         </>

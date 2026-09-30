@@ -132,8 +132,11 @@ export function Spinner({ className }: { className?: string }) {
   return <span className={cn("inline-block size-3.5 shrink-0 animate-spin rounded-full border-[1.5px] border-input border-t-brand", className)} />
 }
 
-export function runLabel(r: Pick<RunSummary, "status" | "percent" | "progress" | "pages">) {
+export function runLabel(r: Pick<RunSummary, "status" | "percent" | "progress" | "pages"> & { seo?: RunSummary["seo"] }) {
   const m = r.progress && (r.progress.all || r.progress.live || r.progress.optimize)
+  if (r.seo?.status === "running" && r.status !== "scanning" && r.status !== "running") return { title: "SEO plan", sub: `${r.seo.percent || 0}%`, tone: "brand" as const, busy: true }
+  // A site with only an SEO plan shows that plan's progress.
+  if (r.status === "scanned" && r.seo && (r.seo.status === "done" || r.seo.status === "partial") && r.seo.progress) return { title: "SEO plan", sub: `${r.seo.progress.done}/${r.seo.progress.tasks}`, tone: "ink" as const, done: r.seo.progress.done, total: r.seo.progress.tasks }
   switch (r.status) {
     case "scanning": return { title: "Scanning", sub: `${r.percent || 0}%`, tone: "brand" as const, busy: true }
     case "scan_failed": return { title: "Scan failed", sub: "Try again", tone: "bad" as const }

@@ -50,6 +50,17 @@ Projects live in `data/projects/<id>/` (launch check reports in its `launch/` fo
 4. **To-do list.** Numbered pins on the screenshot match the list. Hovering or selecting a change scrolls the screenshot to it, and a scroll track shows where every change sits. Keyboard: `j`/`k` move, `x` ticks, `n`/`p` change page.
 5. **Check live site** re-reads the live pages and ticks off changes that are really there. **Retake screenshots** (site menu) uses no AI.
 
+### SEO plan
+
+Pick **SEO plan** in the composer's first chip. It uses the same scan and page picker, and your AI plan's usage (lighter than the heading plan).
+
+- It first reads each page's current title and description with plain requests, so they're up to date.
+- The AI writes a title, meta description and slug for each page into `seo/plan/`. When the site has a heading plan, it uses that plan's keywords, so the title, description and H1 target the same words.
+- Checks: titles 60 characters or fewer, descriptions 155 or fewer, the primary keyword in the title, unique titles, descriptions and URLs, clean slugs, no em dashes. Failures get one AI fix pass.
+- The SEO plan page lists every page with the new wording, what it was, why it changed and a character count. Pages that are already right stay folded. Click any new title or description to change the wording; your version is kept and used everywhere, including the export and the live check. A changed URL adds a 301 redirect to-do.
+- **Check live site** reads each page's title, description and URL (and the old URL's redirect) and ticks what's live. **Copy for the client** writes an approval message. **Export** is a CSV.
+- In a project, the SEO plan ticks "SEO per page" in Design and shows its progress on the SEO item in Development.
+
 ## Usage transparency
 
 - The engine picker shows who is signed in, and whether that login bills a subscription or an API key.
@@ -63,7 +74,9 @@ Projects live in `data/projects/<id>/` (launch check reports in its `launch/` fo
 - `lib/engines.js`: Claude Code / Codex detection, models, efforts and the runner.
 - `lib/crawl.js`: browser scan, preloader handling, screenshots and live checks.
 - `lib/headings.js`: prompts, turning the AI's plan into to-dos, export and verification.
-- `shared/checks.mjs`: automatic checks used by both server and app.
+- `lib/seo.js`: the SEO plan's prompt, assembly, live check and CSV. `shared/seo.mjs`: its checks and to-dos, used by both server and app.
+- `lib/launch.js`: the launch check (no AI).
+- `shared/checks.mjs`: automatic heading checks used by both server and app.
 - `web/`: the app. React + Vite + Tailwind v4, shadcn/ui on **Base UI**, Lucide icons, the Geist font. Warm neutral palette with one orange accent (`web/src/index.css`), no gradients.
   - Develop: `node server.js`, then `cd web && npx vite` (it proxies `/api` to the server).
   - Build: `npm run build` (writes `web/dist`, which the server serves).

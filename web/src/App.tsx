@@ -7,6 +7,7 @@ import { useRoute } from "@/lib/router"
 import { Home } from "@/pages/Home"
 import { RunPage } from "@/pages/RunPage"
 import { ReviewPage } from "@/pages/ReviewPage"
+import { SeoPage } from "@/pages/SeoPage"
 import { SettingsPage } from "@/pages/SettingsPage"
 import { Dashboard } from "@/pages/Dashboard"
 import { ProjectPage } from "@/pages/ProjectPage"
@@ -15,8 +16,8 @@ import { TemplatePage } from "@/pages/TemplatePage"
 
 function Routes() {
   const r = useRoute()
-  if (r.name === "run" || r.name === "review")
-    return <RunProvider key={r.id} id={r.id}>{r.name === "run" ? <RunPage /> : <ReviewPage view={r.view} />}</RunProvider>
+  if (r.name === "run" || r.name === "review" || r.name === "seo")
+    return <RunProvider key={r.id} id={r.id}>{r.name === "run" ? <RunPage tool={r.tool} /> : r.name === "seo" ? <SeoPage view={r.view} /> : <ReviewPage view={r.view} />}</RunProvider>
   if (r.name === "settings") return <SettingsPage focus={r.engine} />
   if (r.name === "project") return <ProjectPage key={r.id} id={r.id} tab={r.tab} sub={r.sub} />
   if (r.name === "templates") return <TemplatesPage />
