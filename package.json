@@ -1,6 +1,6 @@
 {
   "name": "groundwork",
-  "version": "0.12.0",
+  "version": "0.12.1",
   "gwShell": 1,
   "private": true,
   "description": "Plan site improvements with your own Claude Code or Codex account.",
