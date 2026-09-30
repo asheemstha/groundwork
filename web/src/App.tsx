@@ -39,7 +39,7 @@ function Routes() {
   if (r.name === "run" || r.name === "review" || r.name === "seo")
     return <RunProvider key={r.id} id={r.id}>{r.name === "run" ? <RunPage tool={r.tool} /> : r.name === "seo" ? <SeoPage view={r.view} /> : <ReviewPage view={r.view} />}</RunProvider>
   if (r.name === "settings") return <SettingsPage focus={r.engine} />
-  if (r.name === "project") return <ProjectPage key={r.id} id={r.id} tab={r.tab} sub={r.sub} />
+  if (r.name === "project") return <ProjectPage key={r.id} id={r.id} tab={r.tab} sub={r.sub} item={r.item} />
   if (r.name === "templates") return <TemplatesPage />
   if (r.name === "template") return <TemplatePage key={r.id} id={r.id} />
   return <Dashboard />

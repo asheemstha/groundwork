@@ -15,18 +15,22 @@ export function QuickFind() {
   const { projects } = useApp()
   const [open, setOpen] = React.useState(false)
   const [templates, setTemplates] = React.useState<TemplateSummary[]>([])
+  const [items, setItems] = React.useState<Awaited<ReturnType<typeof api.items>>>([])
+  const [q, setQ] = React.useState("")
   React.useEffect(() => {
     const on = () => setOpen(true)
     window.addEventListener("gw:quick-find", on)
     return () => window.removeEventListener("gw:quick-find", on)
   }, [])
-  React.useEffect(() => { if (open) api.templates().then(setTemplates).catch(() => {}) }, [open])
+  React.useEffect(() => { if (open) { setQ(""); api.templates().then(setTemplates).catch(() => {}); api.items().then(setItems).catch(() => {}) } }, [open])
+  // Items only show once you type, so the list starts with places to go.
+  const found = q.trim().length > 1 ? items.filter((x) => x.title.toLowerCase().includes(q.trim().toLowerCase())).slice(0, 30) : []
   const run = (f: () => void) => { setOpen(false); f() }
   return (
     <CommandDialog open={open} onOpenChange={setOpen} title="Quick find" description="Jump to a project or template" className="sm:max-w-[640px]">
       {/* The dialog is only the frame; cmdk's parts need their own Command around them. */}
       <Command>
-      <CommandInput placeholder="Search projects, templates, actions…" />
+      <CommandInput value={q} onValueChange={setQ} placeholder="Search projects, checklist items, templates, actions…" />
       <CommandList className="max-h-[420px]">
         <CommandEmpty>Nothing matches.</CommandEmpty>
         <CommandGroup heading="Go to">
@@ -50,6 +54,11 @@ export function QuickFind() {
                 </>}
               </React.Fragment>
             ))}
+          </CommandGroup>
+        )}
+        {found.length > 0 && (
+          <CommandGroup heading="Checklist items">
+            {found.map((x) => <CommandItem key={x.projectId + x.id} value={`item ${x.title} ${x.projectName} ${x.projectId}${x.id}`} onSelect={() => run(() => go(routes.item(x.projectId, x.id)))}><span className={x.status === "todo" ? "" : "text-muted-foreground line-through decoration-muted-foreground/40"}>{x.title}</span><span className="ml-auto shrink-0 text-muted-foreground">{x.projectName} · {x.phaseName}</span></CommandItem>)}
           </CommandGroup>
         )}
         {templates.length > 0 && (

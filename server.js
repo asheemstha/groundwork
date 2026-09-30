@@ -33,6 +33,7 @@ const siteName = host => (readJson(sitesFile, {})[host] || {}).name || null;
 const setSiteName = (host, name) => { const all = readJson(sitesFile, {}); name = String(name || '').trim().slice(0, 60); if (name) all[host] = { ...(all[host] || {}), name }; else if (all[host]) delete all[host].name; writeJson(sitesFile, all); };
 // Projects and templates (lib/projects.js). A project links to a site's scans and plans by its host.
 const allRuns = () => fs.readdirSync(RUNS).map(id => loadRun(id)).filter(Boolean);
+const assist = require('./lib/assist');
 const SK = require('./lib/skills')({ DATA, BUILTIN: H.SKILL_DIR, readJson, writeJson, seoRules: SEO.RULES });
 const P = require('./lib/projects')({ DATA, readJson, writeJson, allRuns, hostOf: u => hostOf(/^https?:\/\//i.test(u) ? u : 'https://' + u) });
 const ICON_EXT = { 'image/svg+xml': 'svg', 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif' };
@@ -71,6 +72,13 @@ function publicRun(run) {
 
 // ---------- status ----------
 let statusCache = null, statusAt = 0;
+/** The engine for short AI jobs: the one you use for plans, if it's signed in, else any signed-in one. */
+function aiEngine(want) {
+  if (!want) return null;
+  const e = (statusCache && statusCache.engines) || {}, pref = (getSettings().prefs || {}).engine;
+  const ok = k => e[k] && e[k].installed && e[k].loggedIn;
+  return ok(pref) ? pref : ok('claude') ? 'claude' : ok('codex') ? 'codex' : null;
+}
 async function status(force) {
   if (!force && statusCache && Date.now() - statusAt < 15000) return statusCache;
   const [eng, br] = await Promise.all([engines.detect(), crawl.browserStatus()]);
@@ -700,6 +708,22 @@ const server = http.createServer(async (req, res) => {
     // ---- projects ----
     if (p === '/api/home' && M === 'GET') return json(res, P.home());
     if (p === '/api/projects' && M === 'GET') return json(res, P.list());
+    if (p === '/api/items' && M === 'GET') return json(res, P.searchItems());
+    if (p === '/api/calendar.ics' && M === 'GET') { res.writeHead(200, { 'content-type': 'text/calendar; charset=utf-8', 'content-disposition': 'inline; filename="groundwork.ics"' }); return res.end(P.calendar({ items: u.searchParams.get('items') === '1' })); }
+    // Short AI jobs: set up a project from a brief, rewrite a message in your voice. Without an AI account the brief is
+    // read for addresses and dates only.
+    if (p === '/api/brief' && M === 'POST') {
+      const b = await body(req), t = P.getTemplate(b.templateId);
+      if (!t || t.kind !== 'checklist') return json(res, { error: 'Pick a checklist first.' }, 400);
+      const eng = aiEngine(b.useAi !== false);
+      try { return json(res, await assist.fromBrief({ text: b.text, template: t, engine: eng, useAi: !!eng })); } catch (e) { return json(res, { error: friendly(e) }, 400); }
+    }
+    if (p === '/api/rewrite' && M === 'POST') {
+      const b = await body(req), eng = aiEngine(true);
+      if (!eng) return json(res, { error: 'Sign in to Claude Code or Codex in Settings, AI accounts, to rewrite messages.' }, 400);
+      if ((b.voice || '') !== ((getSettings().prefs || {}).voice || '')) setSettings({ prefs: { ...(getSettings().prefs || {}), voice: String(b.voice || '').slice(0, 300) } });
+      try { return json(res, { text: await assist.rewrite({ text: b.text, voice: b.voice, engine: eng }) }); } catch (e) { return json(res, { error: friendly(e) }, 400); }
+    }
     if (p === '/api/projects' && M === 'POST') {
       const b = await body(req);
       try {
@@ -734,6 +758,9 @@ const server = http.createServer(async (req, res) => {
         }
         if (sub === '/template' && M === 'POST') { const b = await body(req); const r = P.templateUpdate(id, b); return json(res, b.dryRun ? r : { ...r, project: P.get(id) }); }
         if (sub === '/next-cycle' && M === 'POST') { P.nextCycle(id); return json(res, P.get(id)); }
+        if (sub === '/update-sent' && M === 'POST') { P.markUpdate(id); return json(res, P.get(id)); }
+        const pm = sub.match(/^\/payments\/([\w-]+)$/);
+        if (pm && M === 'POST') { P.setPayment(id, pm[1], await body(req)); return json(res, P.get(id)); }
         if (sub === '/shift' && M === 'POST') { const b = await body(req); const r = P.shiftPlan(id, b); return json(res, b.dryRun ? r : P.get(id)); }
         let mm = sub.match(/^\/items\/([\w-]+)$/);
         if (mm && M === 'POST') { P.setItem(id, mm[1], await body(req)); return json(res, P.get(id)); }

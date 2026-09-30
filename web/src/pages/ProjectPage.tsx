@@ -1,6 +1,6 @@
 import * as React from "react"
 import { cn } from "cn"
-import { Ban, CalendarDays, Check, ChevronDown, ChevronRight, ChevronUp, Copy, Download, ExternalLink, FolderPlus, Info, Layers, Link2, Loader2, Mail, MessageSquare, MoreHorizontal, Paperclip, Pencil, RefreshCw, Stamp, Trash2, Undo2, User, X } from "lucide-react"
+import { Ban, CalendarDays, Check, ChevronDown, ChevronRight, ChevronUp, Copy, Download, ExternalLink, FolderPlus, Info, Layers, Link2, Loader2, Mail, MessageSquare, MoreHorizontal, Paperclip, Pencil, Plus, Receipt, RefreshCw, Stamp, Trash2, Undo2, User, X } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -18,7 +18,7 @@ import { DateField } from "@/components/common/DateField"
 import { Chip } from "@/pages/Dashboard"
 import { useApp } from "@/hooks/useApp"
 import { api, proofUrl, type MessageTemplate, type PItem, type PPhase, type Project, type SiteKey, type TemplateSummary } from "@/lib/api"
-import { SITE_KEYS, SITE_NAME, dayOf, dueLabel, fmtDay, hostOfUrl, renderMessage, subName, today, waited } from "@/lib/project"
+import { SITE_KEYS, SITE_NAME, dayOf, dueLabel, fmtDay, hostOfUrl, renderMessage, subName, today, waited, weeklyUpdate } from "@/lib/project"
 import { ago } from "@/lib/format"
 import { go, routes } from "@/lib/router"
 import { LaunchCard, LaunchItemPanel, LaunchReportPage, useLaunchRefresh } from "@/components/project/LaunchCheck"
@@ -29,7 +29,7 @@ import { TemplateUpdateDialog, updateFromTemplate } from "@/components/project/T
 type Tab = "checklist" | "client" | "tools" | "launch" | "redirects"
 type SetItem = (itemId: string, b: Parameters<typeof api.setItem>[2]) => Promise<void>
 
-export function ProjectPage({ id, tab: asked, sub }: { id: string; tab: Tab; sub?: string }) {
+export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Tab; sub?: string; item?: string }) {
   let tab = asked
   const { runs, refreshProjects } = useApp()
   const [p, setP] = React.useState<Project | null>(null)
@@ -106,8 +106,8 @@ export function ProjectPage({ id, tab: asked, sub }: { id: string; tab: Tab; sub
             )}
           </header>
         )}
-        {tab === "checklist" && <ChecklistTab p={p} setItem={setItem} setP={setP} reload={load} />}
-        {tab === "client" && <ClientTab key={sub || ""} p={p} setItem={setItem} setP={setP} remind={sub === "remind"} />}
+        {tab === "checklist" && <ChecklistTab p={p} setItem={setItem} setP={setP} reload={load} openItem={item} openPhase={sub} />}
+        {tab === "client" && <ClientTab key={sub || ""} p={p} setItem={setItem} setP={setP} mode={sub === "remind" || sub === "update" ? sub : undefined} />}
         {tab === "tools" && <ToolsTab p={p} reload={load} onEdit={() => setEditing(true)} />}
         {tab === "launch" && <LaunchReportPage key={sub || ""} p={p} sub={sub} reload={load} />}
         {tab === "redirects" && <RedirectsPage p={p} reload={load} />}
@@ -151,7 +151,7 @@ function StatusIcon({ it, onClick, size = 18 }: { it: PItem; onClick?: () => voi
 
 // ---------- checklist ----------
 type Filter = "all" | "us" | "client"
-function ChecklistTab({ p, setItem, setP, reload }: { p: Project; setItem: SetItem; setP: (x: Project) => void; reload: () => void }) {
+function ChecklistTab({ p, setItem, setP, reload, openItem, openPhase }: { p: Project; setItem: SetItem; setP: (x: Project) => void; reload: () => void; openItem?: string; openPhase?: string }) {
   const { refreshProjects } = useApp()
   const [sel, setSel] = React.useState(p.current || p.phases[p.phases.length - 1]!.id)
   const [filter, setFilter] = React.useState<Filter>("all")
@@ -160,6 +160,18 @@ function ChecklistTab({ p, setItem, setP, reload }: { p: Project; setItem: SetIt
   const [itemId, setItemId] = React.useState<string | null>(null)
   const [signing, setSigning] = React.useState(false)
   React.useEffect(() => { setSel(p.current || p.phases[p.phases.length - 1]!.id) }, [p.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  // An item opened by its address (from Home or search): show its phase and open it on the side.
+  React.useEffect(() => {
+    if (!openItem) return
+    const ph = p.phases.find((x) => [...x.groups.flatMap((g) => g.items), ...x.handoff.items].some((i) => i.id === openItem))
+    if (ph) { setSel(ph.id); setItemId(openItem) }
+  }, [openItem]) // eslint-disable-line react-hooks/exhaustive-deps
+  // A phase opened by its address (from Home's invoices): show it, scrolled to its sign-off.
+  React.useEffect(() => {
+    if (!openPhase || !p.phases.some((x) => x.id === openPhase)) return
+    setSel(openPhase)
+    setTimeout(() => document.getElementById("signoff-" + openPhase)?.scrollIntoView({ behavior: "smooth", block: "center" }), 100)
+  }, [openPhase]) // eslint-disable-line react-hooks/exhaustive-deps
   const ph = p.phases.find((x) => x.id === sel) || p.phases[0]!
   const all = [...ph.groups.flatMap((g) => g.items), ...ph.handoff.items]
   const match = (it: PItem) => (filter === "all" || (filter === "us" && it.who === "us") || (filter === "client" && it.who === "client")) && (!toolsOnly || !!it.tool) && !(hideDone && it.status !== "todo")
@@ -229,7 +241,7 @@ function ChecklistTab({ p, setItem, setP, reload }: { p: Project; setItem: SetIt
             if (!items.length) return null
             return <Group key={g.id} name={g.name} done={g.items.filter((x) => x.status !== "todo").length} total={g.items.length}>{items.map((it) => <ItemRow key={it.id} it={it} active={itemId === it.id} onToggle={() => toggle(it)} onOpen={() => setItemId(it.id)} />)}</Group>
           })}
-          <SignoffCard p={p} ph={ph} onReview={() => setSigning(true)} onUndo={async () => setP(await api.unsign(p.id, ph.id))} onOpen={setItemId} match={match} toggle={toggle} />
+          <SignoffCard p={p} ph={ph} setP={setP} onReview={() => setSigning(true)} onUndo={async () => setP(await api.unsign(p.id, ph.id))} onOpen={setItemId} match={match} toggle={toggle} />
         </div>
         <aside className="flex min-w-0 flex-col gap-3.5">
           <section className="rounded-xl border bg-card p-4">
@@ -306,13 +318,13 @@ function ItemRow({ it, onToggle, onOpen, active }: { it: PItem; onToggle: () => 
   )
 }
 
-function SignoffCard({ p, ph, onReview, onUndo, onOpen, match, toggle }: { p: Project; ph: PPhase; onReview: () => void; onUndo: () => void; onOpen: (id: string) => void; match: (it: PItem) => boolean; toggle: (it: PItem) => void }) {
+function SignoffCard({ p, ph, setP, onReview, onUndo, onOpen, match, toggle }: { p: Project; ph: PPhase; setP: (x: Project) => void; onReview: () => void; onUndo: () => void; onOpen: (id: string) => void; match: (it: PItem) => boolean; toggle: (it: PItem) => void }) {
   const [open, setOpen] = React.useState(false)
   const h = ph.handoff
   const ready = h.items.filter((x) => x.status !== "todo").length
   const s = ph.signoff
   return (
-    <div className="mt-1 rounded-[10px] border bg-muted/40">
+    <div id={"signoff-" + ph.id} className="mt-1 scroll-mt-6 rounded-[10px] border bg-muted/40">
       <div className="grid grid-cols-[18px_minmax(0,1fr)_auto] items-center gap-3 px-3.5 py-3">
         <Stamp className="size-[18px] text-foreground/70" />
         <div className="grid gap-0.5">
@@ -327,7 +339,69 @@ function SignoffCard({ p, ph, onReview, onUndo, onOpen, match, toggle }: { p: Pr
           {s ? <Button variant="outline" size="sm" onClick={onUndo}><Undo2 />Undo</Button> : ph.state !== "upcoming" || ph.ready ? <Button variant="outline" size="sm" onClick={onReview}>Review handoff</Button> : null}
         </div>
       </div>
-      {open && <div className="border-t bg-card/60 px-3.5 pb-1 rounded-b-[10px]">{h.items.filter(match).map((it) => <ItemRow key={it.id} it={it} onToggle={() => toggle(it)} onOpen={() => onOpen(it.id)} />)}</div>}
+      {open && <div className="border-t bg-card/60 px-3.5 pb-1">{h.items.filter(match).map((it) => <ItemRow key={it.id} it={it} onToggle={() => toggle(it)} onOpen={() => onOpen(it.id)} />)}</div>}
+      <PaymentRow p={p} ph={ph} setP={setP} />
+    </div>
+  )
+}
+
+// The payment that falls due with a sign-off: add it once, then mark it invoiced and paid. Home lists invoices to
+// send once the phase is signed off, and payment reminders two weeks after invoicing.
+function PaymentRow({ p, ph, setP }: { p: Project; ph: PPhase; setP: (x: Project) => void }) {
+  const { prefs } = useApp()
+  const pay = ph.payment
+  const [editing, setEditing] = React.useState(false)
+  const [label, setLabel] = React.useState(""), [amount, setAmount] = React.useState("")
+  const save = async (b: Parameters<typeof api.setPayment>[2]) => { try { setP(await api.setPayment(p.id, ph.id, b)) } catch (e) { toast.error((e as Error).message) } }
+  const edit = () => { setLabel(pay?.label || `${ph.name} sign-off`); setAmount(pay?.amount || ""); setEditing(true) }
+  const remind = async () => {
+    if (!pay) return
+    try {
+      const all = await api.templates()
+      const t = all.find((x) => x.id === "payment-reminder") || all.find((x) => /payment/i.test(x.name) && x.kind !== "checklist")
+      if (!t) return toast.error("There’s no payment reminder template. Add one in Templates.")
+      const tpl = await api.template(t.id)
+      if (tpl.kind === "checklist") return
+      const m = renderMessage(tpl, p, prefs.appliedBy || "", [], { invoice: pay.label, amount: pay.amount || `sent ${fmtDay(dayOf(pay.invoiced || Date.now()))}` })
+      navigator.clipboard.writeText(tpl.kind === "email" && m.subject ? `Subject: ${m.subject}\n\n${m.body}` : m.body)
+      toast("Copied the payment reminder")
+    } catch (e) { toast.error((e as Error).message) }
+  }
+  if (editing) return (
+    <form onSubmit={(e) => { e.preventDefault(); save({ label, amount }); setEditing(false) }} className="flex flex-wrap items-center gap-2 border-t px-3.5 py-2.5">
+      <Receipt className="size-4 text-muted-foreground" />
+      <Input autoFocus value={label} onChange={(e) => setLabel(e.target.value)} placeholder="What it’s for" aria-label="What the payment is for" className="h-8 min-w-40 flex-1 text-[13px]" />
+      <Input value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="Amount, like $2,400" aria-label="Amount" className="h-8 w-36 text-[13px]" />
+      <Button size="sm" type="submit">Save</Button>
+      <Button size="sm" variant="ghost" type="button" onClick={() => setEditing(false)}>Cancel</Button>
+    </form>
+  )
+  if (!pay) return (
+    <div className="border-t px-3.5 py-1.5">
+      <button onClick={edit} className="inline-flex h-7 items-center gap-1.5 text-[12.5px] text-muted-foreground hover:text-foreground"><Plus className="size-3.5" />Add the payment due with this sign-off</button>
+    </div>
+  )
+  const late = pay.invoiced && !pay.paid && Date.now() - pay.invoiced >= 14 * 864e5
+  const state = pay.paid ? `Paid ${fmtDay(dayOf(pay.paid))}` : pay.invoiced ? `Invoiced ${fmtDay(dayOf(pay.invoiced))}, waiting on payment` : ph.signoff ? "Ready to invoice" : "Invoice when this phase is signed off"
+  return (
+    <div className="grid grid-cols-[18px_minmax(0,1fr)_auto] items-center gap-3 border-t px-3.5 py-2">
+      <Receipt className="size-4 text-muted-foreground" />
+      <span className="grid min-w-0 gap-0.5"><span className="truncate text-[13.5px]">{pay.label}{pay.amount ? <span className="text-muted-foreground">, {pay.amount}</span> : null}</span><span className={cn("text-[12.5px]", late ? "text-destructive" : "text-muted-foreground")}>{state}</span></span>
+      <div className="flex items-center gap-1.5">
+        {pay.paid ? <Button size="sm" variant="ghost" className="text-muted-foreground" onClick={() => save({ paid: false })}><Undo2 />Undo</Button>
+          : pay.invoiced ? <><Button size="sm" variant="ghost" onClick={remind}><Copy />Copy a reminder</Button><Button size="sm" variant="outline" onClick={() => save({ paid: true })}>Mark paid</Button></>
+          : ph.signoff ? <Button size="sm" variant="outline" onClick={() => save({ invoiced: true })}>Mark invoiced</Button> : null}
+        <DropdownMenu>
+          <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label="Payment options" />}><MoreHorizontal /></DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={edit}><Pencil />Edit</DropdownMenuItem>
+            {pay.invoiced && !pay.paid && <DropdownMenuItem onClick={() => save({ invoiced: false })}><Undo2 />Not invoiced yet</DropdownMenuItem>}
+            {!pay.invoiced && !pay.paid && <DropdownMenuItem onClick={() => save({ paid: true })}><Check />Mark paid</DropdownMenuItem>}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => save({ remove: true })}><Trash2 />Remove the payment</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </div>
   )
 }
@@ -547,8 +621,14 @@ function SignoffDialog({ p, ph, open, onClose, onDone }: { p: Project; ph: PPhas
 // ---------- client ----------
 // Everything the client owes, with a checkbox per item for the request message. Late ones, ones due soon and ones
 // it's time to ask for start ticked.
-function ClientTab({ p, setItem, setP, remind }: { p: Project; setItem: SetItem; setP: (x: Project) => void; remind?: boolean }) {
-  const { prefs } = useApp()
+function ClientTab({ p, setItem, setP, mode }: { p: Project; setItem: SetItem; setP: (x: Project) => void; mode?: "remind" | "update" }) {
+  const { prefs, setPrefs } = useApp()
+  const remind = mode === "remind"
+  // The panel writes a request or reminder about ticked items, or the weekly update.
+  const [kind, setKind] = React.useState<"ask" | "update">(mode === "update" ? "update" : "ask")
+  const [ai, setAi] = React.useState<{ from: string; text: string } | null>(null) // the AI rewrite and the text it came from
+  const [rewriting, setRewriting] = React.useState(false)
+  const [voice, setVoice] = React.useState(prefs.voice || "")
   const [tpls, setTpls] = React.useState<TemplateSummary[]>([])
   const [tid, setTid] = React.useState("")
   const [picked, setPicked] = React.useState(false) // a template chosen by hand stays
@@ -557,8 +637,13 @@ function ClientTab({ p, setItem, setP, remind }: { p: Project; setItem: SetItem;
   const [showReceived, setShowReceived] = React.useState(false)
   const c = p.client
   const due = (x: PItem & { askBy?: string | null }) => !x.askBy || x.askBy <= today()
-  // A reminder starts from the late items already asked for; a request from everything it's time to ask for.
-  const [pick, setPick] = React.useState<Set<string>>(() => new Set((remind ? c.late.filter((x) => x.asked) : [...c.late, ...c.soon, ...c.notAsked.filter(due)]).map((x) => x.id)))
+  // A reminder starts from the items due a reminder (or else the late ones already asked for); a request from
+  // everything it's time to ask for. The weekly update starts with nothing ticked.
+  const firstPick = () => {
+    const dueNow = [...c.late, ...c.soon].filter((x) => x.remindDue)
+    return new Set((remind ? (dueNow.length ? dueNow : c.late.filter((x) => x.asked)) : [...c.late, ...c.soon, ...c.notAsked.filter(due)]).map((x) => x.id))
+  }
+  const [pick, setPick] = React.useState<Set<string>>(() => (mode === "update" ? new Set() : firstPick()))
   const panel = React.useRef<HTMLElement>(null)
   React.useEffect(() => {
     api.templates().then((l) => setTpls(l.filter((t) => t.kind !== "checklist"))).catch(() => {})
@@ -570,14 +655,28 @@ function ClientTab({ p, setItem, setP, remind }: { p: Project; setItem: SetItem;
   // The message follows the items: a reminder when every ticked item was asked for already, otherwise a request.
   const reminderTpl = (tpls.find((t) => t.id === "reminder") || tpls.find((t) => /remind|nudge/i.test(t.name)))?.id
   const requestTpl = (tpls.find((t) => t.use?.includes("client-request")) || tpls[0])?.id
-  const auto = chosen.length > 0 && !fresh.length && reminderTpl ? reminderTpl : requestTpl
+  const updateTpl = (tpls.find((t) => t.use?.includes("weekly-update")) || tpls.find((t) => /update/i.test(t.name)))?.id
+  const auto = kind === "update" ? updateTpl : chosen.length > 0 && !fresh.length && reminderTpl ? reminderTpl : requestTpl
   React.useEffect(() => { if (!picked && auto) setTid(auto) }, [auto, picked])
-  const msg = tpl ? renderMessage(tpl, p, prefs.appliedBy || "", chosen) : null
-  const text = msg ? (tpl?.kind === "email" && msg.subject ? `Subject: ${msg.subject}\n\n${msg.body}` : msg.body) : ""
+  React.useEffect(() => { setPicked(false) }, [kind])
+  const update = weeklyUpdate(p)
+  const msg = tpl ? renderMessage(tpl, p, prefs.appliedBy || "", kind === "update" ? [] : chosen, kind === "update" ? update.extra : {}) : null
+  const plain = msg ? (tpl?.kind === "email" && msg.subject ? `Subject: ${msg.subject}\n\n${msg.body}` : msg.body) : ""
+  const rewritten = ai && ai.from === plain ? ai.text : null // a different message drops the rewrite
+  const text = rewritten ?? plain
+  const rewrite = async () => {
+    setRewriting(true)
+    try { const r = await api.rewrite(plain, voice); setAi({ from: plain, text: r.text }); setPrefs({ voice }) } catch (e) { toast.error((e as Error).message) } finally { setRewriting(false) }
+  }
   const received = p.phases.flatMap((ph) => [...ph.groups.flatMap((g) => g.items), ...ph.handoff.items]).filter((x) => x.who === "client" && x.status === "done")
   const toggle = (id: string, on: boolean) => setPick((s) => { const n = new Set(s); if (on) n.add(id); else n.delete(id); return n })
   const copy = async () => {
     navigator.clipboard.writeText(text)
+    if (kind === "update") {
+      if (!record) return toast("Copied the update")
+      try { setP(await api.updateSent(p.id)); toast("Copied the update", { description: "The next one is due in a week." }) } catch (e) { toast.error((e as Error).message) }
+      return
+    }
     if (!record || !chosen.length) return toast("Copied the message")
     try {
       if (fresh.length) setP(await api.askItems(p.id, fresh.map((x) => x.id)))
@@ -587,14 +686,14 @@ function ClientTab({ p, setItem, setP, remind }: { p: Project; setItem: SetItem;
     } catch (e) { toast.error((e as Error).message) }
   }
   // One control per row: the checkbox puts the item in the message; "Received" ticks it off.
-  const cols = "grid-cols-[16px_minmax(0,1fr)_88px_60px_124px_72px]"
+  const cols = "grid-cols-[16px_minmax(0,1fr)_88px_60px_136px_72px]"
   const Row = ({ x, right, select = true }: { x: PItem; right: React.ReactNode; select?: boolean }) => (
     <div className={cn("group grid h-11 items-center gap-3 border-t border-border/60", cols)}>
       {select ? <Checkbox aria-label={`Include ${x.title} in the message`} checked={pick.has(x.id)} onCheckedChange={(v) => toggle(x.id, !!v)} /> : <Check className="size-4 text-muted-foreground/70" />}
-      <span className={cn("truncate", x.status === "done" && "text-muted-foreground")}>{x.title}</span>
+      <span className="flex min-w-0 items-center gap-2"><span className={cn("truncate", x.status === "done" && "text-muted-foreground")}>{x.title}</span>{x.remindDue && <span title="Asked before and due a reminder today" className="shrink-0 rounded-md bg-muted px-1.5 text-[12px] leading-5 text-muted-foreground">Remind</span>}</span>
       <span className="truncate text-muted-foreground">{x.phaseName}</span>
-      <span className="text-muted-foreground">{x.asked ? new Date(x.asked).toLocaleDateString([], { month: "short", day: "numeric" }) : <span className="text-muted-foreground/60">Not yet</span>}</span>
-      <span className="text-right">{right}</span>
+      <span className="truncate text-muted-foreground">{x.asked ? new Date(x.asked).toLocaleDateString([], { month: "short", day: "numeric" }) : <span className="text-muted-foreground/60">Not yet</span>}</span>
+      <span className="text-right whitespace-nowrap">{right}</span>
       <span className="text-right">{x.status === "done"
         ? <Button size="xs" variant="ghost" className="text-muted-foreground" onClick={() => setItem(x.id, { status: "todo" })}>Undo</Button>
         : <Button size="xs" variant="ghost" className="text-muted-foreground opacity-70 group-hover:opacity-100 hover:text-foreground focus-visible:opacity-100" onClick={() => { setItem(x.id, { status: "done" }); toggle(x.id, false) }}>Received</Button>}</span>
@@ -618,7 +717,13 @@ function ClientTab({ p, setItem, setP, remind }: { p: Project; setItem: SetItem;
     <div className="grid gap-10 px-12 pt-6 pb-10 lg:grid-cols-[minmax(0,1fr)_360px]">
       <div className="min-w-0 text-[13.5px]">
         <h2 className="text-[16px] font-medium">Waiting on the client</h2>
-        <p className="mt-1 mb-4 text-sm text-muted-foreground">Everything {p.name} owes you, from every phase. Tick the items to ask for or remind about, and press Received when one arrives. An item is late once its due date passes, whether or not you’ve asked yet.</p>
+        <p className="mt-1 text-sm text-muted-foreground">Everything {p.name} owes you, from every phase. Tick the items to ask for or remind about, and press Received when one arrives. An item is late once its due date passes, whether or not you’ve asked yet.</p>
+        <label className="mt-2 mb-4 block text-[13px] leading-7 text-muted-foreground">Remind the client{" "}
+          <select value={p.remindEvery} onChange={async (e) => { try { setP(await api.updateProject(p.id, { remindEvery: +e.target.value })) } catch (err) { toast.error((err as Error).message) } }} className="mx-0.5 h-7 rounded-md border border-input bg-card px-1.5 text-[13px] text-foreground">
+            {[[0, "never"], [2, "every 2 days"], [3, "every 3 days"], [5, "every 5 days"], [7, "once a week"]].map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+          </select>{" "}
+          once something they were asked for is due in two days or late. Home lists the reminders to send.
+        </label>
         <div className={cn("grid h-[30px] items-center gap-3 border-b text-[12.5px] text-muted-foreground", cols)}><span /><span>Item</span><span>Phase</span><span>Asked</span><span className="text-right">Due</span><span /></div>
         <Section title="Late" list={c.late} tone="text-destructive">{c.late.map((x) => <Row key={x.id} x={x} right={<span className="text-destructive">{fmtDay(x.due)}, {dueLabel(x)}</span>} />)}</Section>
         <Section title="Asked, due soon" list={c.soon}>{c.soon.map((x) => <Row key={x.id} x={x} right={x.due ? fmtDay(x.due, true) : ""} />)}</Section>
@@ -630,12 +735,23 @@ function ClientTab({ p, setItem, setP, remind }: { p: Project; setItem: SetItem;
         {showReceived && received.map((x) => <Row key={x.id} x={x} select={false} right={<span className="text-muted-foreground">{x.at ? `Received ${new Date(x.at).toLocaleDateString([], { month: "short", day: "numeric" })}` : "Received"}</span>} />)}
       </div>
       <section ref={panel} className="flex scroll-mt-4 flex-col gap-3.5 self-start rounded-xl border bg-card p-[18px]">
-        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2.5"><div className="grid gap-0.5"><h2 className="text-sm font-medium">Message to the client</h2><span className="text-[12.5px] text-muted-foreground">{chosen.length ? `${chosen.length} ${chosen.length === 1 ? "item" : "items"} ticked${!fresh.length ? ", all asked before" : ""}` : "No items ticked. Tick items on the left to list them."}</span></div>{tid && <button onClick={() => go(routes.template(tid))} className="text-[12.5px] text-foreground/70 underline underline-offset-2">Edit template</button>}</div>
+        <div role="group" aria-label="Message" className="grid grid-cols-2 gap-0.5 rounded-lg bg-muted p-0.5">
+          {([["ask", "Ask or remind"], ["update", "Weekly update"]] as const).map(([k, l]) => <button key={k} aria-pressed={kind === k} onClick={() => { setKind(k); if (k === "ask" && !pick.size) setPick(firstPick()) }} className={cn("h-7 rounded-md text-[13px]", kind === k ? "bg-card font-medium shadow-sm" : "text-muted-foreground")}>{l}</button>)}
+        </div>
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2.5"><div className="grid gap-0.5"><h2 className="text-sm font-medium">{kind === "update" ? "Weekly update" : "Message to the client"}</h2><span className="text-[12.5px] text-muted-foreground">{kind === "update" ? `Since ${p.lastUpdate ? `the last update, ${fmtDay(dayOf(p.lastUpdate))}` : fmtDay(dayOf(update.since))}: ${update.counts.done} done, ${update.counts.next} up next, ${update.counts.waiting} waiting on them` : chosen.length ? `${chosen.length} ${chosen.length === 1 ? "item" : "items"} ticked${!fresh.length ? ", all asked before" : ""}` : "No items ticked. Tick items on the left to list them."}</span></div>{tid && <button onClick={() => go(routes.template(tid))} className="text-[12.5px] text-foreground/70 underline underline-offset-2">Edit template</button>}</div>
         <label className="grid gap-1.5 text-[12.5px] text-muted-foreground">Template
           <select value={tid} onChange={(e) => { setPicked(true); setTid(e.target.value) }} className="h-9 rounded-lg border border-input bg-card px-2.5 text-[13.5px] text-foreground">{tpls.map((t) => <option key={t.id} value={t.id}>{t.name}{t.kind === "email" ? " (email)" : ""}</option>)}</select>
         </label>
         <div className="max-h-80 overflow-auto rounded-[10px] border bg-background px-4 py-3.5 text-[13.5px] leading-relaxed whitespace-pre-line">{text || "Pick a template."}</div>
-        {chosen.length > 0 && <label className="flex items-start gap-2 text-[13px]"><Checkbox checked={record} onCheckedChange={(v) => setRecord(!!v)} className="mt-0.5" /><span>Record it as sent today <span className="text-muted-foreground">({[fresh.length ? `${fresh.length} asked` : "", chosen.length - fresh.length ? `${chosen.length - fresh.length} nudged` : ""].filter(Boolean).join(", ")})</span></span></label>}
+        <div className="grid gap-1.5">
+          <div className="flex items-center gap-2">
+            <Input value={voice} onChange={(e) => setVoice(e.target.value)} placeholder="Your voice: warm, short, first names" className="h-8 text-[13px]" />
+            <Button size="sm" variant="outline" onClick={rewrite} disabled={rewriting || !plain}>{rewriting ? <Loader2 className="animate-spin" /> : null}Rewrite</Button>
+          </div>
+          <span className="text-[12px] text-muted-foreground">{rewritten ? <>Rewritten by AI. <button onClick={() => setAi(null)} className="underline underline-offset-2 hover:text-foreground">Back to the plain version</button></> : "Optional: rewrites it in your voice with Claude or ChatGPT. It sends this message and nothing else."}</span>
+        </div>
+        {kind === "update" && <label className="flex items-start gap-2 text-[13px]"><Checkbox checked={record} onCheckedChange={(v) => setRecord(!!v)} className="mt-0.5" /><span>Record it as sent today <span className="text-muted-foreground">(the next one is due in a week)</span></span></label>}
+        {kind === "ask" && chosen.length > 0 && <label className="flex items-start gap-2 text-[13px]"><Checkbox checked={record} onCheckedChange={(v) => setRecord(!!v)} className="mt-0.5" /><span>Record it as sent today <span className="text-muted-foreground">({[fresh.length ? `${fresh.length} asked` : "", chosen.length - fresh.length ? `${chosen.length - fresh.length} nudged` : ""].filter(Boolean).join(", ")})</span></span></label>}
         <Button onClick={copy} disabled={!text}><Copy />Copy message</Button>
         <p className="text-[12.5px] leading-relaxed text-muted-foreground">Groundwork doesn’t send anything. Paste the message wherever you talk to the client.{!prefs.appliedBy && " Add your name in Settings to sign it."}</p>
       </section>

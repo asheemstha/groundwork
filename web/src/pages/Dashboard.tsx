@@ -1,13 +1,13 @@
 import * as React from "react"
-import { Mail, Plus, User, Stamp } from "lucide-react"
+import { Bell, CalendarClock, Mail, Plus, Receipt, User, Stamp } from "lucide-react"
 import { cn } from "cn"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { SiteIcon, TopBar } from "@/components/common/bits"
 import { newProject } from "@/components/project/NewProjectDialog"
 import { useApp } from "@/hooks/useApp"
-import { api, type HomeData, type HomeGroup, type NextUp, type ProjectSummary } from "@/lib/api"
-import { dueLabel, fmtDay } from "@/lib/project"
+import { api, type HomeData, type HomeGroup, type HomeMessages, type NextUp, type ProjectSummary } from "@/lib/api"
+import { dayOf, dueLabel, fmtDay } from "@/lib/project"
 import { store } from "@/lib/store"
 import { go, routes } from "@/lib/router"
 
@@ -44,6 +44,7 @@ export function Dashboard() {
                 <Stat n={s?.signoffs ?? 0} label={s?.signoffs === 1 ? "sign-off to record" : "sign-offs to record"} />
                 <Stat n={s?.nextLaunch ? fmtDay(s.nextLaunch.date) : "None"} label="next launch" sub={s?.nextLaunch?.name || "no launch date set"} />
               </div>
+              {data && data.messages.length > 0 && <Messages list={data.messages} />}
               <section>
                 <h2 className="mb-1.5 flex items-baseline gap-2 text-[14px] font-medium">This week<span className="text-[13px] font-normal text-muted-foreground">late, due in the next 7 days, and time to ask</span></h2>
                 {data?.groups.length ? <div className="grid gap-4">{data.groups.map((g) => <WeekGroup key={g.projectId} g={g} />)}</div> : <p className="py-3 text-[14px] text-muted-foreground">Nothing due this week.</p>}
@@ -78,7 +79,7 @@ function Setup() {
   const [hidden, setHidden] = React.useState(() => store.get("setupHidden", false))
   if (!status || hidden) return null
   const steps: [boolean, string, string, () => void][] = [
-    [!!(status.engines.claude?.loggedIn || status.engines.codex?.loggedIn), "Sign in to Claude Code or Codex (optional)", "Only the heading and SEO plans use AI, on your own Claude or ChatGPT subscription. Checklists, scans and checks work without it.", () => go(routes.settings())],
+    [!!(status.engines.claude?.loggedIn || status.engines.codex?.loggedIn), "Sign in to Claude Code or Codex (optional)", "The heading and SEO plans and a few optional helpers use AI, on your own Claude or ChatGPT subscription. Checklists, scans and checks work without it.", () => go(routes.settings())],
     [!!status.browser?.ok, "Chrome or Edge for scans", "Groundwork uses the browser already on this Mac.", () => go(routes.settings())],
     [!!prefs.appliedBy, "Add your name", "It signs client messages and exported guides.", () => go(routes.settings())],
     [projects.some((p) => !p.sample), "Create your first project", "Pick a checklist that fits: a redesign, a new site, a store and more.", () => newProject()],
@@ -122,6 +123,36 @@ function Stat({ n, label, sub, tone }: { n: React.ReactNode; label: string; sub?
   )
 }
 
+/** The messages to send today, one row each: requests, reminders, weekly updates, invoices and payment reminders.
+ *  Each opens the place that writes it. */
+function Messages({ list }: { list: HomeMessages[] }) {
+  const n = (k: number, one: string, many = one + "s") => `${k} ${k === 1 ? one : many}`
+  const rows = list.flatMap((m) => {
+    const who = m.clientName || m.projectName
+    const out: { key: string; icon: React.ReactNode; title: string; sub: string; go: () => void }[] = []
+    if (m.remind) out.push({ key: "r", icon: <Bell />, title: `Remind ${who} about ${n(m.remind, "item")}`, sub: "Asked before and due soon or late", go: () => go(routes.remind(m.projectId)) })
+    if (m.ask) out.push({ key: "a", icon: <Mail />, title: `Ask ${who} for ${n(m.ask, "item")}`, sub: "Time to ask, going by the due dates", go: () => go(routes.project(m.projectId, "client")) })
+    if (m.update) out.push({ key: "u", icon: <CalendarClock />, title: `Weekly update for ${who}`, sub: m.lastUpdate ? `Last one ${fmtDay(dayOf(m.lastUpdate))}` : "No update sent yet", go: () => go(routes.clientUpdate(m.projectId)) })
+    for (const x of m.invoices) out.push({ key: "i" + x.phaseId, icon: <Receipt />, title: `Send the invoice: ${x.label}${x.amount ? `, ${x.amount}` : ""}`, sub: "The phase is signed off", go: () => go(routes.phase(m.projectId, x.phaseId)) })
+    for (const x of m.unpaid) out.push({ key: "p" + x.phaseId, icon: <Receipt />, title: `Payment reminder: ${x.label}${x.amount ? `, ${x.amount}` : ""}`, sub: `Invoiced ${fmtDay(dayOf(x.invoiced))}, not paid yet`, go: () => go(routes.phase(m.projectId, x.phaseId)) })
+    return out.map((r) => ({ ...r, key: m.projectId + r.key, m }))
+  })
+  return (
+    <section>
+      <h2 className="mb-1.5 flex items-baseline gap-2 text-[14px] font-medium">Messages to send<span className="text-[13px] font-normal text-muted-foreground">Groundwork writes them, you send them</span></h2>
+      <div className="-mx-2">
+        {rows.map((r) => (
+          <button key={r.key} onClick={r.go} className="grid min-h-[46px] w-full grid-cols-[18px_minmax(0,1fr)_minmax(0,180px)] items-center gap-3 rounded-md px-2 py-1.5 text-left hover:bg-muted/50">
+            <span className="text-muted-foreground [&_svg]:size-4">{r.icon}</span>
+            <span className="grid min-w-0 gap-0.5"><span className="truncate text-[13.5px]">{r.title}</span><span className="truncate text-[12px] text-muted-foreground">{r.sub}</span></span>
+            <span className="flex min-w-0 items-center justify-end gap-1.5 text-[12.5px] text-muted-foreground"><SiteIcon runId={r.m.iconRun || undefined} name={r.m.projectName} className="size-4 rounded text-[8px]" /><span className="truncate">{r.m.projectName}</span></span>
+          </button>
+        ))}
+      </div>
+    </section>
+  )
+}
+
 /** One project's week: a header with the project, then its most urgent rows. */
 function WeekGroup({ g }: { g: HomeGroup }) {
   return (
@@ -145,7 +176,7 @@ const KIND: Record<NextUp["kind"], (n: NextUp) => React.ReactNode> = {
 
 // Two lines, so the title gets the full width: what to do, then what kind of work it is.
 function NextRow({ n }: { n: NextUp }) {
-  const open = () => go(n.kind === "client" || n.kind === "ask" ? routes.project(n.projectId, "client") : routes.project(n.projectId))
+  const open = () => go(n.kind === "client" || n.kind === "ask" ? routes.project(n.projectId, "client") : n.itemId ? routes.item(n.projectId, n.itemId) : routes.project(n.projectId))
   const due = n.kind === "signoff" && n.ready ? "Ready" : n.kind === "ask" ? (n.due ? `due ${fmtDay(n.due)}` : "") : dueLabel({ due: n.due, late: n.late, status: "todo" })
   return (
     <button onClick={open} className="grid min-h-[46px] w-full grid-cols-[minmax(0,1fr)_96px] items-center gap-3.5 rounded-md px-2 py-1.5 text-left hover:bg-muted/50">

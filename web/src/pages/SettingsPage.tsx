@@ -1,9 +1,13 @@
 import * as React from "react"
 import { cn } from "cn"
-import { Check, Copy, ExternalLink, Globe, HardDrive, Loader2, RefreshCw, Terminal } from "lucide-react"
+import { CalendarPlus, Check, Copy, Download, ExternalLink, Globe, HardDrive, Loader2, RefreshCw, Terminal } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Switch } from "@/components/ui/switch"
+import { morningLine } from "@/hooks/useMorningNotice"
+import { store } from "@/lib/store"
 import { useTheme } from "@/components/theme-provider"
 import { Bar, Dot, Tag, TopBar } from "@/components/common/bits"
 import { useApp } from "@/hooks/useApp"
@@ -11,7 +15,7 @@ import { api, type EngineId } from "@/lib/api"
 import { ago, cap, clock, pct } from "@/lib/format"
 import { SkillsSection } from "@/components/settings/Skills"
 
-const SECTIONS = [["you", "You"], ["engines", "AI accounts"], ["privacy", "Data and privacy"], ["skills", "AI rules"], ["updates", "Updates"], ["scanning", "Scanning"]] as const
+const SECTIONS = [["you", "You"], ["reminders", "Reminders and calendar"], ["engines", "AI accounts"], ["privacy", "Data and privacy"], ["skills", "AI rules"], ["updates", "Updates"], ["scanning", "Scanning"]] as const
 
 export function SettingsPage({ focus }: { focus?: EngineId | "privacy" }) {
   const { status } = useApp()
@@ -45,6 +49,7 @@ export function SettingsPage({ focus }: { focus?: EngineId | "privacy" }) {
           <div className="max-w-3xl px-12 pt-10 pb-16">
             <h1 className="mb-8 text-[32px] leading-tight font-medium">Settings</h1>
             <Section id="you" title="You"><Preferences /></Section>
+            <Section id="reminders" title="Reminders and calendar"><Reminders /></Section>
             <Section id="engines" title="AI accounts" desc={<>Optional. The heading and SEO plans run Claude Code or Codex on this computer, signed in to <b className="font-medium text-foreground">your own account</b>, and count toward your Claude or ChatGPT subscription’s limits. Groundwork never sees your password, and nothing goes through a Groundwork server.</>}>
               <div className="grid gap-4"><EngineCard k="claude" highlight={focus === "claude"} /><EngineCard k="codex" highlight={focus === "codex"} /></div>
             </Section>
@@ -80,9 +85,41 @@ function Privacy() {
         <span className="flex-1"><span className="font-medium">Backups.</span> <span className="text-muted-foreground">Save everything as one zip in Documents, Groundwork Backups. To move a single project to another Mac, use Export project in the project’s ⋯ menu.</span></span>
         <BackupButton />
       </div>
-      {row("What the AI sees", <>Only the heading plan and the SEO plan use AI. They send the pages you chose from a scan (their public text, headings, current titles and descriptions, and a screenshot when a layout is unclear), your notes and the rules they follow to Anthropic (Claude Code) or OpenAI (Codex), through your own account, so that provider’s privacy terms apply. Groundwork runs the AI in that scan’s folder only. {status?.engines.claude.restricted ? "Claude Code is confined to it, so it can’t open your projects, client details, messages, sign-off files or other scans." : "Update Claude Code to confine it to that folder."} Codex (Beta) is pointed at the folder but not confined to it.</>)}
+      {row("What the AI sees", <>The heading plan and the SEO plan send the pages you chose from a scan (their public text, headings, current titles and descriptions, and a screenshot when a layout is unclear), your notes and the rules they follow to Anthropic (Claude Code) or OpenAI (Codex), through your own account, so that provider’s privacy terms apply. Groundwork runs the AI in that scan’s folder only. {status?.engines.claude.restricted ? "Claude Code is confined to it, so it can’t open your projects, client details, messages, sign-off files or other scans." : "Update Claude Code to confine it to that folder."} Codex (Beta) is pointed at the folder but not confined to it. Two small jobs are optional: reading a project brief you paste in, and rewriting a client message in your voice. Each sends only that text, from an empty folder.</>)}
       {row("Scans and checks", "The site scan, launch check and redirect test run in a browser on this Mac. They only visit the addresses you give them, and they don’t use AI.")}
       {row("Other connections", "Groundwork checks GitHub for new versions a few times a day. The usage bars ask Claude for your plan’s limits when you refresh them.")}
+    </div>
+  )
+}
+
+/** The morning notification, and the calendar feed of launches, sign-offs and due dates. */
+function Reminders() {
+  const { prefs, setPrefs } = useApp()
+  const [items, setItems] = React.useState(false)
+  const feed = `${location.host}/api/calendar.ics${items ? "?items=1" : ""}`
+  const setNotify = async (on: boolean) => {
+    if (on && typeof Notification !== "undefined" && Notification.permission === "default") await Notification.requestPermission().catch(() => {})
+    await api.savePrefs({ notify: on }); setPrefs({ notify: on })
+    if (on) store.set("notifiedOn", "") // the first one can come today
+  }
+  const test = async () => {
+    const d = await api.home().catch(() => null)
+    new Notification("Today in Groundwork", { body: (d && morningLine(d)) || "Nothing is due today." })
+  }
+  return (
+    <div className="grid gap-px overflow-hidden rounded-2xl border bg-border">
+      <div className="grid gap-3 bg-card p-4 text-sm sm:grid-cols-[1fr_auto] sm:items-center">
+        <span><span className="block font-medium">Morning notification</span><span className="text-muted-foreground">Once a day from 9am, while Groundwork is open: what’s due today, what’s late and the messages to send.</span></span>
+        <span className="flex items-center gap-3">{prefs.notify && <button onClick={test} className="text-[12.5px] text-muted-foreground underline underline-offset-2 hover:text-foreground">Send a test</button>}<Switch checked={!!prefs.notify} onCheckedChange={setNotify} aria-label="Morning notification" /></span>
+      </div>
+      <div className="grid gap-3 bg-card p-4 text-sm">
+        <span><span className="block font-medium">Calendar</span><span className="text-muted-foreground">Launch days and sign-off dates for every project in Calendar or any app that subscribes to calendars. A subscription refreshes while Groundwork is open.</span></span>
+        <label className="flex items-center gap-2 text-[13px]"><Checkbox checked={items} onCheckedChange={(v) => setItems(!!v)} />Include every open item with a due date</label>
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="outline" onClick={() => window.open("webcal://" + feed)}><CalendarPlus />Subscribe in Calendar</Button>
+          <Button size="sm" variant="ghost" onClick={() => { const a = document.createElement("a"); a.href = "/api/calendar.ics" + (items ? "?items=1" : ""); a.download = "groundwork.ics"; a.click() }}><Download />Download .ics</Button>
+        </div>
+      </div>
     </div>
   )
 }

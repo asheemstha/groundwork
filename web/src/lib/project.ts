@@ -37,10 +37,10 @@ export function ruleLabel(r: DueRule | null) {
   return `${n} ${unit} ${r.days < 0 ? "before" : "after"} ${what}`
 }
 
-export const VARIABLES = ["client first name", "client name", "project", "launch date", "phase", "items", "your name"] as const
+export const VARIABLES = ["client first name", "client name", "project", "launch date", "phase", "items", "your name", "status", "done this week", "up next", "waiting on you", "invoice", "amount"] as const
 
 /** Fill a message template for a project. `items` are the client items the message lists. */
-export function renderMessage(t: Pick<MessageTemplate, "subject" | "body">, p: Project | null, yourName: string, items: PItem[]) {
+export function renderMessage(t: Pick<MessageTemplate, "subject" | "body">, p: Project | null, yourName: string, items: PItem[], extra: Record<string, string> = {}) {
   const first = (p?.clientName || "").split(/\s+/)[0] || "there"
   const cur = p?.phases.find((ph) => ph.id === p.current)
   const list = items.length
@@ -54,6 +54,7 @@ export function renderMessage(t: Pick<MessageTemplate, "subject" | "body">, p: P
     phase: cur?.name || "[phase]",
     items: list,
     "your name": yourName || "[Your name]",
+    ...extra,
   }
   const fill = (s: string) => s.replace(/\{([a-z ]+)\}/g, (m, k: string) => vals[k] ?? m)
   return { subject: fill(t.subject || ""), body: fill(t.body || "") }
@@ -77,3 +78,33 @@ export const subName = (s: AppStatus | null) => { const c = !!s?.engines.claude.
 export const SITE_NAME: Record<SiteKey, string> = { old: "Old site", staging: "Staging", live: "Live site" }
 export const SITE_KEYS: SiteKey[] = ["old", "staging", "live"]
 export const hostOfUrl = (u?: string | null) => { if (!u) return ""; try { return new URL(u).hostname.replace(/^www\./, "") } catch { return u } }
+
+/**
+ * The weekly client update, from the checklist: what got done since the last update (or the last 7 days), what's
+ * next for us, and what's waiting on the client. It fills the Weekly update template's {status}, {done this week},
+ * {up next} and {waiting on you}.
+ */
+export function weeklyUpdate(p: Project) {
+  const since = p.lastUpdate || Date.now() - 7 * 864e5
+  const all = p.phases.flatMap((ph) => [...ph.groups.flatMap((g) => g.items), ...ph.handoff.items])
+  const done = all.filter((x) => x.status === "done" && (x.at || 0) >= since)
+  const signed = p.phases.filter((ph) => ph.signoff && ph.signoff.at >= since)
+  const cur = p.phases.find((ph) => ph.id === p.current)
+  const soon = addDaysIso(today(), 14)
+  const next = all.filter((x) => x.status === "todo" && x.who === "us" && (x.phaseId === cur?.id || (!!x.due && x.due <= soon))).sort((a, b) => (a.due || "9999") < (b.due || "9999") ? -1 : 1).slice(0, 6)
+  const waiting = [...p.client.late, ...p.client.soon, ...p.client.notAsked.filter((x) => !x.askBy || x.askBy <= today())]
+  const line = (x: PItem) => `• ${x.title}${x.due && x.who === "client" ? ` (by ${fmtDay(x.due)})` : ""}`
+  const behind = p.behind.days >= 7 && !!cur
+  const status = !cur ? "Every phase is signed off." : behind ? `We’re working through ${cur.name}, about ${p.behind.days} days behind the plan${p.launch ? `, and still aiming for launch on ${fmtLong(p.launch)}` : ""}.` : p.client.late.length ? `We’re in ${cur.name}${p.launch ? ` and on course for launch on ${fmtLong(p.launch)}` : ""}, as long as the items below arrive soon.` : `We’re in ${cur.name}${p.launch ? ` and on track for launch on ${fmtLong(p.launch)}` : ""}.`
+  return {
+    since,
+    counts: { done: done.length + signed.length, next: next.length, waiting: waiting.length },
+    extra: {
+      status,
+      "done this week": [...signed.map((ph) => `• ${ph.handoff.title} (signed off)`), ...done.map((x) => `• ${x.who === "client" ? "Received: " : ""}${x.title}`)].join("\n") || "• Nothing new to show since the last update.",
+      "up next": next.map(line).join("\n") || "• Nothing scheduled for the next two weeks.",
+      "waiting on you": waiting.map(line).join("\n") || "• Nothing right now. Thank you!",
+    } as Record<string, string>,
+  }
+}
+const addDaysIso = (d: string, n: number) => { const x = parse(d); x.setDate(x.getDate() + n); return iso(x) }

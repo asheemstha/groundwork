@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useApp } from "@/hooks/useApp"
+import { useMorningNotice } from "@/hooks/useMorningNotice"
 import { go, routes, useRoute } from "@/lib/router"
 import { api, type ProjectSummary, type RunSummary } from "@/lib/api"
 import { NewProjectDialog, newProject } from "@/components/project/NewProjectDialog"
@@ -22,8 +23,9 @@ const mod = (k: string) => (MAC ? `⌘${k}` : `Ctrl+${k}`)
  * toggle (or the left edge) slides the sidebar over the page until the pointer leaves, and clicking pins it. ⌘B toggles it.
  */
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const { sidebar, setSidebar } = useApp()
+  const { sidebar, setSidebar, prefs } = useApp()
   const route = useRoute()
+  useMorningNotice(prefs.notify)
   const [peek, setPeek] = React.useState(false)
   const panel = React.useRef<HTMLElement>(null)
   const timer = React.useRef(0)

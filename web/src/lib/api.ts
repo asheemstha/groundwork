@@ -59,6 +59,10 @@ export interface Settings {
   skillName?: string
   /** The checklist template last used for a new project. */
   template?: string
+  /** How the person writes, for "Rewrite in my voice". */
+  voice?: string
+  /** A morning notification with what's due today. */
+  notify?: boolean
 }
 export interface Counts { tasks: number; done: number }
 /** `all` is the merged to-do list; `live`/`optimize` come from runs made before it existed. */
@@ -260,15 +264,17 @@ export interface MessageTemplate { id: string; kind: "message" | "email"; name: 
 export type Template = ChecklistTemplate | MessageTemplate
 export interface TemplateSummary extends TemplateMeta { id: string; kind: Template["kind"]; name: string; updated: number; used: number; items?: number; phases?: number; subject?: string; preview?: string; use?: string[] }
 export interface ToolInfo { id: ToolId; name: string; ready: boolean; text?: string; runId?: string; progress?: { done: number; total: number }; check?: LaunchCheckId | "plan" | "live" | "map" | "after" | "recrawl"; checkName?: string; issues?: number }
-export interface PItem { id: string; title: string; check: LaunchCheckId | "plan" | "live" | "map" | "after" | "recrawl" | null; doneMeans: string; who: "us" | "client"; part: string | null; tool: ToolId | null; toolInfo: ToolInfo | null; due: string | null; status: "todo" | "done" | "na"; auto: boolean; at: number | null; note: string; link: string; asked: number | null; nudged: number | null; hist: { at: number; what: string }[]; manualDue: boolean; phaseId: string; phaseName: string; late: boolean; carriedFrom?: string; askBy?: string | null }
+export interface PItem { id: string; title: string; check: LaunchCheckId | "plan" | "live" | "map" | "after" | "recrawl" | null; doneMeans: string; who: "us" | "client"; part: string | null; tool: ToolId | null; toolInfo: ToolInfo | null; due: string | null; status: "todo" | "done" | "na"; auto: boolean; at: number | null; note: string; link: string; asked: number | null; nudged: number | null; hist: { at: number; what: string }[]; manualDue: boolean; phaseId: string; phaseName: string; late: boolean; carriedFrom?: string; askBy?: string | null; remindDue?: boolean }
 export interface Signoff { by: string; date: string; note: string; link: string; file: { name: string; stored: string } | null; at: number }
-export interface PPhase { id: string; name: string; index: number; due: string | null; groups: { id: string; name: string; items: PItem[] }[]; handoff: { title: string; needs: "us" | "client"; items: PItem[] }; signoff: Signoff | null; state: "signed" | "current" | "upcoming"; done: number; total: number; ready: boolean }
+/** A payment due at a phase's sign-off: invoiced once the phase is signed off, then paid. */
+export interface Payment { label: string; amount: string; invoiced: number | null; paid: number | null }
+export interface PPhase { id: string; name: string; index: number; payment: Payment | null; due: string | null; groups: { id: string; name: string; items: PItem[] }[]; handoff: { title: string; needs: "us" | "client"; items: PItem[] }; signoff: Signoff | null; state: "signed" | "current" | "upcoming"; done: number; total: number; ready: boolean }
 export type SiteKey = "old" | "staging" | "live"
 export type Sites = Record<SiteKey, string | null>
 export interface ProjectRun { id: string; site: SiteKey | null; status: RunStatus; created: number; pages: number; scanned: number; output: Output | null; progress: RunProgress | null; hasIcon: boolean; seo: { status: SeoStatus; progress: Counts | null } | null; error: string | null; url: string }
 export interface Project {
   id: string; kind: "project" | "audit"; name: string; url: string | null; host: string | null; sites: Sites; platform: PlatformId | null;
-  labels: DateLabels | null; repeat: "monthly" | null; cycle: number; sample: boolean; created: number; updated: number; kickoff: string | null; launch: string | null
+  labels: DateLabels | null; repeat: "monthly" | null; cycle: number; sample: boolean; lastUpdate: number | null; remindEvery: number; created: number; updated: number; kickoff: string | null; launch: string | null
   clientName: string; templateId: string; templateName: string; parts: string[]
   /** Days the plan has been shifted, and how far behind it is now. */
   slip: number; behind: Behind
@@ -329,8 +335,11 @@ export interface ShiftPreview {
 export interface NextUp { key: string; kind: "item" | "client" | "ask" | "signoff"; projectId: string; itemId?: string; title: string; phaseId: string; phaseName: string; due: string | null; late: boolean; asked?: boolean; ready?: boolean; leftover?: boolean }
 /** Home: this week's work for one project, most urgent first. */
 export interface HomeGroup { projectId: string; projectName: string; iconRun: string | null; rows: NextUp[]; more: number; late: number }
-export interface HomeData { groups: HomeGroup[]; stats: { dueThisWeek: number; overdue: number; toAsk: number; waiting: number; late: number; signoffs: number; nextLaunch: { name: string; date: string } | null }; projects: ProjectSummary[] }
-export interface NewProject { kind?: "project" | "audit"; platform?: PlatformId | null; name: string; sites?: Partial<Sites>; templateId?: string; kickoff?: string; launch?: string; parts?: string[]; clientName?: string; startAt?: string }
+/** Messages to send today for one project: items to ask for, reminders, the weekly update and invoices. */
+export interface BriefResult { name: string | null; clientName: string | null; sites: Sites; platform: PlatformId | null; kickoff: string | null; launch: string | null; parts: string[] | null; items: { title: string; who: "us" | "client"; phase: string; done: string }[]; ai: boolean }
+export interface HomeMessages { projectId: string; projectName: string; iconRun: string | null; clientName: string; ask: number; remind: number; update: boolean; lastUpdate: number | null; invoices: { phaseId: string; label: string; amount: string }[]; unpaid: { phaseId: string; label: string; amount: string; invoiced: number }[] }
+export interface HomeData { groups: HomeGroup[]; messages: HomeMessages[]; stats: { dueThisWeek: number; dueToday: number; overdue: number; toAsk: number; waiting: number; late: number; signoffs: number; nextLaunch: { name: string; date: string } | null }; projects: ProjectSummary[] }
+export interface NewProject { kind?: "project" | "audit"; platform?: PlatformId | null; extraItems?: BriefResult["items"]; name: string; sites?: Partial<Sites>; templateId?: string; kickoff?: string; launch?: string; parts?: string[]; clientName?: string; startAt?: string }
 export interface SignoffInput { by: string; date: string; note?: string; link?: string; file?: { name: string; data: string } | null; carry?: string[]; skip?: string[] }
 
 export interface UpdateInfo { enabled: boolean; version: string; commit: string | null; behind: number; latest: string | null; checkedAt: number; error: string | null; launcher: boolean; app?: boolean; url?: string }
@@ -350,6 +359,8 @@ export const api = {
   savePrefs: (p: Partial<Settings>) => req<Partial<Settings>>("POST", "/api/prefs", p),
   runs: () => req<RunSummary[]>("GET", "/api/runs"),
   run: (id: string) => req<{ run: Run; progress: Progress | null; seoProgress: Progress | null; log: LogEntry[] }>("GET", `/api/runs/${id}`),
+  /** Every checklist item across projects, for quick find. */
+  items: () => req<{ projectId: string; projectName: string; iconRun: string | null; id: string; title: string; phaseName: string; status: PItem["status"]; who: "us" | "client"; late: boolean }[]>("GET", "/api/items"),
   /** Zips the whole data folder into Documents/Groundwork Backups and shows it in Finder. */
   backup: () => req<{ file: string }>("POST", "/api/backup"),
   /** Brings in a project exported from Groundwork (the zip, base64). */
@@ -385,9 +396,16 @@ export const api = {
   projects: () => req<ProjectSummary[]>("GET", "/api/projects"),
   project: (id: string) => req<Project>("GET", `/api/projects/${id}`),
   createProject: (b: NewProject) => req<{ id: string; runId: string | null }>("POST", "/api/projects", b),
-  updateProject: (id: string, b: Partial<{ name: string; kickoff: string | null; launch: string | null; clientName: string; url: string; sites: Partial<Sites>; platform: PlatformId | null }>) => req<Project>("PATCH", `/api/projects/${id}`, b),
+  updateProject: (id: string, b: Partial<{ name: string; kickoff: string | null; launch: string | null; clientName: string; url: string; sites: Partial<Sites>; platform: PlatformId | null; remindEvery: number }>) => req<Project>("PATCH", `/api/projects/${id}`, b),
   templateUpdate: (id: string, b: { dryRun?: boolean; removeUntouched?: boolean }) => req<TemplateUpdate & { project?: Project }>("POST", `/api/projects/${id}/template`, b),
   shiftPlan: (id: string, b: { days: number; launch: boolean }) => req<Project>("POST", `/api/projects/${id}/shift`, b),
+  /** The weekly update was sent today. */
+  updateSent: (id: string) => req<Project>("POST", `/api/projects/${id}/update-sent`),
+  /** Add, change or remove a phase's payment milestone, or mark it invoiced or paid. */
+  setPayment: (id: string, phaseId: string, b: Partial<{ label: string; amount: string; invoiced: boolean; paid: boolean; remove: boolean }>) => req<Project>("POST", `/api/projects/${id}/payments/${phaseId}`, b),
+  /** Suggested project details from a brief: with AI when an account is signed in, else only addresses and dates. */
+  brief: (b: { text: string; templateId: string; useAi: boolean }) => req<BriefResult>("POST", "/api/brief", b),
+  rewrite: (text: string, voice: string) => req<{ text: string }>("POST", "/api/rewrite", { text, voice }),
   /** A repeating project (a care plan) starts its next month. */
   nextCycle: (id: string) => req<Project>("POST", `/api/projects/${id}/next-cycle`),
   previewShift: (id: string, b: { days: number; launch: boolean }) => req<ShiftPreview>("POST", `/api/projects/${id}/shift`, { ...b, dryRun: true }),
