@@ -1,11 +1,9 @@
 import * as React from "react"
 import { cn } from "cn"
-import { ArrowLeft, ArrowRight, Camera, Check, ChevronDown, Download, FolderPlus, House, LayoutTemplate, Loader2, MoreHorizontal, PanelLeft, Pencil, RefreshCw, Search, Settings, SquarePen, Trash2 } from "lucide-react"
-import { toast } from "sonner"
+import { ArrowLeft, ArrowRight, Camera, Check, ChevronDown, Download, House, LayoutTemplate, Loader2, PanelLeft, RefreshCw, Search, Settings, SquarePen, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { useApp } from "@/hooks/useApp"
 import { go, routes, useRoute } from "@/lib/router"
 import { api, type ProjectSummary, type RunSummary } from "@/lib/api"
@@ -13,9 +11,7 @@ import { NewProjectDialog, newProject } from "@/components/project/NewProjectDia
 import { QuickFind, openQuickFind } from "@/components/shell/QuickFind"
 import { ago, pct, plural } from "@/lib/format"
 import { OUTPUTS } from "@/components/composer/pickers"
-import { Bar, Dot, Logo, Ring, SiteIcon, Spinner, renameSite, runLabel } from "@/components/common/bits"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
+import { Bar, Dot, Logo, Ring, SiteIcon, Spinner, runLabel } from "@/components/common/bits"
 
 const MAC = /Mac/.test(navigator.platform)
 const DESKTOP = () => document.documentElement.classList.contains("desktop")
@@ -58,7 +54,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [sidebar, setSidebar])
   return (
     <div className="relative flex h-full bg-canvas" data-sidebar={sidebar ? "open" : "closed"}>
-      <RenameDialog />
       <NewProjectDialog />
       <QuickFind />
       {sidebar ? (
@@ -130,71 +125,30 @@ function WindowBar({ sidebar, onToggle, onHover }: { sidebar: boolean; onToggle:
   )
 }
 
-function groupBySite(runs: RunSummary[]) {
-  const map = new Map<string, RunSummary[]>()
-  for (const r of runs) map.set(r.host || r.name, [...(map.get(r.host || r.name) || []), r])
-  for (const list of map.values()) list.sort((a, b) => b.created - a.created)
-  return [...map.entries()].sort((a, b) => Math.max(...b[1].map((r) => r.updated || r.created)) - Math.max(...a[1].map((r) => r.updated || r.created)))
-}
 const openRun = (r: RunSummary) => go(
-  r.seo?.status === "running" ? routes.run(r.id)
+  r.seo?.status === "running" ? routes.run(r.id, "seo")
+  : r.status === "running" ? routes.run(r.id, "headings")
   : r.status === "done" || r.status === "partial" ? routes.review(r.id)
   : r.seo?.status === "done" || r.seo?.status === "partial" ? routes.seo(r.id)
   : routes.run(r.id))
+const SITE: Record<string, string> = { old: "old site", staging: "staging", live: "live site" }
 const when = (t: number) => new Date(t).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
-/** What a version is, in a few words: "Tags only · 5 pages", "Scan", "Planning…". */
+/** What a version is, in a few words: "Tags only · 5 pages", "Scan of the staging", "Planning…". */
 const versionLabel = (r: RunSummary) => {
   const l = runLabel(r)
   const seo = r.seo && (r.seo.status === "done" || r.seo.status === "partial") ? " + SEO" : ""
   if (r.settings && (r.status === "done" || r.status === "partial")) return `${OUTPUTS[r.settings.output]?.short || "Plan"} · ${plural(r.pages, "page")}${seo}`
   if (seo) return "SEO plan"
+  if (r.status === "scanned" && r.site) return `Scan of the ${SITE[r.site]}`
   return l.title
 }
 
-/** One row per site. It opens the latest scan or plan; older ones live in its Versions menu. */
-function SiteRow({ host, list, cur, onRemove }: { host: string; list: RunSummary[]; cur: string | null; onRemove: () => void }) {
-  const { siteLabel } = useApp()
-  const latest = list[0]!, l = runLabel(latest)
-  const label = siteLabel(host)
-  const active = list.some((r) => r.id === cur)
-  const busy = list.some((r) => r.status === "running" || r.status === "scanning")
-  return (
-    <div className={cn("group relative flex items-center rounded-md hover:bg-sidebar-accent", active && "bg-sidebar-accent")}>
-      {/* Fixed columns so the rings and counts line up from row to row. The menu button sits over the count on hover. */}
-      <button onClick={() => openRun(latest)} className="grid h-[30px] min-w-0 flex-1 grid-cols-[20px_minmax(0,1fr)_14px_38px] items-center gap-2 pl-2 text-left text-[14px] text-foreground/85">
-        <SiteIcon runId={(list.find((r) => r.hasIcon) || latest).id} name={label} className="size-5 rounded-[5px] text-[10px]" />
-        <span className="min-w-0 truncate" title={label !== host ? host : undefined}>{label}</span>
-        <span className="grid place-items-center">{busy ? <Spinner className="size-3" /> : l.total ? <Ring done={l.done!} total={l.total} size={13} /> : l.tone === "bad" ? <Dot tone="bad" /> : null}</span>
-        <span className="pr-2 text-right text-[11px] text-muted-foreground tabular group-hover:invisible group-has-[[data-popup-open]]:invisible">{l.busy ? l.sub : l.total ? l.sub : latest.status === "scanned" ? "scan" : ""}</span>
-      </button>
-      <DropdownMenu>
-        <DropdownMenuTrigger render={<button className="absolute top-1/2 right-1 hidden size-6 -translate-y-1/2 place-items-center rounded-md text-muted-foreground group-hover:grid hover:bg-background/60 data-[popup-open]:grid" aria-label={`${host} options`} />}><MoreHorizontal className="size-3.5" /></DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-64">
-          <DropdownMenuGroup>
-            <DropdownMenuLabel>Versions</DropdownMenuLabel>
-            {list.map((r, i) => (
-              <DropdownMenuItem key={r.id} onClick={() => openRun(r)}>
-                <span className="flex-1">{versionLabel(r)}{i === 0 && <span className="text-muted-foreground"> · latest</span>}</span>
-                <span className="tabular text-[11px] text-muted-foreground">{when(r.created)}</span>
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuGroup>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => newProject({ url: latest.url, name: label !== host ? label : "" })}><FolderPlus /> Make it a project…</DropdownMenuItem>
-          <DropdownMenuItem onClick={() => renameSite(host)}><Pencil /> Rename…</DropdownMenuItem>
-          <DropdownMenuItem variant="destructive" onClick={onRemove}><Trash2 /> Remove site…</DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
-  )
-}
-
-/** "Heading plan · Sep 29, 1:35 PM" in the top bar, with a switcher when the site has older versions. */
+/** "Tags only · 5 pages · Sep 29, 1:35 PM" in the top bar, with a switcher when the project has other scans. */
 export function VersionMenu({ runId }: { runId: string }) {
-  const { runs, siteLabel } = useApp()
+  const { runs } = useApp()
   const me = runs.find((r) => r.id === runId)
   if (!me) return null
-  const list = runs.filter((r) => r.host === me.host).sort((a, b) => b.created - a.created)
+  const list = runs.filter((r) => (me.projectId ? r.projectId === me.projectId : r.host === me.host)).sort((a, b) => b.created - a.created)
   const label = <>{versionLabel(me)} <span className="text-muted-foreground/70">· {when(me.created)}</span></>
   if (list.length < 2) return <span className="truncate text-sm text-muted-foreground">{label}</span>
   return (
@@ -204,10 +158,10 @@ export function VersionMenu({ runId }: { runId: string }) {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-64">
         <DropdownMenuGroup>
-          <DropdownMenuLabel>Versions of {siteLabel(me.host)}</DropdownMenuLabel>
+          <DropdownMenuLabel>Scans and plans in this project</DropdownMenuLabel>
           {list.map((r, i) => (
             <DropdownMenuItem key={r.id} onClick={() => openRun(r)}>
-              <span className="flex-1">{versionLabel(r)}{i === 0 && <span className="text-muted-foreground"> · latest</span>}</span>
+              <span className="flex-1">{versionLabel(r)}{i === 0 && <span className="text-muted-foreground"> · latest</span>}{r.site && r.status !== "scanned" && <span className="text-muted-foreground"> · {SITE[r.site]}</span>}</span>
               <span className="tabular text-[11px] text-muted-foreground">{when(r.created)}</span>
               {r.id === runId && <Check className="size-3.5" />}
             </DropdownMenuItem>
@@ -226,14 +180,22 @@ function NavItem({ icon: Icon, label, active, onClick, hint }: { icon: React.Com
   )
 }
 
-/** A project in the sidebar: its current phase number and how far that phase is. */
+/** A project in the sidebar: its current phase number and how far that phase is. An audit has no phases. */
 function ProjectRow({ p, active }: { p: ProjectSummary; active: boolean }) {
   const c = p.current
+  if (p.kind === "audit") return (
+    <button onClick={() => go(routes.project(p.id))} className={cn("grid h-[30px] w-full grid-cols-[20px_minmax(0,1fr)_auto_14px] items-center gap-2 rounded-md px-2 text-left text-[14px] text-foreground/85 hover:bg-sidebar-accent", active && "bg-sidebar-accent text-foreground")}>
+      <SiteIcon runId={p.iconRun || undefined} name={p.name} className="size-5 rounded-[5px] text-[10px]" />
+      <span className="truncate">{p.name}</span>
+      <span className="text-[11px] text-muted-foreground">Audit</span>
+      <span className="grid place-items-center" title={p.running ? `${p.running} running` : undefined}>{p.running ? <Spinner className="size-3" /> : null}</span>
+    </button>
+  )
   return (
     <button onClick={() => go(routes.project(p.id))} className={cn("grid h-[30px] w-full grid-cols-[20px_minmax(0,1fr)_18px_14px] items-center gap-2 rounded-md px-2 text-left text-[14px] text-foreground/85 hover:bg-sidebar-accent", active && "bg-sidebar-accent text-foreground")}>
       <SiteIcon runId={p.iconRun || undefined} name={p.name} className="size-5 rounded-[5px] text-[10px]" />
       <span className="truncate">{p.name}</span>
-      <span className="text-right text-[11px] text-muted-foreground tabular">{c ? String(c.index).padStart(2, "0") : ""}</span>
+      <span className="text-right text-[11px] text-muted-foreground tabular">{c ? String(c.index + 1).padStart(2, "0") : ""}</span>
       <span className="grid place-items-center" title={p.running ? `${p.running} running` : undefined}>{p.running ? <Spinner className="size-3" /> : c ? <Ring done={c.ready ? 1 : c.done} total={c.ready ? 1 : c.total} size={13} /> : <Ring done={1} total={1} size={13} />}</span>
     </button>
   )
@@ -241,24 +203,16 @@ function ProjectRow({ p, active }: { p: ProjectSummary; active: boolean }) {
 
 /** The sidebar: pinned beside the page, or floating over it while previewed from the collapsed state. */
 function Sidebar({ floating, open, onHover, panelRef }: { floating?: boolean; open?: boolean; onHover?: (on: boolean) => void; panelRef?: React.Ref<HTMLElement> }) {
-  const { runs, projects, status, refreshRuns, siteLabel } = useApp()
+  const { runs, projects, status } = useApp()
   const route = useRoute()
-  const cur = route.name === "run" || route.name === "review" ? route.id : null
-  const curHost = cur ? runs.find((r) => r.id === cur)?.host : null
-  const projectHosts = new Set(projects.map((p) => p.host).filter(Boolean))
-  // Sites that aren't part of a project yet keep their own list.
-  const groups = groupBySite(runs).filter(([host]) => !projectHosts.has(host))
-  const [removing, setRemoving] = React.useState<{ host: string; list: RunSummary[] } | null>(null)
-  const remove = async (x: { host: string; list: RunSummary[] }) => {
-    for (const r of x.list) await api.remove(r.id)
-    await refreshRuns()
-    toast(`Removed ${siteLabel(x.host)}`)
-    if (x.list.some((r) => r.id === cur)) go(routes.home)
-  }
+  // A scan or plan page belongs to its project, so the project stays highlighted there.
+  const cur = route.name === "run" || route.name === "review" || route.name === "seo" ? route.id : null
+  const curProject = cur ? runs.find((r) => r.id === cur)?.projectId : null
+  const work = projects.filter((p) => p.kind !== "audit"), audits = projects.filter((p) => p.kind === "audit")
   return (
     <aside
       ref={panelRef}
-      aria-label="Sites"
+      aria-label="Projects"
       inert={floating && !open}
       onMouseEnter={onHover && (() => onHover(true))}
       onMouseLeave={onHover && (() => onHover(false))}
@@ -279,28 +233,10 @@ function Sidebar({ floating, open, onHover, panelRef }: { floating?: boolean; op
       <div className="scrollbar-thin mt-4 min-h-0 flex-1 overflow-auto">
         <div className="px-2 pb-1 text-[12px] font-medium text-muted-foreground">Projects</div>
         {!projects.length && <p className="px-2 py-1 text-[13px] text-muted-foreground">Projects you start show up here.</p>}
-        {projects.map((p) => <ProjectRow key={p.id} p={p} active={(route.name === "project" && route.id === p.id) || (!!curHost && curHost === p.host)} />)}
-        {groups.length > 0 && (
-          <>
-            <div className="mt-5 px-2 pb-1 text-[12px] font-medium text-muted-foreground">Other sites</div>
-            {groups.map(([host, list]) => <SiteRow key={host} host={host} list={list} cur={cur} onRemove={() => setRemoving({ host, list })} />)}
-          </>
-        )}
+        {[...work, ...audits].map((p) => <ProjectRow key={p.id} p={p} active={(route.name === "project" && route.id === p.id) || curProject === p.id} />)}
       </div>
       <UpdateCard />
       {status && <UsageCard />}
-      <AlertDialog open={!!removing} onOpenChange={(o) => !o && setRemoving(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Remove {removing && siteLabel(removing.host)}?</AlertDialogTitle>
-            <AlertDialogDescription>This deletes {removing && removing.list.length > 1 ? `all ${removing.list.length} versions: every` : "the"} scan, plan and to-do progress for this site from this computer. You can’t undo it.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" onClick={() => { const x = removing!; setRemoving(null); remove(x) }}>Remove</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </aside>
   )
 }
@@ -358,51 +294,13 @@ function UsageCard() {
   )
 }
 
-/** Name a site, e.g. the client's name. Shared by every version of the site. */
-function RenameDialog() {
-  const { siteLabel, refreshRuns } = useApp()
-  const [host, setHost] = React.useState<string | null>(null)
-  const [name, setName] = React.useState("")
-  React.useEffect(() => {
-    const on = (e: Event) => { const h = (e as CustomEvent<string>).detail; setHost(h); setName(siteLabel(h) === h ? "" : siteLabel(h)) }
-    window.addEventListener("gw:rename", on)
-    return () => window.removeEventListener("gw:rename", on)
-  }, [siteLabel])
-  const save = async (value: string) => {
-    if (!host) return
-    await api.setSiteName(host, value)
-    await refreshRuns()
-    setHost(null)
-    toast(value.trim() ? `Renamed to ${value.trim()}` : `Showing ${host} again`)
-  }
-  return (
-    <Dialog open={!!host} onOpenChange={(o) => !o && setHost(null)}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Rename site</DialogTitle>
-          <DialogDescription>A name for {host}, like the client’s name. It shows in the sidebar and on every version.</DialogDescription>
-        </DialogHeader>
-        <form onSubmit={(e) => { e.preventDefault(); save(name) }} className="grid gap-4">
-          <Input autoFocus value={name} placeholder={host || ""} onChange={(e) => setName(e.target.value)} maxLength={60} />
-          <DialogFooter>
-            {siteLabel(host || "") !== host && <Button type="button" variant="ghost" className="mr-auto" onClick={() => save("")}>Use the address</Button>}
-            <Button type="button" variant="outline" onClick={() => setHost(null)}>Cancel</Button>
-            <Button type="submit">Save</Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-/** The site menu used on run and to-do pages. */
-export function SiteMenu({ host, onRescan, onDelete, onReshoot, children }: { host?: string; onRescan: () => void; onDelete: () => void; onReshoot?: () => void; children: React.ReactElement }) {
+/** The scan menu used on run and to-do pages. */
+export function SiteMenu({ onRescan, onDelete, onReshoot, children }: { onRescan: () => void; onDelete: () => void; onReshoot?: () => void; children: React.ReactElement }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger render={children} />
       <DropdownMenuContent align="end" className="w-60">
         <DropdownMenuGroup>
-          {host && <DropdownMenuItem onClick={() => renameSite(host)}><Pencil /> Rename…</DropdownMenuItem>}
           <DropdownMenuItem onClick={onRescan}><RefreshCw /> Rescan the site</DropdownMenuItem>
           {onReshoot && <DropdownMenuItem onClick={onReshoot}><Camera /> Retake screenshots <span className="ml-auto text-xs text-muted-foreground">no AI</span></DropdownMenuItem>}
         </DropdownMenuGroup>

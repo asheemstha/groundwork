@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { Bar, Ring, SiteIcon, Spinner, Tag, TopBar } from "@/components/common/bits"
+import { Bar, Ring, Spinner, Tag, TopBar } from "@/components/common/bits"
+import { Crumbs } from "@/components/project/Crumbs"
 import { modelName } from "@/components/run/blocks"
 import { useApp } from "@/hooks/useApp"
 import { useRun } from "@/hooks/useRun"
@@ -14,7 +15,7 @@ import { api, seoCsvUrl, type SeoFieldId, type SeoPage as SPage, type SeoState }
 import * as SEO from "@/lib/seo"
 import { ago, plural } from "@/lib/format"
 import { go, routes } from "@/lib/router"
-import { Empty, hostOf } from "./RunPage"
+import { Empty } from "./RunPage"
 
 type Filter = "all" | "todo" | "done"
 const LABEL: Record<SeoFieldId | "redirect", string> = { title: "Title", description: "Description", slug: "URL", redirect: "Redirect" }
@@ -25,7 +26,7 @@ export function SeoPage({ view }: { view: string }) {
   const { run, seo, seoState, setSeoState, notFound, seoProgress } = useRun()
   const app = useApp()
   const [checking, setChecking] = React.useState(false)
-  if (notFound) return <Empty title="This site plan doesn’t exist any more." />
+  if (notFound) return <Empty title="This plan doesn’t exist any more." />
   if (!run) return <div className="grid h-full place-items-center"><Spinner className="size-5" /></div>
   if (!run.seo) return (
     <div className="grid h-full place-items-center p-8 text-center">
@@ -79,12 +80,9 @@ export function SeoPage({ view }: { view: string }) {
   return (
     <div className="flex h-full min-h-0 flex-col">
       <TopBar className="gap-3">
-        <SiteIcon runId={run.id} name={app.siteLabel(hostOf(run))} className="size-5 text-[10px]" />
-        <button onClick={() => go(routes.run(run.id))} className="truncate text-sm font-medium hover:underline" title={hostOf(run)}>{app.siteLabel(hostOf(run))}</button>
-        <span className="text-muted-foreground">/</span>
-        <span className="text-sm">SEO plan</span>
+        <Crumbs projectId={run.projectId || null} label={<button onClick={() => go(routes.run(run.id, "seo"))} className="hover:underline">SEO plan</button>} />
         <span className="flex-1" />
-        {running && <button onClick={() => go(routes.run(run.id))} className="flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs"><Spinner className="size-3" />Planning {seoProgress?.percent || 0}%</button>}
+        {running && <button onClick={() => go(routes.run(run.id, "seo"))} className="flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs"><Spinner className="size-3" />Planning {seoProgress?.percent || 0}%</button>}
         <div className="hidden items-center gap-2 lg:flex" title="SEO changes done across all pages">
           <Bar value={tot.tasks ? (100 * tot.done) / tot.tasks : 0} className="w-28" />
           <span className="text-xs whitespace-nowrap text-muted-foreground"><b className="font-medium text-foreground tabular">{tot.done}</b> / {tot.tasks} done</span>

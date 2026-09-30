@@ -1,6 +1,6 @@
 import * as React from "react"
 import { cn } from "cn"
-import { Ban, CalendarDays, Check, ChevronDown, ChevronRight, ChevronUp, Copy, ExternalLink, Info, Layers, Link2, Loader2, Mail, MessageSquare, MoreHorizontal, Paperclip, Pencil, RefreshCw, Stamp, Trash2, Undo2, User, X } from "lucide-react"
+import { Ban, CalendarDays, Check, ChevronDown, ChevronRight, ChevronUp, Copy, ExternalLink, FolderPlus, Info, Layers, Link2, Loader2, Mail, MessageSquare, MoreHorizontal, Paperclip, Pencil, RefreshCw, Stamp, Trash2, Undo2, User, X } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,11 +10,13 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Kbd, SiteIcon, Spinner, TopBar } from "@/components/common/bits"
+import { Crumbs } from "@/components/project/Crumbs"
+import { newProject } from "@/components/project/NewProjectDialog"
 import { DateField } from "@/components/common/DateField"
 import { Chip } from "@/pages/Dashboard"
 import { useApp } from "@/hooks/useApp"
-import { api, proofUrl, type MessageTemplate, type PItem, type PPhase, type Project, type TemplateSummary } from "@/lib/api"
-import { dueLabel, fmtDay, renderMessage, today } from "@/lib/project"
+import { api, proofUrl, type MessageTemplate, type PItem, type PPhase, type Project, type SiteKey, type TemplateSummary } from "@/lib/api"
+import { SITE_KEYS, SITE_NAME, dueLabel, fmtDay, hostOfUrl, renderMessage, today } from "@/lib/project"
 import { ago } from "@/lib/format"
 import { go, routes } from "@/lib/router"
 import { LaunchCard, LaunchItemPanel, LaunchReportPage, useLaunchRefresh } from "@/components/project/LaunchCheck"
@@ -27,13 +29,15 @@ import { TemplateUpdateDialog, updateFromTemplate } from "@/components/project/T
 type Tab = "checklist" | "client" | "tools" | "launch" | "redirects"
 type SetItem = (itemId: string, b: Parameters<typeof api.setItem>[2]) => Promise<void>
 
-export function ProjectPage({ id, tab, sub }: { id: string; tab: Tab; sub?: string }) {
+export function ProjectPage({ id, tab: asked, sub }: { id: string; tab: Tab; sub?: string }) {
+  let tab = asked
   const { runs, refreshProjects } = useApp()
   const [p, setP] = React.useState<Project | null>(null)
-  const [missing, setMissing] = React.useState(false)
+  const [missing, setMissing] = React.useState<null | "gone" | string>(null)
   const [editing, setEditing] = React.useState(false)
   const [removing, setRemoving] = React.useState(false)
-  const load = React.useCallback(() => api.project(id).then((x) => { setP(x); setMissing(false) }).catch(() => setMissing(true)), [id])
+  // A project that's been deleted says so; anything else (the app restarting, a bad file) can be retried.
+  const load = React.useCallback(() => api.project(id).then((x) => { setP(x); setMissing(null) }).catch((e: Error) => setMissing(/doesn’t exist|not found/i.test(e.message) ? "gone" : e.message)), [id])
   React.useEffect(() => { load() }, [load, runs])
   // While a launch check runs, keep the checklist current so its items tick as soon as it ends.
   const checking = p?.tools.launchRunning?.id
@@ -43,27 +47,29 @@ export function ProjectPage({ id, tab, sub }: { id: string; tab: Tab; sub?: stri
   const setItem: SetItem = async (itemId, b) => {
     try { setP(await api.setItem(id, itemId, b)); refreshProjects().catch(() => {}) } catch (e) { toast.error((e as Error).message) }
   }
-  if (missing) return <div className="grid h-full place-items-center text-sm text-muted-foreground">This project doesn’t exist any more.</div>
+  if (missing === "gone") return <div className="grid h-full place-items-center p-8 text-center"><div><p className="text-lg font-medium">This project doesn’t exist any more.</p><Button className="mt-4" variant="outline" onClick={() => go(routes.home)}>Back home</Button></div></div>
+  if (missing && !p) return <div className="grid h-full place-items-center p-8 text-center"><div><p className="text-lg font-medium">Couldn’t open this project</p><p className="mt-1.5 max-w-md text-sm text-muted-foreground">{missing}</p><Button className="mt-4" variant="outline" onClick={load}>Try again</Button></div></div>
   if (!p) return <div className="grid h-full place-items-center"><Spinner /></div>
+  const audit = p.kind === "audit"
+  // An audit has no checklist, so it only has the Tools page.
+  if (audit && (tab === "checklist" || tab === "client")) tab = "tools"
   const open = p.client.late.length + p.client.soon.length
 
   return (
     <div className="flex h-full flex-col">
       <TopBar className="gap-1.5 text-[14px]">
-        <button onClick={() => go(routes.home)} className="rounded-md px-1.5 py-0.5 text-muted-foreground hover:bg-muted/70 hover:text-foreground">Projects</button>
-        <span className="text-muted-foreground/60">/</span>
-        <button onClick={() => go(routes.project(id))} className="flex min-w-0 items-center gap-1.5 rounded-md px-1.5 py-0.5 hover:bg-muted/70"><SiteIcon runId={p.tools.iconRun || undefined} name={p.name} className="size-[18px] rounded text-[9px]" /><span className="truncate">{p.name}</span></button>
-        {sub_label(tab) && <><span className="text-muted-foreground/60">/</span><button onClick={() => go(routes.project(id, "tools"))} className="rounded-md px-1.5 py-0.5 text-muted-foreground hover:bg-muted/70 hover:text-foreground">Tools</button><span className="text-muted-foreground/60">/</span><span className="px-1.5">{sub_label(tab)}</span></>}
+        <Crumbs projectId={id} label={sub_label(tab) || undefined} />
         <span className="flex-1" />
         <span className="text-[12.5px] text-muted-foreground">Edited {ago(p.updated || p.created)}</span>
         <DropdownMenu>
           <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label="Project options" />}><MoreHorizontal /></DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuItem onClick={() => setEditing(true)}><Pencil /> Edit details…</DropdownMenuItem>
-            <DropdownMenuItem onClick={shiftPlan}><CalendarDays /> Shift the plan…</DropdownMenuItem>
-            <DropdownMenuItem onClick={updateFromTemplate}><RefreshCw /> Update from the template…{p.templateChanged && <span className="ml-auto size-1.5 rounded-full bg-brand" />}</DropdownMenuItem>
+            {!audit && <DropdownMenuItem onClick={shiftPlan}><CalendarDays /> Move dates…</DropdownMenuItem>}
+            {!audit && <DropdownMenuItem onClick={updateFromTemplate}><RefreshCw /> Update from the template…{p.templateChanged && <span className="ml-auto size-1.5 rounded-full bg-brand" />}</DropdownMenuItem>}
+            {audit && <DropdownMenuItem onClick={() => newProject({ name: p.name, old: p.sites.live || p.url || "" })}><FolderPlus /> Start a project for this site…</DropdownMenuItem>}
             <DropdownMenuSeparator />
-            <DropdownMenuItem variant="destructive" onClick={() => setRemoving(true)}><Trash2 /> Delete project…</DropdownMenuItem>
+            <DropdownMenuItem variant="destructive" onClick={() => setRemoving(true)}><Trash2 /> {audit ? "Delete audit…" : "Delete project…"}</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </TopBar>
@@ -73,23 +79,34 @@ export function ProjectPage({ id, tab, sub }: { id: string; tab: Tab; sub?: stri
             <SiteIcon runId={p.tools.iconRun || undefined} name={p.name} className="size-11 rounded-lg text-lg" />
             <h1 className="mt-3 text-[32px] leading-tight font-medium">{p.name}</h1>
             <dl className="mt-4 grid max-w-2xl grid-cols-[150px_minmax(0,1fr)] gap-y-0.5 text-[14px]">
-              <Prop icon={<Link2 className="size-3.5" />} label="Site">{p.host ? <a href={p.url || `https://${p.host}`} target="_blank" rel="noreferrer" className="hover:underline">{p.host}</a> : <button onClick={() => setEditing(true)} className="text-muted-foreground hover:text-foreground">Empty</button>}</Prop>
+              {(audit ? (["live"] as const) : SITE_KEYS).map((k) => (
+                <Prop key={k} icon={<Link2 className="size-3.5" />} label={audit ? "Site" : SITE_NAME[k]}>{p.sites[k] ? <a href={p.sites[k]!} target="_blank" rel="noreferrer" className="hover:underline">{hostOfUrl(p.sites[k])}</a> : <button onClick={() => setEditing(true)} className="text-muted-foreground hover:text-foreground">Empty</button>}</Prop>
+              ))}
+              {!audit && <>
               <Prop icon={<User className="size-3.5" />} label="Client">{p.clientName ? <button onClick={() => setEditing(true)} className="hover:underline">{p.clientName}</button> : <button onClick={() => setEditing(true)} className="text-muted-foreground hover:text-foreground">Empty</button>}</Prop>
               <Prop icon={<CalendarDays className="size-3.5" />} label="Kickoff"><DateField value={p.kickoff} placeholder="Empty" icon={false} className="-ml-2" onChange={async (v) => { try { setP(await api.updateProject(id, { kickoff: v })); refreshProjects() } catch (e) { toast.error((e as Error).message) } }} /></Prop>
               <Prop icon={<CalendarDays className="size-3.5" />} label="Launch"><DateField value={p.launch} placeholder="Empty" icon={false} className="-ml-2" onChange={async (v) => { try { setP(await api.updateProject(id, { launch: v })); refreshProjects() } catch (e) { toast.error((e as Error).message) } }} /></Prop>
               <Prop icon={<Stamp className="size-3.5" />} label="Phase">{(() => { const c = p.phases.find((x) => x.id === p.current); return c ? <span>{c.name} <span className="text-muted-foreground">· {c.done} of {c.total} done</span></span> : <span className="text-muted-foreground">All signed off</span> })()}</Prop>
               <Prop icon={<Layers className="size-3.5" />} label="Template"><span>{p.templateName}</span>{p.templateChanged && <button onClick={updateFromTemplate} className="ml-2 inline-flex items-center gap-1.5 text-[12.5px] text-brand-ink hover:underline"><span className="size-1.5 rounded-full bg-brand" />Changed since, review</button>}</Prop>
+              </>}
             </dl>
-            <nav aria-label="Project" className="mt-6 flex gap-1 border-b pb-2">
-              <TabLink on={tab === "checklist"} onClick={() => go(routes.project(id))}>Checklist</TabLink>
-              <TabLink on={tab === "client"} onClick={() => go(routes.project(id, "client"))}>Client <span className="text-xs text-muted-foreground tabular">{open}</span>{p.client.late.length > 0 && <span className="size-1.5 rounded-full bg-destructive" aria-label={`${p.client.late.length} late`} />}</TabLink>
-              <TabLink on={tab === "tools"} onClick={() => go(routes.project(id, "tools"))}>Tools</TabLink>
-            </nav>
+            {audit ? (
+              <div className="mt-6 flex flex-wrap items-center gap-x-3 gap-y-2 border-b pb-4 text-[14px]">
+                <span className="min-w-0 flex-1 text-muted-foreground">An audit: scans and checks for one site, with no checklist. Redesigning it? Start a project and this audit’s scans move into it.</span>
+                <Button size="sm" variant="outline" onClick={() => newProject({ name: p.name, old: p.sites.live || p.url || "" })}><FolderPlus />Start a project</Button>
+              </div>
+            ) : (
+              <nav aria-label="Project" className="mt-6 flex gap-1 border-b pb-2">
+                <TabLink on={tab === "checklist"} onClick={() => go(routes.project(id))}>Checklist</TabLink>
+                <TabLink on={tab === "client"} onClick={() => go(routes.project(id, "client"))}>Client <span className="text-xs text-muted-foreground tabular">{open}</span>{p.client.late.length > 0 && <span className="size-1.5 rounded-full bg-destructive" aria-label={`${p.client.late.length} late`} />}</TabLink>
+                <TabLink on={tab === "tools"} onClick={() => go(routes.project(id, "tools"))}>Tools</TabLink>
+              </nav>
+            )}
           </header>
         )}
         {tab === "checklist" && <ChecklistTab p={p} setItem={setItem} setP={setP} reload={load} />}
         {tab === "client" && <ClientTab p={p} setItem={setItem} setP={setP} />}
-        {tab === "tools" && <ToolsTab p={p} reload={load} />}
+        {tab === "tools" && <ToolsTab p={p} reload={load} onEdit={() => setEditing(true)} />}
         {tab === "launch" && <LaunchReportPage key={sub || ""} p={p} sub={sub} reload={load} />}
         {tab === "redirects" && <RedirectsPage p={p} reload={load} />}
       </div>
@@ -100,7 +117,7 @@ export function ProjectPage({ id, tab, sub }: { id: string; tab: Tab; sub?: stri
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete {p.name}?</AlertDialogTitle>
-            <AlertDialogDescription>This deletes the project’s checklist, sign-offs and notes from this computer. The site’s scans and plans stay under Other sites. You can’t undo it.</AlertDialogDescription>
+            <AlertDialogDescription>{audit ? "This deletes the audit’s scans, plans and checks from this computer." : "This deletes the project from this computer: its checklist, sign-offs, notes, and the scans and plans made in it."} You can’t undo it.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
@@ -162,15 +179,15 @@ function ChecklistTab({ p, setItem, setP, reload }: { p: Project; setItem: SetIt
       {p.behind.items >= 3 && p.behind.days >= 7 && (
         <div className="mx-12 mt-5 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg bg-muted/60 px-4 py-3 text-[14px]">
           <CalendarDays className="size-4 text-muted-foreground" />
-          <span className="min-w-0 flex-1">The plan has slipped. <span className="text-muted-foreground">{p.behind.items} items are late, the oldest in this phase by {p.behind.days} days.</span></span>
-          <Button size="sm" variant="outline" onClick={shiftPlan}>Shift the plan…</Button>
+          <span className="min-w-0 flex-1">The schedule has slipped. <span className="text-muted-foreground">{p.behind.items} items are late, the oldest in this phase by {p.behind.days} days.</span></span>
+          <Button size="sm" variant="outline" onClick={shiftPlan}>Move dates…</Button>
         </div>
       )}
       <ol aria-label="Phases" className="grid gap-2 px-12 pt-5" style={{ gridTemplateColumns: `repeat(${p.phases.length}, minmax(0, 1fr))` }}>
         {p.phases.map((x) => (
           <li key={x.id}>
             <button onClick={() => setSel(x.id)} aria-current={x.id === p.current ? "step" : undefined} className={cn("flex w-full flex-col gap-2 rounded-lg border px-3 py-2.5 text-left transition-colors", x.id === sel ? "border-input bg-card shadow-[0_1px_2px_rgba(0,0,0,0.05)]" : "border-transparent hover:bg-muted/50")}>
-              <span className="flex items-center gap-1.5 text-[13.5px]"><span className="text-xs text-muted-foreground tabular">{String(x.index).padStart(2, "0")}</span><span className={cn("truncate", x.state === "upcoming" && x.id !== sel ? "text-muted-foreground" : "font-medium")}>{x.name}</span><span className="flex-1" /><span className="text-xs text-muted-foreground tabular">{x.done}/{x.total}</span></span>
+              <span className="flex items-center gap-1.5 text-[13.5px]"><span className="text-xs text-muted-foreground tabular">{String(x.index + 1).padStart(2, "0")}</span><span className={cn("truncate", x.state === "upcoming" && x.id !== sel ? "text-muted-foreground" : "font-medium")}>{x.name}</span><span className="flex-1" /><span className="text-xs text-muted-foreground tabular">{x.done}/{x.total}</span></span>
               <span className="h-1 overflow-hidden rounded-full bg-muted"><span className={cn("block h-full", x.state === "signed" ? "bg-done" : "bg-brand")} style={{ width: `${x.state === "signed" ? 100 : x.total ? (100 * x.done) / x.total : 0}%` }} /></span>
               <span className="truncate text-xs text-muted-foreground">{x.state === "signed" ? `Signed off ${fmtDay(x.signoff!.date)}` : x.due ? `Sign-off ${fmtDay(x.due)}` : "No sign-off date"}</span>
             </button>
@@ -373,8 +390,8 @@ function ItemSheet({ p, it, onClose, setItem, reload, order, onMove }: { p: Proj
                     {x.tool === "launch" ? <LaunchItemPanel p={p} it={x} reload={reload} /> : t.ready && (t.runId
                       ? <div className="flex gap-2"><Button size="sm" onClick={() => go(x.tool === "headings" ? routes.review(t.runId!) : x.tool === "seo" ? routes.seo(t.runId!) : routes.run(t.runId!))}>{x.tool === "headings" ? "Open the to-do list" : x.tool === "seo" ? "Open the SEO plan" : "Open the scan"}</Button></div>
                       : x.tool === "redirects" ? <div className="flex gap-2"><Button size="sm" variant={p.tools.redirects ? "default" : "outline"} onClick={() => go(p.tools.redirects ? routes.project(p.id, "redirects") : routes.project(p.id, "tools"))}>{p.tools.redirects ? "Open the redirect map" : "Go to Tools"}</Button></div>
-                      : x.tool === "seo" && p.tools.seoRunning ? <div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => go(routes.run(p.tools.seoRunning!))}><Loader2 className="animate-spin" />Planning now</Button></div>
-                      : x.tool === "seo" && p.tools.scan ? <div className="flex gap-2"><Button size="sm" onClick={() => go(routes.run(p.tools.scan!.runId, "seo"))}>Plan SEO</Button></div>
+                      : x.tool === "seo" && p.tools.seoRunning ? <div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => go(routes.run(p.tools.seoRunning!, "seo"))}><Loader2 className="animate-spin" />Planning now</Button></div>
+                      : x.tool === "seo" && p.tools.scan ? <div className="flex gap-2"><Button size="sm" onClick={() => go(routes.run(p.tools.plan?.runId || p.tools.scan!.runId, "seo"))}>Plan SEO</Button></div>
                       : <div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => go(routes.project(p.id, "tools"))}>Go to Tools</Button></div>)}
                     <p className="text-[12.5px] leading-relaxed text-muted-foreground">{!t.ready ? "When this tool is ready, it will do or check this item for you." : x.tool === "headings" ? "This item ticks itself once every tag fix in the plan is done. You can also tick it yourself." : x.tool === "launch" ? (x.check === "indexing" || x.check === "https" ? "This item ticks itself when a check of the live domain passes. A staging check shows the issues but doesn’t tick it." : "This item ticks itself when the check passes. You can also tick it yourself.") : x.tool === "redirects" ? (x.check === "map" ? "This item ticks itself when every old URL has a match you’re happy with." : x.check === "after" ? "This item ticks itself when a test of the live domain after launch day passes." : "This item ticks itself when a test of the live domain passes: every redirect is one 301 to the right page.") : x.tool === "seo" ? (x.check === "plan" ? "This item ticks itself when the SEO plan is ready. Its H1s come from the heading plan." : "Counts the plan’s titles, descriptions and URLs as they go live. This item also covers OG images, alt text, schema and the 404 page, so you tick it yourself. The launch check covers several of those.") : "This item ticks itself when the scan finishes."}</p>
                   </section>
@@ -466,7 +483,7 @@ function SignoffDialog({ p, ph, open, onClose, onDone }: { p: Project; ph: PPhas
                     <div role="group" className="inline-flex gap-0.5 rounded-md bg-muted p-0.5 text-xs">
                       {next && <button onClick={() => setPlan((s) => ({ ...s, [x.id]: "carry" }))} className={cn("rounded px-2 py-1", plan[x.id] === "carry" ? "bg-card shadow-sm" : "text-muted-foreground")}>Move to {next.name}</button>}
                       <button onClick={() => setPlan((s) => ({ ...s, [x.id]: "skip" }))} className={cn("rounded px-2 py-1", plan[x.id] === "skip" ? "bg-card shadow-sm" : "text-muted-foreground")}>Not needed</button>
-                      <button onClick={() => setPlan((s) => { const n = { ...s }; delete n[x.id]; return n })} className={cn("rounded px-2 py-1", !plan[x.id] ? "bg-card shadow-sm" : "text-muted-foreground")}>Leave</button>
+                      <button onClick={() => setPlan((s) => { const n = { ...s }; delete n[x.id]; return n })} className={cn("rounded px-2 py-1", !plan[x.id] ? "bg-card shadow-sm" : "text-muted-foreground")}>Keep in {ph.name}</button>
                     </div>
                   </div>
                 ))}
@@ -499,121 +516,155 @@ function SignoffDialog({ p, ph, open, onClose, onDone }: { p: Project; ph: PPhas
 }
 
 // ---------- client ----------
+// Everything the client owes, with a checkbox per item for the request message. Late ones, ones due soon and ones
+// it's time to ask for start ticked.
 function ClientTab({ p, setItem, setP }: { p: Project; setItem: SetItem; setP: (x: Project) => void }) {
   const { prefs } = useApp()
   const [tpls, setTpls] = React.useState<TemplateSummary[]>([])
   const [tid, setTid] = React.useState("")
   const [tpl, setTpl] = React.useState<MessageTemplate | null>(null)
-  const [soon, setSoon] = React.useState(true)
-  const [notAsked, setNotAsked] = React.useState(false)
+  const [record, setRecord] = React.useState(true)
   const [showReceived, setShowReceived] = React.useState(false)
+  const c = p.client
+  const due = (x: PItem & { askBy?: string | null }) => !x.askBy || x.askBy <= today()
+  const [pick, setPick] = React.useState<Set<string>>(() => new Set([...c.late, ...c.soon, ...c.notAsked.filter(due)].map((x) => x.id)))
+  const panel = React.useRef<HTMLElement>(null)
   React.useEffect(() => {
     api.templates().then((l) => { const m = l.filter((t) => t.kind !== "checklist"); setTpls(m); setTid((m.find((t) => t.use?.includes("client-request")) || m[0])?.id || "") }).catch(() => {})
   }, [])
   React.useEffect(() => { if (tid) api.template(tid).then((t) => t.kind !== "checklist" && setTpl(t)).catch(() => {}) }, [tid])
-  const c = p.client
-  const included = [...(soon ? [...c.late, ...c.soon] : []), ...(notAsked ? c.notAsked : [])]
-  const msg = tpl ? renderMessage(tpl, p, prefs.appliedBy || "", included) : null
+  const open = [...c.late, ...c.soon, ...c.notAsked]
+  const chosen = open.filter((x) => pick.has(x.id))
+  const fresh = chosen.filter((x) => !x.asked)
+  const msg = tpl ? renderMessage(tpl, p, prefs.appliedBy || "", chosen) : null
   const text = msg ? (tpl?.kind === "email" && msg.subject ? `Subject: ${msg.subject}\n\n${msg.body}` : msg.body) : ""
   const received = p.phases.flatMap((ph) => [...ph.groups.flatMap((g) => g.items), ...ph.handoff.items]).filter((x) => x.who === "client" && x.status === "done")
-  const cols = "grid-cols-[18px_minmax(0,1fr)_104px_96px_150px]"
-  const Row = ({ x, right }: { x: PItem; right: React.ReactNode }) => (
+  const toggle = (id: string, on: boolean) => setPick((s) => { const n = new Set(s); if (on) n.add(id); else n.delete(id); return n })
+  const copy = async () => {
+    navigator.clipboard.writeText(text)
+    if (!record) return toast("Copied the message")
+    try {
+      if (fresh.length) setP(await api.askItems(p.id, fresh.map((x) => x.id)))
+      const again = chosen.filter((x) => x.asked)
+      if (again.length) setP(await api.askItems(p.id, again.map((x) => x.id), true))
+      toast("Copied the message", { description: [fresh.length ? `${fresh.length} marked as asked today` : "", again.length ? `${again.length} marked as nudged` : ""].filter(Boolean).join(", ") + "." })
+    } catch (e) { toast.error((e as Error).message) }
+  }
+  const cols = "grid-cols-[16px_18px_minmax(0,1fr)_96px_96px_132px]"
+  const Row = ({ x, right, select = true }: { x: PItem; right: React.ReactNode; select?: boolean }) => (
     <div className={cn("grid h-11 items-center gap-3 border-t border-border/60", cols)}>
+      {select ? <input type="checkbox" aria-label={`Include ${x.title} in the message`} checked={pick.has(x.id)} onChange={(e) => toggle(x.id, e.target.checked)} className="size-[15px] accent-foreground" /> : <span />}
       <StatusIcon it={x} onClick={() => setItem(x.id, { status: x.status === "done" ? "todo" : "done" })} />
       <span className={cn("truncate", x.status === "done" && "text-muted-foreground")}>{x.title}</span>
-      <span className="text-muted-foreground">{x.phaseName}</span>
+      <span className="truncate text-muted-foreground">{x.phaseName}</span>
       <span className="text-muted-foreground">{x.asked ? new Date(x.asked).toLocaleDateString([], { month: "short", day: "numeric" }) : <span className="text-muted-foreground/60">Not yet</span>}</span>
       <span className="text-right">{right}</span>
     </div>
   )
-  const Section = ({ title, n, tone, children }: { title: string; n: number; tone?: string; children: React.ReactNode }) => n ? <div className="mt-3"><div className="flex h-[34px] items-center gap-2"><h2 className={cn("text-[13.5px] font-medium", tone)}>{title}</h2><span className="text-[12.5px] text-muted-foreground tabular">{n}</span></div>{children}</div> : null
+  const Section = ({ title, list, tone, children }: { title: string; list: PItem[]; tone?: string; children: React.ReactNode }) => {
+    if (!list.length) return null
+    const all = list.every((x) => pick.has(x.id))
+    return (
+      <div className="mt-3">
+        <div className="flex h-[34px] items-center gap-2">
+          <h2 className={cn("text-[13.5px] font-medium", tone)}>{title}</h2><span className="text-[12.5px] text-muted-foreground tabular">{list.length}</span>
+          <span className="flex-1" />
+          <button onClick={() => setPick((s) => { const n = new Set(s); list.forEach((x) => (all ? n.delete(x.id) : n.add(x.id))); return n })} className="text-[12.5px] text-muted-foreground hover:text-foreground">{all ? "Leave these out" : "Include all"}</button>
+        </div>
+        {children}
+      </div>
+    )
+  }
   return (
-    <div className="grid gap-10 px-12 pt-6 pb-10 lg:grid-cols-[minmax(0,1fr)_420px]">
+    <div className="grid gap-10 px-12 pt-6 pb-10 lg:grid-cols-[minmax(0,1fr)_400px]">
       <div className="min-w-0 text-[13.5px]">
         <h2 className="text-[16px] font-medium">Waiting on the client</h2>
-        <p className="mt-1 mb-4 text-sm text-muted-foreground">Everything {p.name} owes you, from every phase. Tick an item when it arrives.</p>
-        <div className={cn("grid h-[30px] items-center gap-3 border-b text-[12.5px] text-muted-foreground", cols)}><span /><span>Item</span><span>Phase</span><span>Asked</span><span className="text-right">Due</span></div>
-        <Section title="Late" n={c.late.length} tone="text-destructive">{c.late.map((x) => <Row key={x.id} x={x} right={<span className="text-destructive">{fmtDay(x.due)}, {dueLabel(x)}</span>} />)}</Section>
-        <Section title="Due soon" n={c.soon.length}>{c.soon.map((x) => <Row key={x.id} x={x} right={x.due ? fmtDay(x.due, true) : ""} />)}</Section>
-        <Section title="Not asked yet" n={c.notAsked.length}>{c.notAsked.map((x) => <Row key={x.id} x={x} right={x.askBy && x.askBy <= today() ? <span>Ask now</span> : <span className="text-muted-foreground">{x.askBy ? `Ask around ${fmtDay(x.askBy)}` : ""}</span>} />)}</Section>
-        {!c.late.length && !c.soon.length && !c.notAsked.length && <p className="mt-6 text-sm text-muted-foreground">The client doesn’t owe you anything right now.</p>}
+        <p className="mt-1 mb-4 text-sm text-muted-foreground">Everything {p.name} owes you, from every phase. Tick the box to include an item in the message, and the circle when it arrives. An item is late once its due date passes, whether or not you’ve asked yet.</p>
+        <div className={cn("grid h-[30px] items-center gap-3 border-b text-[12.5px] text-muted-foreground", cols)}><span /><span /><span>Item</span><span>Phase</span><span>Asked</span><span className="text-right">Due</span></div>
+        <Section title="Late" list={c.late} tone="text-destructive">{c.late.map((x) => <Row key={x.id} x={x} right={<span className="text-destructive">{fmtDay(x.due)}, {dueLabel(x)}</span>} />)}</Section>
+        <Section title="Asked, due soon" list={c.soon}>{c.soon.map((x) => <Row key={x.id} x={x} right={x.due ? fmtDay(x.due, true) : ""} />)}</Section>
+        <Section title="Not asked yet" list={c.notAsked}>{c.notAsked.map((x) => <Row key={x.id} x={x} right={due(x)
+          ? <Button size="xs" variant="outline" onClick={() => { toggle(x.id, true); panel.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }) }}>{pick.has(x.id) ? "In the message" : "Ask now"}</Button>
+          : <span className="text-muted-foreground">Ask around {fmtDay(x.askBy)}</span>} />)}</Section>
+        {!open.length && <p className="mt-6 text-sm text-muted-foreground">The client doesn’t owe you anything right now.</p>}
         {received.length > 0 && <button onClick={() => setShowReceived(!showReceived)} className="mt-4 flex h-8 items-center gap-2 font-medium"><ChevronRight className={cn("size-3.5 text-muted-foreground transition-transform", showReceived && "rotate-90")} />Received <span className="text-[12.5px] font-normal text-muted-foreground tabular">{received.length}</span></button>}
-        {showReceived && received.map((x) => <Row key={x.id} x={x} right={<span className="text-muted-foreground">{x.at ? `Received ${new Date(x.at).toLocaleDateString([], { month: "short", day: "numeric" })}` : "Received"}</span>} />)}
+        {showReceived && received.map((x) => <Row key={x.id} x={x} select={false} right={<span className="text-muted-foreground">{x.at ? `Received ${new Date(x.at).toLocaleDateString([], { month: "short", day: "numeric" })}` : "Received"}</span>} />)}
       </div>
-      <section className="flex flex-col gap-3.5 self-start rounded-xl border bg-card p-[18px]">
-        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2.5"><div className="grid gap-0.5"><h2 className="text-sm font-medium">Request message</h2><span className="text-[12.5px] text-muted-foreground">Plain text to paste into email or Slack</span></div>{tid && <button onClick={() => go(routes.template(tid))} className="text-[12.5px] text-foreground/70 underline underline-offset-2">Edit template</button>}</div>
+      <section ref={panel} className="flex scroll-mt-4 flex-col gap-3.5 self-start rounded-xl border bg-card p-[18px]">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2.5"><div className="grid gap-0.5"><h2 className="text-sm font-medium">Message to the client</h2><span className="text-[12.5px] text-muted-foreground">{chosen.length ? `${chosen.length} ${chosen.length === 1 ? "item" : "items"} ticked` : "Tick items on the left to include them"}</span></div>{tid && <button onClick={() => go(routes.template(tid))} className="text-[12.5px] text-foreground/70 underline underline-offset-2">Edit template</button>}</div>
         <label className="grid gap-1.5 text-[12.5px] text-muted-foreground">Template
           <select value={tid} onChange={(e) => setTid(e.target.value)} className="h-9 rounded-lg border border-input bg-card px-2.5 text-[13.5px] text-foreground">{tpls.map((t) => <option key={t.id} value={t.id}>{t.name}{t.kind === "email" ? " (email)" : ""}</option>)}</select>
         </label>
-        <div className="grid gap-2 text-[13px]">
-          <label className="flex items-center gap-2"><input type="checkbox" checked={soon} onChange={(e) => setSoon(e.target.checked)} className="size-[15px] accent-foreground" />Late and due soon <span className="text-muted-foreground tabular">{c.late.length + c.soon.length}</span></label>
-          <label className="flex items-center gap-2"><input type="checkbox" checked={notAsked} onChange={(e) => setNotAsked(e.target.checked)} className="size-[15px] accent-foreground" />Not asked yet <span className="text-muted-foreground tabular">{c.notAsked.length}</span></label>
-        </div>
-        <div className="rounded-[10px] border bg-background px-4 py-3.5 text-[13.5px] leading-relaxed whitespace-pre-line">{text || "Pick a template."}</div>
-        <div className="flex gap-2">
-          <Button className="flex-1" onClick={() => { navigator.clipboard.writeText(text); toast("Copied the message") }} disabled={!text}><Copy />Copy message</Button>
-          {notAsked && c.notAsked.length > 0 && <Button variant="outline" onClick={async () => { setP(await api.askItems(p.id, c.notAsked.map((x) => x.id))); setNotAsked(false); toast("Marked as asked today") }}>Mark as asked today</Button>}
-        </div>
-        <p className="text-[12.5px] leading-relaxed text-muted-foreground">Groundwork doesn’t send anything. Paste the message wherever you talk to the client.{!prefs.appliedBy && " Set your name in Engines & settings to sign it."}</p>
+        <div className="max-h-80 overflow-auto rounded-[10px] border bg-background px-4 py-3.5 text-[13.5px] leading-relaxed whitespace-pre-line">{!chosen.length ? <span className="text-muted-foreground">No items ticked yet.</span> : text || "Pick a template."}</div>
+        {chosen.length > 0 && <label className="flex items-start gap-2 text-[13px]"><input type="checkbox" checked={record} onChange={(e) => setRecord(e.target.checked)} className="mt-0.5 size-[15px] accent-foreground" /><span>Record it as sent today <span className="text-muted-foreground">({[fresh.length ? `${fresh.length} asked` : "", chosen.length - fresh.length ? `${chosen.length - fresh.length} nudged` : ""].filter(Boolean).join(", ")})</span></span></label>}
+        <Button onClick={copy} disabled={!text || !chosen.length}><Copy />Copy message</Button>
+        <p className="text-[12.5px] leading-relaxed text-muted-foreground">Groundwork doesn’t send anything. Paste the message wherever you talk to the client.{!prefs.appliedBy && " Add your name in Settings to sign it."}</p>
       </section>
     </div>
   )
 }
 
 // ---------- tools ----------
-function ToolsTab({ p, reload }: { p: Project; reload: () => void }) {
+function ToolsTab({ p, reload, onEdit }: { p: Project; reload: () => void; onEdit: () => void }) {
   const { refreshRuns } = useApp()
-  const [url, setUrl] = React.useState(p.url || "")
   const [busy, setBusy] = React.useState(false)
-  const scan = async (u?: string) => {
+  const have = SITE_KEYS.filter((k) => p.sites[k])
+  const [which, setWhich] = React.useState<SiteKey>(have.includes("old") ? "old" : have[0] || "live")
+  const scan = async (site?: SiteKey) => {
     setBusy(true)
-    try { const { runId } = await api.scanProject(p.id, (u ?? url).trim() || undefined); await refreshRuns(); reload(); go(routes.run(runId)) } catch (e) { toast.error((e as Error).message); setBusy(false) }
+    try { const { runId } = await api.scanProject(p.id, site); await refreshRuns(); reload(); go(routes.run(runId)) } catch (e) { toast.error((e as Error).message); setBusy(false) }
   }
   const latestScan = p.tools.runs.find((r) => r.pages > 0 && r.status !== "scanning")
   const last = p.tools.runs[0]
   const failed = last && last.status === "scan_failed" ? last : null
   const scanning = p.tools.runs.find((r) => r.status === "scanning")
-  const label = (r: Project["tools"]["runs"][number]) => (r.status === "done" || r.status === "partial" ? (r.output === "live" ? "Heading plan (tags only)" : "Heading plan (tags and rewrites)") : r.status === "scanning" ? "Scanning" : r.status === "running" ? "Planning" : r.status === "scan_failed" ? "Scan failed" : r.status === "failed" ? "Plan failed" : "Scan") + (r.seo && (r.seo.status === "done" || r.seo.status === "partial") ? ", SEO plan" : r.seo?.status === "running" ? ", planning SEO" : "")
-  const noScan = "Scan the site first."
+  const siteOf = (r?: Project["tools"]["runs"][number] | null) => (r?.site && p.kind !== "audit" ? { old: "old site", staging: "staging site", live: "live site" }[r.site] : "")
+  const label = (r: Project["tools"]["runs"][number]) => (r.status === "done" || r.status === "partial" ? (r.output === "live" ? "Heading plan (tags only)" : "Heading plan (tags and rewrites)") : r.status === "scanning" ? "Scanning" : r.status === "running" ? "Planning headings" : r.status === "scan_failed" ? "Scan failed" : r.status === "failed" ? "Heading plan failed" : "Scan") + (r.seo && (r.seo.status === "done" || r.seo.status === "partial") ? ", SEO plan" : r.seo?.status === "running" ? ", planning SEO" : "")
+  const noScan = "Scan a site first."
+  const AI = "uses your Claude or ChatGPT subscription"
   return (
     <div className="grid max-w-3xl gap-3 px-12 pt-6 pb-10">
-      <p className="mb-1 text-[14px] text-muted-foreground">Groundwork’s tools for {p.name}. Their results tick checklist items for you.</p>
-      <LaunchCard p={p} reload={reload} />
-      {!p.url ? (
-        <ToolCard title="Site scan" cost="runs on your Mac, no AI" status="Add the current website to scan it. The heading plan, SEO plan and redirect map start from the scan.">
-          <div className="flex gap-2"><Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="client-site.com" /><Button variant="outline" onClick={() => scan()} disabled={busy || !url.trim()}>{busy && <Loader2 className="animate-spin" />}Scan the site</Button></div>
-        </ToolCard>
+      <p className="mb-1 text-[14px] text-muted-foreground">{p.kind === "audit" ? `Groundwork’s tools for ${p.name}.` : `Groundwork’s tools for ${p.name}. Their results tick checklist items for you.`}</p>
+      {!have.length ? (
+        <ToolCard title="Site scan" cost="runs on your Mac, no AI" status="Add the project’s websites to scan them: the old site, staging or the live domain. The heading plan, SEO plan and redirect map start from a scan." action={<Button size="sm" variant="outline" onClick={onEdit}>Add websites</Button>} />
       ) : (
         <ToolCard
           title="Site scan" cost="runs on your Mac, no AI"
-          status={scanning ? "Scanning now." : failed ? <>The last scan failed: {failed.error || "the site didn’t load"}.</> : p.tools.scan ? <>{p.tools.scan.urls} pages found {ago(p.tools.scan.at)}. Ticks “Crawl the current site”.</> : "Not scanned yet."}
-          action={scanning ? <Button size="sm" variant="outline" onClick={() => go(routes.run(scanning.id))}><Loader2 className="animate-spin" />Open</Button> : <Button size="sm" variant="outline" onClick={() => scan(failed ? failed.url : undefined)} disabled={busy}>{busy && <Loader2 className="animate-spin" />}{failed ? "Retry" : latestScan ? "Scan again" : "Scan the site"}</Button>}
+          status={scanning ? `Scanning the ${siteOf(scanning) || "site"} now.` : failed ? <>The last scan failed: {failed.error || "the site didn’t load"}</> : latestScan ? <>Latest: {siteOf(latestScan) ? `the ${siteOf(latestScan)}, ` : ""}{latestScan.pages} pages, {ago(latestScan.created)}.{p.sites.old && p.kind !== "audit" ? " A scan of the old site ticks “Crawl the current site”." : ""}</> : "Not scanned yet."}
+          action={scanning ? <Button size="sm" variant="outline" onClick={() => go(routes.run(scanning.id))}><Loader2 className="animate-spin" />Open</Button> : (
+            <div className="flex items-center gap-1.5">
+              {have.length > 1 && <select aria-label="Which site" value={which} onChange={(e) => setWhich(e.target.value as SiteKey)} className="h-8 rounded-lg border border-input bg-card px-2 text-[13px]">{have.map((k) => <option key={k} value={k}>{SITE_NAME[k]}</option>)}</select>}
+              <Button size="sm" variant="outline" onClick={() => scan(have.length > 1 ? which : have[0])} disabled={busy}>{busy && <Loader2 className="animate-spin" />}{failed ? "Retry" : latestScan ? "Scan again" : "Scan"}</Button>
+            </div>
+          )}
         />
       )}
+      <LaunchCard p={p} reload={reload} />
       <ToolCard
-        title="Heading plan" cost="uses your AI plan"
-        status={p.tools.plan ? `${p.tools.plan.done} of ${p.tools.plan.total} tag fixes done. Ticks “Heading structure” when they’re all done.` : latestScan ? "H1 to H6 for each page: which tags to fix, and rewrites if you want them." : noScan}
-        action={p.tools.plan ? <Button size="sm" variant="outline" onClick={() => go(routes.review(p.tools.plan!.runId))}>Open the to-do list</Button> : latestScan ? <Button size="sm" variant="outline" onClick={() => go(routes.run(latestScan.id))}>Plan headings</Button> : undefined}
+        title="Heading plan" cost={AI}
+        status={p.tools.plan ? `${p.tools.plan.done} of ${p.tools.plan.total} tag fixes done.${p.kind !== "audit" ? " Ticks “Heading structure” when they’re all done." : ""}` : latestScan ? `H1 to H6 for each page: which tags to fix, and rewrites if you want them. Starts from the latest scan${siteOf(latestScan) ? `, of the ${siteOf(latestScan)}` : ""}.` : noScan}
+        action={p.tools.plan ? <Button size="sm" variant="outline" onClick={() => go(routes.review(p.tools.plan!.runId))}>Open the to-do list</Button> : latestScan ? <Button size="sm" variant="outline" onClick={() => go(routes.run(latestScan.id, "headings"))}>Plan headings</Button> : undefined}
       />
       <ToolCard
-        title="SEO plan" cost="uses your AI plan"
-        status={p.tools.seoRunning ? "Planning now." : p.tools.seo ? `${p.tools.seo.done} of ${p.tools.seo.total} changes done across ${p.tools.seo.pages} pages. Ticks “SEO per page” in Design.` : latestScan ? "A title, meta description and URL for each page, using the heading plan’s keywords when there is one." : noScan}
-        action={p.tools.seoRunning ? <Button size="sm" variant="outline" onClick={() => go(routes.run(p.tools.seoRunning!))}><Loader2 className="animate-spin" />Open</Button> : p.tools.seo ? <Button size="sm" variant="outline" onClick={() => go(routes.seo(p.tools.seo!.runId))}>Open the SEO plan</Button> : latestScan ? <Button size="sm" variant="outline" onClick={() => go(routes.run(latestScan.id, "seo"))}>Plan SEO</Button> : undefined}
+        title="SEO plan" cost={AI}
+        status={p.tools.seoRunning ? "Planning now." : p.tools.seo ? `${p.tools.seo.done} of ${p.tools.seo.total} changes done across ${p.tools.seo.pages} pages.${p.kind !== "audit" ? " Ticks “SEO per page”." : ""}` : latestScan ? "A title, meta description and URL for each page, using the heading plan’s keywords when there is one." : noScan}
+        action={p.tools.seoRunning ? <Button size="sm" variant="outline" onClick={() => go(routes.run(p.tools.seoRunning!, "seo"))}><Loader2 className="animate-spin" />Open</Button> : p.tools.seo ? <Button size="sm" variant="outline" onClick={() => go(routes.seo(p.tools.seo!.runId))}>Open the SEO plan</Button> : latestScan ? <Button size="sm" variant="outline" onClick={() => go(routes.run(p.tools.plan?.runId || latestScan.id, "seo"))}>Plan SEO</Button> : undefined}
       />
-      <RedirectCard p={p} />
+      {p.kind !== "audit" && <RedirectCard p={p} />}
       {p.tools.runs.length > 0 && (
         <section className="mt-4">
           <h2 className="mb-2 text-[13px] font-medium text-muted-foreground">Scans and plans</h2>
           <div className="overflow-hidden rounded-xl border bg-card">
             {p.tools.runs.map((r) => (
-              <div key={r.id} className="grid min-h-11 grid-cols-[minmax(0,1fr)_90px_90px_auto] items-center gap-3 border-t px-4 py-2 text-[13.5px] first:border-t-0">
-                <button onClick={() => go(r.status === "done" || r.status === "partial" ? routes.review(r.id) : routes.run(r.id))} className="grid min-w-0 gap-0.5 text-left hover:underline">
+              <div key={r.id} className="grid min-h-11 grid-cols-[minmax(0,1fr)_84px_80px_64px_auto] items-center gap-3 border-t px-4 py-2 text-[13.5px] first:border-t-0">
+                <button onClick={() => go(r.status === "done" || r.status === "partial" ? routes.review(r.id) : r.seo && r.seo.status !== "failed" ? routes.seo(r.id) : routes.run(r.id))} className="grid min-w-0 gap-0.5 text-left hover:underline">
                   <span className={cn(r.error && "text-destructive")}>{label(r)}</span>
                   {r.error && <span className="truncate text-xs text-muted-foreground">{r.error}</span>}
                 </button>
+                <span className="truncate text-muted-foreground">{r.site ? SITE_NAME[r.site] : ""}</span>
                 <span className="text-muted-foreground tabular">{r.pages} pages</span>
                 <span className="text-muted-foreground">{new Date(r.created).toLocaleDateString([], { month: "short", day: "numeric" })}</span>
-                {r.status === "scan_failed" ? <Button size="xs" variant="outline" onClick={() => scan(r.url)}>Retry</Button> : <span />}
+                {r.status === "scan_failed" ? <Button size="xs" variant="outline" onClick={() => scan(r.site || undefined)}>Retry</Button> : <span />}
               </div>
             ))}
           </div>
@@ -625,26 +676,39 @@ function ToolsTab({ p, reload }: { p: Project; reload: () => void }) {
 
 // ---------- edit details ----------
 function EditDialog({ p, open, onClose, onSaved }: { p: Project; open: boolean; onClose: () => void; onSaved: (x: Project) => void }) {
-  const init = () => ({ name: p.name, clientName: p.clientName, url: p.url || "", kickoff: p.kickoff || "", launch: p.launch || "" })
+  const audit = p.kind === "audit"
+  const init = () => ({ name: p.name, clientName: p.clientName, old: p.sites.old || "", staging: p.sites.staging || "", live: p.sites.live || "", kickoff: p.kickoff || "", launch: p.launch || "" })
   const [f, setF] = React.useState(init)
   React.useEffect(() => { if (open) setF(init()) }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
-  const save = async () => { try { onSaved(await api.updateProject(p.id, { name: f.name, clientName: f.clientName, kickoff: f.kickoff || null, launch: f.launch || null, ...(f.url.trim() ? { url: f.url.trim() } : {}) })); onClose() } catch (e) { toast.error((e as Error).message) } }
+  const save = async () => {
+    try {
+      const sites = audit ? { live: f.live.trim() } : { old: f.old.trim(), staging: f.staging.trim(), live: f.live.trim() }
+      onSaved(await api.updateProject(p.id, audit ? { name: f.name, sites } : { name: f.name, clientName: f.clientName, kickoff: f.kickoff || null, launch: f.launch || null, sites }))
+      onClose()
+    } catch (e) { toast.error((e as Error).message) }
+  }
+  const site = (k: "old" | "staging" | "live", label: string, hint: string, placeholder: string) => (
+    <label className="grid gap-1.5 text-[13px] font-medium"><span>{label} <span className="font-normal text-muted-foreground">{hint}</span></span><Input value={f[k]} onChange={(e) => setF({ ...f, [k]: e.target.value })} placeholder={placeholder} className="font-normal" /></label>
+  )
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-md">
-        <DialogHeader><DialogTitle>Project details</DialogTitle><DialogDescription>Changing the dates moves every due date that hasn’t been set by hand.</DialogDescription></DialogHeader>
+        <DialogHeader><DialogTitle>{audit ? "Audit details" : "Project details"}</DialogTitle>{!audit && <DialogDescription>Changing the dates moves every due date that hasn’t been set by hand.</DialogDescription>}</DialogHeader>
         <div className="grid gap-3">
           <label className="grid gap-1.5 text-[13px] font-medium">Name<Input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} className="font-normal" /></label>
-          <label className="grid gap-1.5 text-[13px] font-medium"><span>Website <span className="font-normal text-muted-foreground">(the live domain)</span></span><Input value={f.url} onChange={(e) => setF({ ...f, url: e.target.value })} placeholder="client-site.com" className="font-normal" /></label>
-          <label className="grid gap-1.5 text-[13px] font-medium">Client contact<Input value={f.clientName} onChange={(e) => setF({ ...f, clientName: e.target.value })} placeholder="Used in messages" className="font-normal" /></label>
-          <div className="grid grid-cols-2 gap-3">
-            <label className="grid gap-1.5 text-[13px] font-medium">Kickoff<Input type="date" value={f.kickoff} onChange={(e) => setF({ ...f, kickoff: e.target.value })} className="font-normal" /></label>
-            <label className="grid gap-1.5 text-[13px] font-medium">Launch<Input type="date" value={f.launch} onChange={(e) => setF({ ...f, launch: e.target.value })} className="font-normal" /></label>
-          </div>
+          {audit ? site("live", "Site", "", "client-site.com") : <>
+            {site("old", "Old site", "(the one being replaced)", "old-site.com")}
+            {site("staging", "Staging", "(the new site before launch)", "new-site.webflow.io")}
+            {site("live", "Live domain", "(where it launches)", "client-site.com")}
+            <label className="grid gap-1.5 text-[13px] font-medium">Client contact<Input value={f.clientName} onChange={(e) => setF({ ...f, clientName: e.target.value })} placeholder="Used in messages" className="font-normal" /></label>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="grid gap-1.5 text-[13px] font-medium">Kickoff<Input type="date" value={f.kickoff} onChange={(e) => setF({ ...f, kickoff: e.target.value })} className="font-normal" /></label>
+              <label className="grid gap-1.5 text-[13px] font-medium">Launch<Input type="date" value={f.launch} onChange={(e) => setF({ ...f, launch: e.target.value })} className="font-normal" /></label>
+            </div>
+          </>}
         </div>
         <DialogFooter><Button variant="outline" onClick={onClose}>Cancel</Button><Button onClick={save}>Save</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   )
 }
-

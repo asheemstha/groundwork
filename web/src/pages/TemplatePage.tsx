@@ -50,7 +50,7 @@ export function TemplatePage({ id }: { id: string }) {
         <Chip className="h-5 text-[11.5px]">{t.kind === "checklist" ? "Checklist" : t.kind === "email" ? "Email" : "Message"}</Chip>
         <span className="flex-1" />
         <span className="text-[12.5px] text-muted-foreground">{saving ? "Saving…" : saved ? `Saved ${ago(saved)}` : ""}</span>
-        {t.kind === "checklist" && <Button variant="outline" size="sm" onClick={() => newProject()}>Start a project from it</Button>}
+        {t.kind === "checklist" && <Button variant="outline" size="sm" onClick={() => newProject({ template: t.id })}>Start a project from it</Button>}
       </TopBar>
       {t.kind === "checklist" ? <ChecklistEditor t={t} onChange={change} /> : <MessageEditor t={t} onChange={change} />}
     </div>

@@ -16,6 +16,8 @@ export interface EngineStatus {
 export interface ModelInfo { id: string; name: string; desc: string; usage: number; speed: number; rec?: boolean }
 export interface EngineCatalog {
   name: string
+  /** Works, but tested far less than Claude Code. */
+  beta?: boolean
   vendor: string
   plans: string
   plansUrl: string
@@ -52,12 +54,17 @@ export interface Settings {
   /** The skill a heading plan used (set by the server). */
   skill?: string
   skillName?: string
+  /** The checklist template last used for a new project. */
+  template?: string
 }
 export interface Counts { tasks: number; done: number }
 /** `all` is the merged to-do list; `live`/`optimize` come from runs made before it existed. */
 export type RunProgress = { all?: Counts; now?: Counts; live?: Counts; optimize?: Counts }
 export interface RunSummary {
   id: string
+  /** The project the scan belongs to, and which of its sites it read. */
+  projectId: string | null
+  site: SiteKey | null
   name: string
   url: string
   host: string
@@ -117,6 +124,9 @@ export interface Job {
 export interface Run {
   id: string
   tool: string
+  /** The project the scan belongs to, and which of its sites it read. */
+  projectId?: string | null
+  site?: SiteKey | null
   url: string
   origin?: string
   name: string
@@ -246,9 +256,11 @@ export interface ToolInfo { id: ToolId; name: string; ready: boolean; text?: str
 export interface PItem { id: string; title: string; check: LaunchCheckId | "plan" | "live" | "map" | "after" | null; doneMeans: string; who: "us" | "client"; part: string | null; tool: ToolId | null; toolInfo: ToolInfo | null; due: string | null; status: "todo" | "done" | "na"; auto: boolean; at: number | null; note: string; link: string; asked: number | null; nudged: number | null; hist: { at: number; what: string }[]; manualDue: boolean; phaseId: string; phaseName: string; late: boolean; carriedFrom?: string; askBy?: string | null }
 export interface Signoff { by: string; date: string; note: string; link: string; file: { name: string; stored: string } | null; at: number }
 export interface PPhase { id: string; name: string; index: number; due: string | null; groups: { id: string; name: string; items: PItem[] }[]; handoff: { title: string; needs: "us" | "client"; items: PItem[] }; signoff: Signoff | null; state: "signed" | "current" | "upcoming"; done: number; total: number; ready: boolean }
-export interface ProjectRun { id: string; status: RunStatus; created: number; pages: number; output: Output | null; progress: RunProgress | null; hasIcon: boolean; seo: { status: SeoStatus; progress: Counts | null } | null; error: string | null; url: string }
+export type SiteKey = "old" | "staging" | "live"
+export type Sites = Record<SiteKey, string | null>
+export interface ProjectRun { id: string; site: SiteKey | null; status: RunStatus; created: number; pages: number; output: Output | null; progress: RunProgress | null; hasIcon: boolean; seo: { status: SeoStatus; progress: Counts | null } | null; error: string | null; url: string }
 export interface Project {
-  id: string; name: string; url: string | null; host: string | null; created: number; updated: number; kickoff: string | null; launch: string | null
+  id: string; kind: "project" | "audit"; name: string; url: string | null; host: string | null; sites: Sites; created: number; updated: number; kickoff: string | null; launch: string | null
   clientName: string; templateId: string; templateName: string; parts: string[]
   /** Days the plan has been shifted, and how far behind it is now. */
   slip: number; behind: Behind
@@ -289,7 +301,7 @@ export interface LaunchReport {
   previous?: { id: string; at: number }; fixed?: { check: LaunchCheckId; text: string; pages: number }[]
 }
 export interface ProjectSummary {
-  id: string; name: string; host: string | null; url: string | null; launch: string | null; iconRun: string | null
+  id: string; kind: "project" | "audit"; name: string; host: string | null; url: string | null; launch: string | null; iconRun: string | null
   current: { index: number; id: string; name: string; done: number; total: number; ready: boolean; needs: "us" | "client"; handoffTitle: string } | null
   phases: { state: PPhase["state"]; done: number; total: number }[]
   clientOpen: number; clientLate: number; behind: Behind
@@ -307,7 +319,7 @@ export interface ShiftPreview {
 }
 export interface NextUp { key: string; kind: "item" | "client" | "signoff"; projectId: string; projectName: string; iconRun: string | null; itemId?: string; title: string; phaseId: string; phaseName: string; due: string | null; late: boolean }
 export interface HomeData { next: NextUp[]; stats: { dueThisWeek: number; overdue: number; waiting: number; late: number; signoffs: number; nextLaunch: { name: string; date: string } | null }; projects: ProjectSummary[] }
-export interface NewProject { name: string; url?: string; templateId: string; kickoff?: string; launch?: string; parts: string[]; clientName?: string }
+export interface NewProject { kind?: "project" | "audit"; name: string; sites?: Partial<Sites>; templateId?: string; kickoff?: string; launch?: string; parts?: string[]; clientName?: string; startAt?: string }
 export interface SignoffInput { by: string; date: string; note?: string; link?: string; file?: { name: string; data: string } | null; carry?: string[]; skip?: string[] }
 
 export interface UpdateInfo { enabled: boolean; version: string; commit: string | null; behind: number; latest: string | null; checkedAt: number; error: string | null; launcher: boolean; app?: boolean; url?: string }
@@ -327,7 +339,8 @@ export const api = {
   savePrefs: (p: Partial<Settings>) => req<Partial<Settings>>("POST", "/api/prefs", p),
   runs: () => req<RunSummary[]>("GET", "/api/runs"),
   run: (id: string) => req<{ run: Run; progress: Progress | null; seoProgress: Progress | null; log: LogEntry[] }>("GET", `/api/runs/${id}`),
-  scan: (url: string, name?: string) => req<{ id: string }>("POST", "/api/scan", { url, name }),
+  /** Opens Groundwork's data folder in Finder. */
+  openData: () => req<{ ok: boolean }>("POST", "/api/open-data"),
   setSiteName: (host: string, name: string) => req<{ ok: boolean; name: string | null }>("POST", "/api/sites", { host, name }),
   rescan: (id: string) => req<{ id: string }>("POST", `/api/runs/${id}/rescan`),
   reshoot: (id: string) => req<{ ok: boolean; pages: number }>("POST", `/api/runs/${id}/reshoot`),
@@ -356,7 +369,7 @@ export const api = {
   projects: () => req<ProjectSummary[]>("GET", "/api/projects"),
   project: (id: string) => req<Project>("GET", `/api/projects/${id}`),
   createProject: (b: NewProject) => req<{ id: string; runId: string | null }>("POST", "/api/projects", b),
-  updateProject: (id: string, b: Partial<{ name: string; kickoff: string | null; launch: string | null; clientName: string; url: string }>) => req<Project>("PATCH", `/api/projects/${id}`, b),
+  updateProject: (id: string, b: Partial<{ name: string; kickoff: string | null; launch: string | null; clientName: string; url: string; sites: Partial<Sites> }>) => req<Project>("PATCH", `/api/projects/${id}`, b),
   templateUpdate: (id: string, b: { dryRun?: boolean; removeUntouched?: boolean }) => req<TemplateUpdate & { project?: Project }>("POST", `/api/projects/${id}/template`, b),
   shiftPlan: (id: string, b: { days: number; launch: boolean }) => req<Project>("POST", `/api/projects/${id}/shift`, b),
   previewShift: (id: string, b: { days: number; launch: boolean }) => req<ShiftPreview>("POST", `/api/projects/${id}/shift`, { ...b, dryRun: true }),
@@ -365,7 +378,7 @@ export const api = {
   askItems: (id: string, items: string[], nudge = false) => req<Project>("POST", `/api/projects/${id}/ask`, { items, nudge }),
   signoff: (id: string, phaseId: string, b: SignoffInput) => req<Project>("POST", `/api/projects/${id}/signoff/${phaseId}`, b),
   unsign: (id: string, phaseId: string) => req<Project>("DELETE", `/api/projects/${id}/signoff/${phaseId}`),
-  scanProject: (id: string, url?: string) => req<{ runId: string }>("POST", `/api/projects/${id}/scan`, { url }),
+  scanProject: (id: string, site?: SiteKey, url?: string) => req<{ runId: string }>("POST", `/api/projects/${id}/scan`, { site, url }),
   startLaunch: (id: string, url?: string) => req<{ checkId: string }>("POST", `/api/projects/${id}/launch`, { url }),
   launch: (id: string, checkId: string) => req<LaunchReport>("GET", `/api/projects/${id}/launch/${checkId}`),
   cancelLaunch: (id: string, checkId: string) => req<{ ok: boolean }>("POST", `/api/projects/${id}/launch/${checkId}/cancel`),

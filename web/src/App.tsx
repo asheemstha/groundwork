@@ -4,7 +4,6 @@ import { AppShell } from "@/components/shell/AppShell"
 import { AppProvider } from "@/hooks/useApp"
 import { RunProvider } from "@/hooks/useRun"
 import { useRoute } from "@/lib/router"
-import { Home } from "@/pages/Home"
 import { RunPage } from "@/pages/RunPage"
 import { ReviewPage } from "@/pages/ReviewPage"
 import { SeoPage } from "@/pages/SeoPage"
@@ -22,7 +21,6 @@ function Routes() {
   if (r.name === "project") return <ProjectPage key={r.id} id={r.id} tab={r.tab} sub={r.sub} />
   if (r.name === "templates") return <TemplatesPage />
   if (r.name === "template") return <TemplatePage key={r.id} id={r.id} />
-  if (r.name === "scan") return <Home />
   return <Dashboard />
 }
 

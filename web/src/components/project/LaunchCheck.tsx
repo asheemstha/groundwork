@@ -27,7 +27,8 @@ const passed = (s: Pick<LaunchSummary, "checks" | "staging">) => counted(s).filt
 const total = (s: Pick<LaunchSummary, "checks" | "staging">) => counted(s).length
 const itemsOf = (p: Project) => p.phases.flatMap((ph) => [...ph.groups.flatMap((g) => g.items), ...ph.handoff.items])
 /** The address to check next: whatever was checked last, else the project's site. */
-const defaultUrl = (p: Project) => p.tools.launchHistory[0]?.url || p.url || ""
+// Before launch day the check runs on staging; from launch day on, on the live domain.
+const defaultUrl = (p: Project) => { const live = !!p.launch && new Date().toISOString().slice(0, 10) >= p.launch; return (live ? p.sites.live : p.sites.staging) || p.tools.launchHistory[0]?.url || p.sites.live || p.url || "" }
 
 /** Follows a running check until it finishes, then reloads the project so the checklist picks it up. */
 export function useLaunch(p: Project, checkId: string | undefined, reload: () => void) {

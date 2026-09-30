@@ -1,45 +1,10 @@
 import * as React from "react"
-import { cn } from "cn"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useApp } from "@/hooks/useApp"
 import type { EngineId, Estimate } from "@/lib/api"
 import { cap, clock, fmtRange, pct, plural } from "@/lib/format"
 import { store } from "@/lib/store"
-
-/**
- * The docked composer: a grey tray of context chips on top of a white input card,
- * with tools on the bottom row and the send button on the right (Codex / ChatGPT desktop pattern).
- */
-export function Composer({ context, children, left, right, submit, footer, above, className }: {
-  context?: React.ReactNode
-  children: React.ReactNode
-  left?: React.ReactNode
-  right?: React.ReactNode
-  submit: React.ReactNode
-  footer?: React.ReactNode
-  above?: React.ReactNode
-  className?: string
-}) {
-  return (
-    <div className={cn("mx-auto w-full max-w-3xl px-4 pb-4", className)}>
-      {above}
-      <div className="rounded-2xl bg-muted/70 p-1 ring-1 ring-border/60">
-        {context && <div className="flex flex-wrap items-center gap-0.5 px-1 pt-0.5 pb-1">{context}</div>}
-        <div className="rounded-xl border bg-card shadow-[0_1px_2px_rgba(22,23,22,0.05)] transition-shadow focus-within:border-foreground/25">
-          {children}
-          <div className="flex items-center gap-1 px-2 pb-2">
-            {left}
-            <span className="flex-1" />
-            {right}
-            {submit}
-          </div>
-        </div>
-      </div>
-      {footer && <div className="mt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 px-2 text-center text-xs text-muted-foreground">{footer}</div>}
-    </div>
-  )
-}
 
 /** Asks once per engine before the first plan, so nobody is surprised by the usage. */
 export function useUsageConfirm() {

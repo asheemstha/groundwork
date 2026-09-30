@@ -248,7 +248,7 @@ export function PlanBlock({ run, progress, log: all, result, onStop }: { run: Ru
     : run.status === "cancelled" ? "Plan stopped" : "The plan didn’t finish"
   return (
     <Block
-      label={`AI plan${s.skill && s.skill !== "h-tag-planner" && s.skillName ? ` · ${s.skillName}` : ""} · ${eng} · ${modelName(status, s.engine, s.model)} · ${status?.effort[s.effort]?.name || s.effort} effort`}
+      label={`Heading plan${s.skill && s.skill !== "h-tag-planner" && s.skillName ? ` · ${s.skillName}` : ""} · ${eng} · ${modelName(status, s.engine, s.model)} · ${status?.effort[s.effort]?.name || s.effort} effort`}
       title={title}
       className={cn(done && "border-foreground/25")}
       right={running ? <Button variant="outline" size="sm" onClick={onStop}><CircleStop /> Stop</Button> : done ? (
@@ -397,7 +397,7 @@ export function SeoBlock({ run, progress, log: all, result, state, onStop }: { r
     : sq.status === "cancelled" ? "SEO plan stopped" : "The SEO plan didn’t finish"
   return (
     <Block
-      label={`AI plan · SEO${s.skill && s.skill !== "seo-builtin" && s.skillName ? ` · ${s.skillName}` : ""} · ${eng} · ${modelName(status, s.engine, s.model)} · ${status?.effort[s.effort]?.name || s.effort} effort`}
+      label={`SEO plan${s.skill && s.skill !== "seo-builtin" && s.skillName ? ` · ${s.skillName}` : ""} · ${eng} · ${modelName(status, s.engine, s.model)} · ${status?.effort[s.effort]?.name || s.effort} effort`}
       title={title}
       className={cn(done && "border-foreground/25")}
       right={running ? <Button variant="outline" size="sm" onClick={onStop}><CircleStop /> Stop</Button> : done ? (

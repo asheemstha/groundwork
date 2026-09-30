@@ -9,7 +9,7 @@ import { ChipButton } from "@/components/composer/pickers"
 import { api, type Skill, type SkillTool, type Skills as SkillsData } from "@/lib/api"
 import { go, routes } from "@/lib/router"
 
-// One copy of the list for the whole app, so the settings page and the composer agree.
+// One copy of the list for the whole app, so the settings page and the Run panel agree.
 let cache: SkillsData | null = null
 const subs = new Set<(s: SkillsData) => void>()
 const publish = (s: SkillsData) => { cache = s; subs.forEach((f) => f(s)) }
@@ -113,11 +113,11 @@ function SkillList({ tool }: { tool: SkillTool }) {
   )
 }
 
-/** The composer chip: which skill the next plan uses. Only there once you've added one for that tool. */
-export function SkillPicker({ tool = "headings" }: { tool?: SkillTool }) {
+/** Which skill the next plan uses, for the Run panel. With `always` it shows even when only the built-in exists. */
+export function SkillPicker({ tool = "headings", always }: { tool?: SkillTool; always?: boolean }) {
   const { data: all, set } = useSkills()
   const data = all?.[tool]
-  if (!data || data.skills.length < 2) return null
+  if (!data || (data.skills.length < 2 && !always)) return null
   const cur = data.skills.find((s) => s.id === data.active) || data.skills[0]!
   return (
     <DropdownMenu>

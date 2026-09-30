@@ -17,6 +17,7 @@ export function Dashboard() {
   React.useEffect(() => { api.home().then(setData).catch(() => {}) }, [projects, runs])
   const today = new Date().toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" })
   const s = data?.stats
+  const work = projects.filter((p) => p.kind !== "audit"), audits = projects.filter((p) => p.kind === "audit")
 
   return (
     <div className="flex h-full flex-col">
@@ -25,20 +26,20 @@ export function Dashboard() {
         <div className="flex max-w-5xl flex-col gap-9 px-12 pt-10 pb-12">
           <div>
             <div className="text-[13px] text-muted-foreground">{today}</div>
-            <h1 className="mt-1 text-[32px] leading-tight font-medium">{projects.length ? `${projects.length} ${projects.length === 1 ? "project" : "projects"} in progress` : "Welcome to Groundwork"}</h1>
-            {data && projects.length > 0 && <p className="mt-1.5 text-[14px] text-muted-foreground">{summaryLine(data)}</p>}
+            <h1 className="mt-1 text-[32px] leading-tight font-medium">{work.length ? `${work.length} ${work.length === 1 ? "project" : "projects"} in progress` : "Welcome to Groundwork"}</h1>
+            {data && work.length > 0 && <p className="mt-1.5 text-[14px] text-muted-foreground">{summaryLine(data)}</p>}
           </div>
           <Setup />
-          {!projects.length ? (
+          {!work.length ? (
             <div className="rounded-lg bg-muted/50 px-6 py-8 text-center">
-              <p className="text-[14px] text-muted-foreground">A project copies a checklist template and tracks it from kickoff to launch.</p>
-              <Button className="mt-4" onClick={() => newProject()}><Plus />New project</Button>
+              <p className="text-[14px] text-muted-foreground">A project follows a website checklist from kickoff to launch. An audit just scans a site and checks it.</p>
+              <div className="mt-4 flex justify-center gap-2"><Button onClick={() => newProject()}><Plus />New project</Button><Button variant="outline" onClick={() => newProject({ audit: true })}>Audit a site</Button></div>
             </div>
           ) : (
             <>
               <div className="grid grid-cols-2 gap-x-8 gap-y-4 sm:grid-cols-4">
                 {s?.overdue ? <Stat n={s.overdue} label="overdue" tone="bad" sub={`${s.dueThisWeek} more due this week`} /> : <Stat n={s?.dueThisWeek ?? 0} label="due this week" />}
-                <Stat n={s?.waiting ?? 0} label="waiting on clients" tone={s?.late ? "bad" : undefined} sub={s?.late ? `${s.late} late` : "none late"} />
+                <Stat n={s?.waiting ?? 0} label="waiting on clients" tone={s?.late ? "bad" : undefined} sub={s?.late ? `${s.late} client ${s.late === 1 ? "item" : "items"} late` : "none late"} />
                 <Stat n={s?.signoffs ?? 0} label={s?.signoffs === 1 ? "sign-off to record" : "sign-offs to record"} />
                 <Stat n={s?.nextLaunch ? fmtDay(s.nextLaunch.date) : "None"} label="next launch" sub={s?.nextLaunch?.name || "no launch date set"} />
               </div>
@@ -48,9 +49,21 @@ export function Dashboard() {
               </section>
               <section>
                 <h2 className="mb-1.5 flex items-baseline gap-2 text-[14px] font-medium">Projects<span className="text-[13px] font-normal text-muted-foreground">by launch date</span></h2>
-                <div className="-mx-2">{(data?.projects || projects).map((p) => <ProjectCard key={p.id} p={p} />)}</div>
+                <div className="-mx-2">{(data?.projects || projects).filter((p) => p.kind !== "audit").map((p) => <ProjectCard key={p.id} p={p} />)}</div>
               </section>
             </>
+          )}
+          {audits.length > 0 && (
+            <section>
+              <h2 className="mb-1.5 flex items-baseline gap-2 text-[14px] font-medium">Audits<span className="text-[13px] font-normal text-muted-foreground">sites scanned without a checklist</span></h2>
+              <div className="-mx-2">
+                {audits.map((p) => (
+                  <button key={p.id} onClick={() => go(routes.project(p.id))} className="flex h-9 w-full items-center gap-2.5 rounded-md px-2 text-left hover:bg-muted/50">
+                    <SiteIcon runId={p.iconRun || undefined} name={p.name} className="size-[18px] rounded text-[9px]" /><span className="text-[13.5px]">{p.name}</span><span className="text-[12.5px] text-muted-foreground">{p.host}</span>
+                  </button>
+                ))}
+              </div>
+            </section>
           )}
         </div>
       </div>
@@ -64,7 +77,7 @@ function Setup() {
   const [hidden, setHidden] = React.useState(() => store.get("setupHidden", false))
   if (!status || hidden) return null
   const steps: [boolean, string, string, () => void][] = [
-    [!!(status.engines.claude?.loggedIn || status.engines.codex?.loggedIn), "Sign in to Claude Code or Codex", "The heading and SEO plans run on your own plan.", () => go(routes.settings())],
+    [!!(status.engines.claude?.loggedIn || status.engines.codex?.loggedIn), "Sign in to Claude Code or Codex (optional)", "Only the heading and SEO plans use AI, on your own Claude or ChatGPT subscription. Checklists, scans and checks work without it.", () => go(routes.settings())],
     [!!status.browser?.ok, "A browser for scans", "Chrome or Edge, found on this Mac.", () => go(routes.settings())],
     [!!prefs.appliedBy, "Add your name", "It signs client messages and exported guides.", () => go(routes.settings())],
     [projects.length > 0, "Create your first project", "From the Website project checklist, or your own.", () => newProject()],
@@ -89,7 +102,7 @@ function Setup() {
 function summaryLine(d: HomeData) {
   const bits = []
   if (d.stats.signoffs) bits.push(d.stats.signoffs === 1 ? "One sign-off is ready to record" : `${d.stats.signoffs} sign-offs are ready to record`)
-  if (d.stats.late) bits.push(d.stats.late === 1 ? "one thing from a client is late" : `${d.stats.late} things from clients are late`)
+  if (d.stats.late) bits.push(d.stats.late === 1 ? "one client item is late" : `${d.stats.late} client items are late`)
   if (d.stats.overdue) bits.push(d.stats.overdue === 1 ? "one of your items is overdue" : `${d.stats.overdue} of your items are overdue`)
   if (!bits.length) return d.stats.dueThisWeek ? `${d.stats.dueThisWeek} ${d.stats.dueThisWeek === 1 ? "item is" : "items are"} due this week.` : "Nothing is late."
   const t = bits.join(", and ")
@@ -155,7 +168,7 @@ function ProjectCard({ p }: { p: ProjectSummary }) {
         <span className="flex-1" />
         <span>Client {p.clientOpen}{p.clientLate ? <>, <span className="text-destructive">{p.clientLate} late</span></> : null}</span>
       </div>
-      {p.behind.items >= 3 && p.behind.days >= 7 && <span className="grid grid-cols-[6px_minmax(0,1fr)] items-baseline gap-2 text-[12.5px]"><span className="size-1.5 translate-y-[-1px] rounded-full bg-brand" /><span>Slipped about {p.behind.days} days <span className="text-muted-foreground">· open it to shift the plan</span></span></span>}
+      {p.behind.items >= 3 && p.behind.days >= 7 && <span className="grid grid-cols-[6px_minmax(0,1fr)] items-baseline gap-2 text-[12.5px]"><span className="size-1.5 translate-y-[-1px] rounded-full bg-brand" /><span>Slipped about {p.behind.days} days <span className="text-muted-foreground">· open it to move the dates</span></span></span>}
     </button>
   )
 }

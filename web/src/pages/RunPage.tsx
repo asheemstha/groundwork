@@ -1,15 +1,17 @@
 import * as React from "react"
-import { ArrowRight, ListChecks, Loader2, MoreHorizontal, Search, Sparkles } from "lucide-react"
+import { cn } from "cn"
+import { ArrowRight, ListChecks, Loader2, Lock, MoreHorizontal, Search, Sparkles } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
-import { Composer, useUsageConfirm } from "@/components/composer/Composer"
-import { CountryPicker, EnginePicker, ModelPicker, OutputPicker, ToolPicker, type PlanTool } from "@/components/composer/pickers"
+import { useUsageConfirm } from "@/components/composer/Composer"
+import { CountryPicker, EnginePicker, ModelPicker, OutputPicker, type PlanTool } from "@/components/composer/pickers"
 import { FailedBlock, PagesBlock, PlanBlock, ScanBlock, SeoBlock } from "@/components/run/blocks"
 import { SkillPicker } from "@/components/settings/Skills"
 import { SiteMenu, VersionMenu } from "@/components/shell/AppShell"
-import { SiteIcon, Spinner, TopBar } from "@/components/common/bits"
+import { Spinner, TopBar } from "@/components/common/bits"
+import { Crumbs } from "@/components/project/Crumbs"
 import { useApp } from "@/hooks/useApp"
 import { useRun } from "@/hooks/useRun"
 import { useDraftSettings } from "@/hooks/useDraftSettings"
@@ -19,22 +21,22 @@ import { go, routes } from "@/lib/router"
 
 export const hostOf = (run: Pick<Run, "origin" | "url" | "name">) => { try { return new URL(run.origin || run.url).hostname.replace(/^www\./, "") } catch { return run.name } }
 
-// Page selection and the chosen tool are shared between the thread and the composer below it.
-const SelCtx = React.createContext<{ selected: Set<string>; setSelected: (s: Set<string>) => void; tool: PlanTool; setTool: (t: PlanTool) => void } | null>(null)
+// Page selection is shared between the page list and the Run panel below it.
+const SelCtx = React.createContext<{ selected: Set<string>; setSelected: (s: Set<string>) => void } | null>(null)
 
-export function RunPage({ tool: asked }: { tool?: "seo" }) {
+export function RunPage({ tool: asked }: { tool?: PlanTool }) {
   const { run } = useRun()
   const [selected, setSelected] = React.useState<Set<string>>(new Set())
-  const [tool, setTool] = React.useState<PlanTool>(asked || "headings")
   const key = run ? run.id + (run.status === "scanned" ? ":s" : run.status === "scanning" ? ":w" : ":x") : ""
   React.useEffect(() => { if (run && run.status !== "scanning") setSelected(new Set(run.selected || [])) }, [key]) // eslint-disable-line react-hooks/exhaustive-deps
-  // Once the heading plan exists, the next thing to plan is usually the SEO.
-  const hasPlan = !!run && (run.status === "done" || run.status === "partial")
-  React.useEffect(() => { if (asked) setTool(asked); else if (hasPlan && !run?.seo) setTool("seo") }, [asked, run?.id, hasPlan]) // eslint-disable-line react-hooks/exhaustive-deps
-  return <SelCtx.Provider value={{ selected, setSelected, tool, setTool }}><Thread /></SelCtx.Provider>
+  // The page is about one tool: the one asked for, or the plan already made from this scan. A bare scan offers both.
+  const tool: PlanTool | null = asked || (run?.job ? "headings" : run?.seo ? "seo" : null)
+  return <SelCtx.Provider value={{ selected, setSelected }}><Thread tool={tool} /></SelCtx.Provider>
 }
 
-function Thread() {
+const TOOL_LABEL: Record<PlanTool, string> = { headings: "Heading plan", seo: "SEO plan" }
+
+function Thread({ tool }: { tool: PlanTool | null }) {
   const { run, progress, log, result, notFound, seo, seoState, seoProgress } = useRun()
   const app = useApp()
   const { selected, setSelected } = React.useContext(SelCtx)!
@@ -42,45 +44,49 @@ function Thread() {
   const bottom = React.useRef<HTMLDivElement>(null)
   React.useEffect(() => { if (run?.status === "running" || run?.seo?.status === "running") bottom.current?.scrollIntoView({ behavior: "smooth", block: "end" }) }, [run?.status, run?.seo?.status])
 
-  if (notFound) return <Empty title="This site plan doesn’t exist any more." />
+  if (notFound) return <Empty title="This scan doesn’t exist any more." />
   if (!run) return <div className="grid h-full place-items-center"><Spinner className="size-5" /></div>
 
   const seoRunning = run.seo?.status === "running"
   const busy = run.status === "running" || run.status === "scanning" || seoRunning
-  const rescan = async () => { const { id } = await api.rescan(run.id); await app.refreshRuns(); go(routes.run(id)) }
+  const back = () => go(run.projectId ? routes.project(run.projectId, "tools") : routes.home)
+  const rescan = async () => { const { id } = await api.rescan(run.id); await app.refreshRuns(); go(routes.run(id, tool || undefined)) }
   const reshoot = async () => {
-    const t = toast.loading("Retaking screenshots…", { description: "Runs on your Mac. No AI plan usage." })
+    const t = toast.loading("Retaking screenshots…", { description: "Runs on your Mac. No AI." })
     try { const r = await api.reshoot(run.id); toast.success(`New screenshots for ${plural(r.pages, "page")}`, { id: t, description: "" }) } catch (e) { toast.error((e as Error).message, { id: t }) }
   }
-  const remove = async () => { await api.remove(run.id); await app.refreshRuns(); toast(`Removed ${app.siteLabel(hostOf(run))}`); go(routes.home) }
+  const remove = async () => { await api.remove(run.id); await app.refreshRuns(); toast("Removed the scan"); back() }
+  const planDone = run.status === "done" || run.status === "partial"
+  const seoDone = run.seo?.status === "done" || run.seo?.status === "partial"
 
   return (
     <div className="flex h-full min-h-0 flex-col">
       <TopBar>
-        <SiteIcon runId={run.id} name={app.siteLabel(hostOf(run))} className="size-5 text-[10px]" />
-        <a href={run.url} target="_blank" rel="noreferrer" className="truncate text-sm font-medium hover:underline" title={hostOf(run)}>{app.siteLabel(hostOf(run))}</a>
-        <span className="text-muted-foreground">/</span>
-        <VersionMenu runId={run.id} />
+        <Crumbs projectId={run.projectId || null} label={tool ? TOOL_LABEL[tool] : "Site scan"}>
+          <span className="text-muted-foreground/60">/</span>
+          <VersionMenu runId={run.id} />
+        </Crumbs>
         <span className="flex-1" />
-        {(run.status === "done" || run.status === "partial") && <Button size="sm" variant={run.seo ? "outline" : "default"} onClick={() => go(routes.review(run.id))}><ListChecks /> {run.seo ? "Headings" : "To-do list"}</Button>}
-        {(run.seo?.status === "done" || run.seo?.status === "partial") && <Button size="sm" onClick={() => go(routes.seo(run.id))}><Search /> SEO plan</Button>}
-        <SiteMenu host={hostOf(run)} onRescan={rescan} onReshoot={busy ? undefined : reshoot} onDelete={() => setConfirm("delete")}><Button variant="ghost" size="icon-sm" aria-label="Site options"><MoreHorizontal /></Button></SiteMenu>
+        {tool === "headings" && planDone && <Button size="sm" onClick={() => go(routes.review(run.id))}><ListChecks /> To-do list</Button>}
+        {tool === "seo" && seoDone && <Button size="sm" onClick={() => go(routes.seo(run.id))}><Search /> SEO plan</Button>}
+        <SiteMenu onRescan={rescan} onReshoot={busy ? undefined : reshoot} onDelete={() => setConfirm("delete")}><Button variant="ghost" size="icon-sm" aria-label="Scan options"><MoreHorizontal /></Button></SiteMenu>
       </TopBar>
       <div className="scrollbar-thin min-h-0 flex-1 overflow-auto">
         <div className="mx-auto grid max-w-3xl gap-4 px-4 py-6">
           {run.status === "scan_failed" ? <FailedBlock run={run} onRetry={rescan} /> : <ScanBlock run={run} progress={run.status === "scanning" ? progress : null} />}
-          {run.status !== "scanning" && run.status !== "scan_failed" && <PagesBlock key={run.id + (run.settings ? "p" : "")} run={run} selected={selected} setSelected={setSelected} locked={run.status === "running" || seoRunning} />}
-          {run.job && <PlanBlock run={run} progress={run.status === "running" ? progress : null} log={log} result={result} onStop={() => setConfirm("stop")} />}
-          {run.seo && <SeoBlock run={run} progress={seoRunning ? seoProgress : null} log={log} result={seo} state={seoState} onStop={() => setConfirm("stop")} />}
+          {run.status !== "scanning" && run.status !== "scan_failed" && <PagesBlock key={run.id + (run.settings ? "p" : "")} run={run} selected={selected} setSelected={setSelected} locked={!tool || run.status === "running" || seoRunning} />}
+          {tool === "headings" && run.job && <PlanBlock run={run} progress={run.status === "running" ? progress : null} log={log} result={result} onStop={() => setConfirm("stop")} />}
+          {tool === "seo" && run.seo && <SeoBlock run={run} progress={seoRunning ? seoProgress : null} log={log} result={seo} state={seoState} onStop={() => setConfirm("stop")} />}
+          {!tool && run.status === "scanned" && <NextBlock runId={run.id} />}
+          {tool && !busy && run.status !== "scan_failed" && <RunPanel tool={tool} />}
           <div ref={bottom} />
         </div>
       </div>
-      {!busy && run.status !== "scan_failed" && <PlanComposer />}
       <AlertDialog open={!!confirm} onOpenChange={(o) => !o && setConfirm(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{confirm === "stop" ? (seoRunning ? "Stop the SEO plan?" : "Stop this plan?") : `Remove this version of ${app.siteLabel(hostOf(run))}?`}</AlertDialogTitle>
-            <AlertDialogDescription>{confirm === "stop" ? "Pages already planned are kept, and you can review them. Anything unfinished is lost." : "This deletes the scan, its plans and their to-do progress from this computer. You can’t undo it."}</AlertDialogDescription>
+            <AlertDialogTitle>{confirm === "stop" ? (seoRunning ? "Stop the SEO plan?" : "Stop the heading plan?") : "Remove this scan?"}</AlertDialogTitle>
+            <AlertDialogDescription>{confirm === "stop" ? "Pages already planned are kept, and you can review them. Anything unfinished is lost." : "This deletes the scan, the plans made from it and their to-do progress from this computer. You can’t undo it."}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
@@ -92,10 +98,39 @@ function Thread() {
   )
 }
 
-function PlanComposer() {
+/** After a scan: the two plans it can start. */
+function NextBlock({ runId }: { runId: string }) {
+  const opt = (t: PlanTool, desc: string) => (
+    <button onClick={() => go(routes.run(runId, t))} className="grid content-start gap-1 rounded-lg border bg-card px-4 py-3 text-left hover:border-foreground/25 hover:bg-muted/30">
+      <span className="flex items-center gap-2 font-medium">{TOOL_LABEL[t]}<ArrowRight className="size-3.5 text-muted-foreground" /></span>
+      <span className="text-[13px] text-muted-foreground">{desc}</span>
+    </button>
+  )
+  return (
+    <section className="grid gap-3 rounded-xl border bg-muted/30 p-4">
+      <div><h3 className="font-medium">Plan from this scan</h3><p className="text-[13px] text-muted-foreground">Both use AI through your own Claude or ChatGPT subscription. You choose the pages on the next screen.</p></div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {opt("headings", "H1 to H6 for each page: which tags to fix, and rewrites if you want them.")}
+        {opt("seo", "A title, meta description and URL for each page.")}
+      </div>
+    </section>
+  )
+}
+
+function Field({ label, top, children }: { label: string; top?: boolean; children: React.ReactNode }) {
+  return (
+    <>
+      <dt className={cn("text-muted-foreground", top ? "pt-2" : "flex h-9 items-center")}>{label}</dt>
+      <dd className="flex min-h-9 min-w-0 items-center">{children}</dd>
+    </>
+  )
+}
+
+/** The form that starts a plan: its settings as plain fields, what it costs, and what leaves this Mac. */
+function RunPanel({ tool }: { tool: PlanTool }) {
   const { run, result, seo } = useRun()
   const { status, refreshRuns, setPrefs } = useApp()
-  const { selected, tool, setTool } = React.useContext(SelCtx)!
+  const { selected } = React.useContext(SelCtx)!
   const isSeo = tool === "seo"
   const existing = isSeo ? seo : result
   const r = run!
@@ -136,39 +171,50 @@ function PlanComposer() {
   }
   const w = status?.limits?.windows?.five_hour
   return (
-    <>
-      <Composer
-        context={<><ToolPicker value={tool} onChange={setTool} /><CountryPicker value={d.s.market} onChange={(market) => d.set({ market })} />{!isSeo && <OutputPicker value={d.s.output} onChange={(output) => d.set({ output })} />}<SkillPicker tool={isSeo ? "seo" : "headings"} /></>}
-        left={<EnginePicker value={d.s.engine} onChange={d.setEngine} />}
-        right={<ModelPicker engine={d.s.engine} model={d.s.model} effort={d.s.effort} custom={d.custom} onChange={d.setModel} />}
-        submit={
-          <Button onClick={() => start()} disabled={busy || !n} className="h-8 rounded-full pr-3.5 pl-3">
-            {busy ? <Loader2 className="animate-spin" /> : ready ? <Sparkles /> : <ArrowRight />}
-            {ready ? `${isSeo ? (seo ? "Plan SEO again" : "Plan SEO") : result ? "Plan again" : "Plan"} · ${plural(n, "page")}` : `Set up ${eng}`}
-          </Button>
-        }
-        footer={!ready ? <span>{eng} isn’t set up on this computer yet.</span> : est && (
-          <span>
-            About {fmtRange(est.total)} · {est.usage.toLowerCase()} usage of your {eng} {e?.billing === "api" ? "API key (billed per token)" : "plan"}
-            {w && d.s.engine === "claude" ? ` · 5-hour window ${Math.round(w.utilization * 100)}% used` : ""}
-            {est.limitPct != null ? `, similar runs used about ${Math.max(1, Math.round(est.limitPct * 100))}%` : ""}
-          </span>
-        )}
-      >
-        <Textarea
-          value={d.s.notes || ""}
-          onChange={(ev) => d.set({ notes: ev.target.value })}
-          onKeyDown={(ev) => { if (ev.key === "Enter" && (ev.metaKey || ev.ctrlKey)) { ev.preventDefault(); start() } }}
-          placeholder={isSeo ? "Anything the AI should know? How the brand name is written, words to use or avoid, URLs to keep… (optional, ⌘↵ to start)" : "Anything the AI should know? Brand voice, pages to leave alone, terms to use… (optional, ⌘↵ to start)"}
-          className="max-h-40 min-h-[52px] resize-none border-0 bg-transparent px-3 pt-3 text-[15px] shadow-none focus-visible:ring-0 dark:bg-transparent"
-        />
-      </Composer>
+    <section aria-label={isSeo ? "Plan SEO" : "Plan headings"} className="rounded-xl border bg-card">
+      <div className="px-5 pt-4">
+        <h3 className="text-[15px] font-medium">{isSeo ? (seo ? "Plan SEO again" : "Plan SEO") : result ? "Plan headings again" : "Plan headings"} for {plural(n, "page")}</h3>
+        <p className="mt-0.5 text-[13px] text-muted-foreground">{isSeo ? "A title, meta description and URL for each page. Uses the heading plan’s keywords when there is one." : "Which heading tags to fix on each page, and keyword rewrites if you want them."} Change the pages in the list above.</p>
+      </div>
+      <dl className="grid grid-cols-[120px_minmax(0,1fr)] gap-y-0.5 px-5 py-3 text-[13.5px] [&_dd>button]:-ml-2">
+        <Field label="Market"><CountryPicker value={d.s.market} onChange={(market) => d.set({ market })} /></Field>
+        {!isSeo && <Field label="What to make"><OutputPicker value={d.s.output} onChange={(output) => d.set({ output })} /></Field>}
+        <Field label="Skill"><SkillPicker tool={isSeo ? "seo" : "headings"} always /></Field>
+        <Field label="AI engine"><EnginePicker value={d.s.engine} onChange={d.setEngine} /></Field>
+        <Field label="Model"><ModelPicker engine={d.s.engine} model={d.s.model} effort={d.s.effort} custom={d.custom} onChange={d.setModel} /></Field>
+        <Field label="Notes" top>
+          <Textarea
+            value={d.s.notes || ""}
+            onChange={(ev) => d.set({ notes: ev.target.value })}
+            onKeyDown={(ev) => { if (ev.key === "Enter" && (ev.metaKey || ev.ctrlKey)) { ev.preventDefault(); start() } }}
+            placeholder={isSeo ? "Optional: how the brand name is written, words to use or avoid, URLs to keep" : "Optional: brand voice, pages to leave alone, terms to use"}
+            rows={2}
+            className="min-h-0 resize-none text-[13.5px] [field-sizing:content]"
+          />
+        </Field>
+      </dl>
+      <div className="grid gap-3 rounded-b-xl border-t bg-muted/30 px-5 py-3.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+        <div className="grid gap-1 text-[12.5px] text-muted-foreground">
+          {!ready ? <span>{eng} isn’t set up on this computer yet.</span> : est && (
+            <span>
+              About {fmtRange(est.total)}, {est.usage.toLowerCase()} usage of your {e?.billing === "api" ? `${eng} API key (billed per token)` : `${d.s.engine === "codex" ? "ChatGPT" : "Claude"} subscription`}
+              {w && d.s.engine === "claude" ? `. 5-hour window ${Math.round(w.utilization * 100)}% used` : ""}
+              {est.limitPct != null ? `, similar runs used about ${Math.max(1, Math.round(est.limitPct * 100))}%` : ""}.
+            </span>
+          )}
+          <span className="flex items-start gap-1.5"><Lock className="mt-0.5 size-3 shrink-0" /><span>{eng || "The AI"} reads the chosen pages’ text and headings from this scan{isSeo ? " and their current titles and descriptions" : ", and a screenshot when the layout is unclear"}, plus your notes. Your checklist, client details and files stay on this Mac. <button onClick={() => go(routes.settings("privacy"))} className="underline underline-offset-2 hover:text-foreground">Data and privacy</button></span></span>
+        </div>
+        <Button onClick={() => start()} disabled={busy || !n} className="justify-self-end">
+          {busy ? <Loader2 className="animate-spin" /> : ready ? <Sparkles /> : <ArrowRight />}
+          {ready ? `${isSeo ? "Plan SEO" : "Plan headings"} · ${plural(n, "page")}` : `Set up ${eng}`}
+        </Button>
+      </div>
       {usage.dialog}
       <AlertDialog open={replace} onOpenChange={setReplace}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{isSeo ? "Replace the SEO plan?" : "Replace the current plan?"}</AlertDialogTitle>
-            <AlertDialogDescription>{isSeo ? "Planning again replaces this site’s SEO plan, your edits to it and its to-do progress. The heading plan stays." : "Planning again replaces this site’s plan and resets its to-do progress. To keep this one, rescan the site instead: that starts a separate plan."}</AlertDialogDescription>
+            <AlertDialogTitle>{isSeo ? "Replace the SEO plan?" : "Replace the heading plan?"}</AlertDialogTitle>
+            <AlertDialogDescription>{isSeo ? "Planning again replaces this scan’s SEO plan, your edits to it and its to-do progress. The heading plan stays." : "Planning again replaces this scan’s heading plan and resets its to-do progress. To keep this one, rescan the site instead: that starts a separate plan."}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
@@ -176,7 +222,7 @@ function PlanComposer() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </>
+    </section>
   )
 }
 

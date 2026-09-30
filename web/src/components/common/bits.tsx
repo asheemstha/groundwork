@@ -164,5 +164,3 @@ export function SiteIcon({ runId, name, className }: { runId?: string; name: str
   )
 }
 
-/** Ask the app shell to open the rename dialog for a site. */
-export const renameSite = (host: string) => window.dispatchEvent(new CustomEvent("gw:rename", { detail: host }))

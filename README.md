@@ -1,98 +1,66 @@
 # Groundwork
 
-Plan site improvements with your own Claude Code or Codex account. The first tool is **Heading structure**. It plans H1–H6 for every page and turns the plan into a to-do list a developer can tick off.
+A Mac app for agencies and freelancers who build websites. Every project follows a checklist from kickoff to launch, and Groundwork's tools check the work for you: a launch check, a redirect map for redesigns, and optional AI plans for headings and SEO.
+
+It was made for Webflow projects, but the checklist and the checks work for any website.
+
+## What it does
+
+- **Projects.** A project copies a checklist template into phases (Discover, Design, Build, Launch, After launch), with due dates spread between your kickoff and launch dates. Each item is yours or the client's. Each phase ends with a sign-off, and you keep the client's approval (an email, a screenshot or a link) with the project.
+- **Client tab.** Everything the client owes you in one list: late, due soon and not asked yet. Tick the items you need and Groundwork writes the message from a template, ready to paste into email or Slack. It never sends anything itself.
+- **Launch check.** Reads up to 60 pages of the staging or live site and every link on them: noindex and robots.txt, placeholder text and dummy "#" links, broken links, titles and descriptions, H1s, canonicals, legal pages, https and www redirects. Each issue comes with a one-line fix, and items it passes tick themselves on the checklist.
+- **Redirect map.** For redesigns: matches every URL on the old site to its page on the new one, exports the 301 redirects for Webflow, and tests them after launch.
+- **Heading plan and SEO plan** (optional, use AI). A plan for each page's H1 to H6, and a title, meta description and URL for each page, turned into a to-do list a developer can tick off.
+- **Audits.** Scan one site and run the tools on it without a checklist. Start a project for it later and the scans move in.
+
+## What it costs
+
+- The app is free.
+- Checklists, scans, the launch check and the redirect map don't use AI and cost nothing to run.
+- The heading plan and the SEO plan run through **Claude Code** or **Codex**, signed in to your own paid Claude or ChatGPT subscription. They count toward that subscription's usage limits. Groundwork shows the time and the expected usage before every run. If you sign in with an API key instead, the provider bills per token.
+- You don't need AI to use Groundwork. Skip the engine setup and everything else works.
+
+## Your data
+
+- Everything is saved on your Mac, in `~/Library/Application Support/Groundwork/data` (Settings, Data and privacy, Show in Finder). There's no Groundwork account and no Groundwork server.
+- Only the heading plan and the SEO plan send anything to an AI provider. The AI reads the pages you chose from the scan (their public text, headings, current titles and descriptions, and a screenshot when a layout is unclear), your notes and the skill. Checklists, client names, messages and sign-off files are never sent. The provider's own privacy terms apply.
+- Scans and checks run in a browser on your Mac and only visit the addresses you give them.
+- Groundwork connects to GitHub to check for updates.
 
 ## Install (Mac)
 
-You need **Google Chrome** and **Claude Code or Codex** signed in to your own plan. The app walks you through installing and signing in to either one (sidebar → Engines & settings).
+You need **Google Chrome** (or Microsoft Edge) for scans. For the AI plans, you also need Claude Code or Codex; the app walks you through installing and signing in to either one in Settings.
 
-Open **Terminal** (Applications → Utilities), paste this and press Return:
+Open **Terminal** (Applications, Utilities), paste this and press Return:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/asheemstha/groundwork/main/install.sh | bash
 ```
 
-It downloads the latest version into Applications and opens it. There's no security prompt, because macOS only asks about apps downloaded through a browser. Running it again reinstalls the latest version. [install.sh](install.sh) is short if you want to read it first.
+It downloads the latest version into Applications and opens it. [install.sh](install.sh) is short if you want to read it first.
 
-**Or download the .dmg** from the [latest release](https://github.com/asheemstha/groundwork/releases/latest) and drag **Groundwork** into **Applications**. The app isn't signed with an Apple developer certificate, so the first time you open it macOS says it can't check it for malicious software. Click **Done**, go to **System Settings → Privacy & Security**, and click **Open Anyway** next to Groundwork. You only do this once.
+**Or download the .dmg** from the [latest release](https://github.com/asheemstha/groundwork/releases/latest) and drag **Groundwork** into **Applications**. The app isn't signed with an Apple developer certificate yet, so the first time you open it macOS says it can't check it for malicious software. Click **Done**, go to **System Settings, Privacy & Security**, and click **Open Anyway** next to Groundwork. You only do this once.
 
-Your sites, plans and to-do progress stay on your Mac in `~/Library/Application Support/Groundwork/data` (Help → Show app data in Finder). Nothing is uploaded.
+## Getting started
+
+1. **New project** (⌘N). Add the client's name and up to three websites: the old site being replaced, the new site on staging, and the live domain it launches on. Pick a template and the dates. If the project is already underway, start it at a later phase.
+2. **Checklist.** Work through the current phase. Click an item to open it on the side, with notes, a link and its history. J and K step through items.
+3. **Client.** Tick what you need from the client and copy the message. Groundwork records when you asked, and shows what's late.
+4. **Tools.** Scan the old site at the start of a redesign, build the redirect map once staging has pages, and run the launch check before launch day and again on the live domain.
+5. **AI plans** (optional). Sign in to Claude Code or Codex in Settings, then plan headings or SEO from any scan in the Tools tab.
+
+Templates holds your checklists, client messages and emails. The built-in **Website project** checklist has about 40 items; **Full agency process** is a longer one with about 140. Change either, or make your own.
 
 ## Updates
 
-- Groundwork checks GitHub for a new version when it opens and every few hours. When there is one, the sidebar shows **Update available**.
-- Click **Update now**. Most updates only change the app's code: Groundwork downloads it (about 4 MB) into its own data folder and restarts. The app in Applications isn't touched, so macOS doesn't ask for permission each time. Your data isn't touched either.
-- When a release changes the app itself (its Electron shell, `gwShell` in package.json), the update downloads the full app, replaces it and reopens. That one needs the app in Applications (or another folder you can write to), and macOS may ask for permission.
-- If a downloaded update fails to start, Groundwork deletes it and opens the version it shipped with.
+Groundwork checks for a new version when it opens and every few hours. When there is one, the sidebar shows **Update available**. Most updates download a few MB and restart the app; your data isn't touched.
 
-**Publishing an update (maintainer only):** double-click **Publish Update.command**. It asks what changed, builds, bumps the version, and pushes a version tag. GitHub Actions then builds the Mac app (about 10 minutes) and publishes it as a Release. Everyone's app offers the update after that.
+## Status
 
-## Run from source (developers)
+- Groundwork is in active use at one agency and new to everyone else. Expect rough edges, and please open an issue when something's wrong.
+- **Codex support is in beta.** The app is built and tested on Claude Code; Codex works but has had much less use.
+- The app isn't signed or notarized by Apple yet (see Install).
 
-Needs Node.js (LTS). `git clone https://github.com/asheemstha/groundwork.git`, then double-click **Start Groundwork.command** (Windows: **Start Groundwork.bat**). It opens http://localhost:4477, pulls the latest code each time it starts, and keeps its data in `groundwork/data`. `npm run app` runs the desktop app from source next to the installed one, using the same `groundwork/data` folder. `npm run dist` builds it into `release/`.
+## Contributing
 
-## Projects and templates
-
-- **New project** copies a checklist template (the default is "Website project": Setup, Discover, Design, Development, Launch, After launch) into a project with its own kickoff and launch dates. Optional parts, like replacing an existing site or online payments, switch groups of items on or off.
-- Each item is ours or the client’s, has a due date worked out from kickoff or launch, and can be ticked, marked not needed, or opened for notes and links.
-- **Opening an item** shows it in a side panel: status, due date, whose it is, when it was asked, a link, the Groundwork tool, notes and a short activity history. **J/K** or the arrow keys step through the phase's items.
-- **Waiting on the client** shows when each item was asked and how long ago. **Nudge** writes a reminder about just those items from a message template, and records the nudge.
-- **Update from the template** (project menu, or the notice on the project page) brings template changes into a running project: new items, reworded ones, and the option to remove untouched items the template dropped. Ticks, notes and dates stay.
-- **⌘K** opens quick find: projects, their tabs, other sites, templates and common actions.
-- **Shift the plan** (project menu, or the banner when the current phase is a week or more behind) moves every unfinished due date and phase sign-off by the same number of days, and the launch date too if you want. It previews what changes, done items keep their dates, and Undo is in the notice.
-- Each phase ends with a **sign-off**: who approved, when, and the proof (an email or screenshot you drop in, or a link). Open items can move to the next phase.
-- The **Client** tab lists everything the client owes you and writes a request message from a message template. Groundwork never sends anything.
-- Items linked to a Groundwork tool tick themselves: the site scan ticks “Crawl the current site”, the heading plan ticks “Heading structure” when its tag fixes are done, and the launch check ticks the QA items it passes.
-- The **launch check** (Tools tab, runs on your Mac, no AI) reads up to 60 pages of the staging or live site and every link on them. It checks noindex and robots.txt, placeholder text and “#” links, broken links, titles, descriptions, H1s, alt text and OG images, canonicals, legal links, and the https and www redirects. It also lists the sitemap, copyright year, phone numbers without tap-to-call, forms to test and broken links to other sites. The report groups checks into Needs fixing, Passed and After launch, gives a one-line fix for each issue, and compares with the last check of the same site: new issues are tagged and fixed ones are listed. **Copy issues** gives a Markdown checklist for Slack. On a staging (.webflow.io) check, indexing and redirects wait for a check of the live domain.
-- The **redirect map** (Tools tab, runs on your Mac, no AI) starts from the current site's URLs: the scan's list plus its sitemap. It reads the new site (usually staging) from its sitemap and links, then matches each old URL: same URL, a URL change from the SEO plan, the same slug in another folder, or a similar slug or title. What it can't match goes to the page's section or the home page and is marked to look at. Folder shortcuts and "Send all to" handle a whole blog at once. **Export for Webflow** writes the CSV for Site settings, Publishing, 301 redirects, Import. When a whole folder moved and kept its slugs, the export offers one folder rule instead of a line per page (`/blog/(.*)` to `/articles/%1`), but only when every old URL in that folder follows it and the new site has nothing under the old folder. Webflow's import replaces every existing redirect, so you can add Webflow's own export and it's merged in. **Test** opens every old URL on the live site and checks for one 301 to the right page. It ticks the redirect map item when every match looks right, and the launch and after-launch redirect items when a test of the live domain passes.
-- **Templates** holds project checklists, messages and emails. Changing a template only affects new projects.
-
-Projects live in `data/projects/<id>/` (launch check reports in its `launch/` folder), and templates in `data/templates.json`.
-
-## How it works
-
-1. **Scan** (runs on your Mac, no AI). Opens each page in headless Chrome and waits for preloaders and page-transition curtains to finish. It closes popups, scrolls to load lazy images and reveal scroll animations, then records every heading, heading-styled text and a full-page screenshot.
-2. **AI plan** (your plan's usage). You pick the pages, country, output, engine, model and effort, and see the time and usage estimate first. It runs `claude -p` or `codex exec` with the `h-tag-planner` skill in `tools/h-tag-planner/`. The AI can only read files and write JSON: no shell, web or connectors. It writes `plan/_site.json` first, then one file per page, which drives the real progress bar and time left. The composer's text box passes extra instructions to the AI. The browser tab shows progress, and you get a desktop notification when it's done.
-3. **Checks and guide.** Runs the skill's automatic checks and gives the AI one pass to fix failures. It builds the skill's HTML guide (Export) and the in-app to-do list.
-4. **To-do list.** Numbered pins on the screenshot match the list. Hovering or selecting a change scrolls the screenshot to it, and a scroll track shows where every change sits. Keyboard: `j`/`k` move, `x` ticks, `n`/`p` change page.
-5. **Check live site** re-reads the live pages and ticks off changes that are really there. **Retake screenshots** (site menu) uses no AI.
-
-### SEO plan
-
-Pick **SEO plan** in the composer's first chip. It uses the same scan and page picker, and your AI plan's usage (lighter than the heading plan).
-
-- It first reads each page's current title and description with plain requests, so they're up to date.
-- The AI writes a title, meta description and slug for each page into `seo/plan/`. When the site has a heading plan, it uses that plan's keywords, so the title, description and H1 target the same words.
-- Checks: titles 60 characters or fewer, descriptions 155 or fewer, the primary keyword in the title, unique titles, descriptions and URLs, clean slugs, no em dashes. Failures get one AI fix pass.
-- The SEO plan page lists every page with the new wording, what it was, why it changed, its length against Google's limit, and a preview of the search result. Pages that are already right stay folded. Click any new title or description to change the wording; your version is kept and used everywhere, including the export and the live check. A changed URL adds a 301 redirect to-do.
-- **Check live site** reads each page's title, description and URL (and the old URL's redirect) and ticks what's live. **Copy for the client** writes an approval message. **Export** is a CSV.
-- In a project, the SEO plan ticks "SEO per page" in Design and shows its progress on the SEO item in Development.
-
-### Skills
-
-The heading plan and the SEO plan each follow a skill. A heading skill is a folder with `SKILL.md` and its rules (`references/heading-rules.md` and friends); the built-in one is `tools/h-tag-planner`. The SEO plan's built-in rules live in its prompt (`lib/seo.js`, `RULES`); an added SEO skill is read first and wins, except the JSON format and the 60 and 155 character limits the app checks. **Settings, Skills** lists each tool's built-in skill (can't be deleted) and any you add, from a folder or a `.zip`/`.skill` file. Pick the one in use there or from the composer chip; the app remembers it. **Make an editable copy** duplicates a skill into the app's data folder (`data/skills/<id>/`) and **Open its folder** lets you edit its files. Deleting the skill in use switches back to the built-in. Each plan copies the skill it used, and an added skill without a guide template exports with the built-in one.
-
-## Usage transparency
-
-- The engine picker shows who is signed in, and whether that login bills a subscription or an API key.
-- A one-time confirmation before the first plan per engine shows pages, time and usage.
-- For Claude Code, the app reads the 5-hour and weekly usage windows from Claude Code's own rate-limit events. They appear in the sidebar, under the plan composer and on the plan card. These windows are shared with anything else using the same Claude account at the same time.
-
-## Code
-
-- `desktop/`: the Electron app. `main.js` starts the server inside the app, `updater.js` updates it from GitHub Releases.
-- `server.js`: local API and job runner (binds to 127.0.0.1). Data lives in `data/runs/<id>/`, or the app's data folder.
-- `lib/engines.js`: Claude Code / Codex detection, models, efforts and the runner.
-- `lib/crawl.js`: browser scan, preloader handling, screenshots and live checks.
-- `lib/headings.js`: prompts, turning the AI's plan into to-dos, export and verification. `lib/skills.js`: the built-in and added skills.
-- `lib/seo.js`: the SEO plan's prompt, assembly, live check and CSV. `shared/seo.mjs`: its checks and to-dos, used by both server and app.
-- `lib/launch.js`: the launch check (no AI). `lib/redirects.js`: the redirect map's matching and test (no AI).
-- `shared/checks.mjs`: automatic heading checks used by both server and app.
-- `web/`: the app. React + Vite + Tailwind v4, shadcn/ui on **Base UI**, Lucide icons, the Geist font. Warm neutral palette with one orange accent (`web/src/index.css`), no gradients.
-  - Develop: `node server.js`, then `cd web && npx vite` (it proxies `/api` to the server).
-  - Build: `npm run build` (writes `web/dist`, which the server serves).
-
-## Not yet
-
-- **Ahrefs** is off. Keywords are marked "unverified" and have no volumes. To add it: drop `--strict-mcp-config` for Claude runs, which loads the user's connectors, and remove the "Keyword data" paragraph in `planPrompt()`.
-- Codex runs are built from Codex's documented CLI but haven't been tested on a machine with Codex installed.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for running from source, how the pieces fit together, and publishing updates.

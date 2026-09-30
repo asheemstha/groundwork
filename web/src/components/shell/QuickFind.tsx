@@ -1,5 +1,5 @@
 import * as React from "react"
-import { FileText, FolderKanban, Globe, Home, LayoutTemplate, Plus, Rocket, Search, Settings, Wrench, Users } from "lucide-react"
+import { FileText, FolderKanban, Home, LayoutTemplate, Plus, Rocket, Search, Settings, Wrench, Users } from "lucide-react"
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandShortcut } from "@/components/ui/command"
 import { SiteIcon } from "@/components/common/bits"
 import { newProject } from "@/components/project/NewProjectDialog"
@@ -10,9 +10,9 @@ import { go, routes } from "@/lib/router"
 /** Open quick find from anywhere (⌘K). */
 export const openQuickFind = () => window.dispatchEvent(new CustomEvent("gw:quick-find"))
 
-/** Quick find: jump to any project, site or template, or run a common action, by typing. */
+/** Quick find: jump to any project or template, or run a common action, by typing. */
 export function QuickFind() {
-  const { projects, runs, siteLabel } = useApp()
+  const { projects } = useApp()
   const [open, setOpen] = React.useState(false)
   const [templates, setTemplates] = React.useState<TemplateSummary[]>([])
   React.useEffect(() => {
@@ -22,11 +22,9 @@ export function QuickFind() {
   }, [])
   React.useEffect(() => { if (open) api.templates().then(setTemplates).catch(() => {}) }, [open])
   const run = (f: () => void) => { setOpen(false); f() }
-  const projectHosts = new Set(projects.map((p) => p.host).filter(Boolean))
-  const sites = [...new Map(runs.filter((r) => !projectHosts.has(r.host)).map((r) => [r.host, r])).values()]
   return (
-    <CommandDialog open={open} onOpenChange={setOpen} title="Quick find" description="Jump to a project, site or template" className="sm:max-w-[640px]">
-      <CommandInput placeholder="Search projects, sites, templates, actions…" />
+    <CommandDialog open={open} onOpenChange={setOpen} title="Quick find" description="Jump to a project or template" className="sm:max-w-[640px]">
+      <CommandInput placeholder="Search projects, templates, actions…" />
       <CommandList className="max-h-[420px]">
         <CommandEmpty>Nothing matches.</CommandEmpty>
         <CommandGroup heading="Go to">
@@ -36,23 +34,20 @@ export function QuickFind() {
         </CommandGroup>
         <CommandGroup heading="Actions">
           <CommandItem value="new project" onSelect={() => run(() => newProject())}><Plus />New project<CommandShortcut>⌘N</CommandShortcut></CommandItem>
-          <CommandItem value="scan a site" onSelect={() => run(() => go(routes.scan))}><Search />Scan a site</CommandItem>
+          <CommandItem value="audit a site scan" onSelect={() => run(() => newProject({ audit: true }))}><Search />Audit a site</CommandItem>
         </CommandGroup>
         {projects.length > 0 && (
           <CommandGroup heading="Projects">
             {projects.map((p) => (
               <React.Fragment key={p.id}>
-                <CommandItem value={`${p.name} ${p.host || ""} checklist`} onSelect={() => run(() => go(routes.project(p.id)))}><SiteIcon runId={p.iconRun || undefined} name={p.name} className="size-4 rounded text-[8px]" />{p.name}<span className="text-muted-foreground">{p.current ? `${p.current.name}, ${p.current.done} of ${p.current.total}` : ""}</span></CommandItem>
+                <CommandItem value={`${p.name} ${p.host || ""} checklist`} onSelect={() => run(() => go(routes.project(p.id)))}><SiteIcon runId={p.iconRun || undefined} name={p.name} className="size-4 rounded text-[8px]" />{p.name}<span className="text-muted-foreground">{p.kind === "audit" ? "Audit" : p.current ? `${p.current.name}, ${p.current.done} of ${p.current.total}` : ""}</span></CommandItem>
+                {p.kind !== "audit" && <>
                 <CommandItem value={`${p.name} client waiting`} onSelect={() => run(() => go(routes.project(p.id, "client")))}><Users /><span className="text-muted-foreground">{p.name} /</span> Client</CommandItem>
                 <CommandItem value={`${p.name} tools`} onSelect={() => run(() => go(routes.project(p.id, "tools")))}><Wrench /><span className="text-muted-foreground">{p.name} /</span> Tools</CommandItem>
                 <CommandItem value={`${p.name} launch check report`} onSelect={() => run(() => go(routes.launch(p.id)))}><Rocket /><span className="text-muted-foreground">{p.name} /</span> Launch check</CommandItem>
+                </>}
               </React.Fragment>
             ))}
-          </CommandGroup>
-        )}
-        {sites.length > 0 && (
-          <CommandGroup heading="Other sites">
-            {sites.map((r) => <CommandItem key={r.host} value={`${siteLabel(r.host)} ${r.host}`} onSelect={() => run(() => go(r.status === "done" || r.status === "partial" ? routes.review(r.id) : routes.run(r.id)))}><Globe />{siteLabel(r.host)}<span className="text-muted-foreground">{r.host}</span></CommandItem>)}
           </CommandGroup>
         )}
         {templates.length > 0 && (

@@ -32,9 +32,9 @@ const hostOf = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } 
 const siteName = host => (readJson(sitesFile, {})[host] || {}).name || null;
 const setSiteName = (host, name) => { const all = readJson(sitesFile, {}); name = String(name || '').trim().slice(0, 60); if (name) all[host] = { ...(all[host] || {}), name }; else if (all[host]) delete all[host].name; writeJson(sitesFile, all); };
 // Projects and templates (lib/projects.js). A project links to a site's scans and plans by its host.
-const runsFor = host => fs.readdirSync(RUNS).map(id => loadRun(id)).filter(r => r && hostOf(r.origin || r.url) === host).sort((a, b) => b.created - a.created);
+const allRuns = () => fs.readdirSync(RUNS).map(id => loadRun(id)).filter(Boolean);
 const SK = require('./lib/skills')({ DATA, BUILTIN: H.SKILL_DIR, readJson, writeJson, seoRules: SEO.RULES });
-const P = require('./lib/projects')({ DATA, readJson, writeJson, runsFor, hostOf: u => hostOf(/^https?:\/\//i.test(u) ? u : 'https://' + u) });
+const P = require('./lib/projects')({ DATA, readJson, writeJson, allRuns, hostOf: u => hostOf(/^https?:\/\//i.test(u) ? u : 'https://' + u) });
 const ICON_EXT = { 'image/svg+xml': 'svg', 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif' };
 function saveFavicon(run, fav) {
   if (!fav) return;
@@ -80,7 +80,7 @@ async function status(force) {
 }
 
 // ---------- scanning (free: no AI) ----------
-async function startScan(rawUrl, name) {
+async function startScan(rawUrl, name, { projectId = null, site = null } = {}) {
   let url = String(rawUrl || '').trim();
   if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
   let u; try { u = new URL(url); } catch { throw new Error('That doesn’t look like a web address.'); }
@@ -88,18 +88,28 @@ async function startScan(rawUrl, name) {
   const id = Date.now().toString(36);
   fs.mkdirSync(path.join(runDir(id), 'crawl'), { recursive: true });
   fs.mkdirSync(path.join(runDir(id), 'shots'), { recursive: true });
-  const run = { id, tool: 'headings', url: u.href, name: u.hostname.replace(/^www\./, ''), created: Date.now(), status: 'scanning', scan: { started: Date.now(), step: 'open', done: 0, total: 0 }, pages: [] };
+  const run = { id, tool: 'headings', projectId, site, url: u.href, name: u.hostname.replace(/^www\./, ''), created: Date.now(), status: 'scanning', scan: { started: Date.now(), step: 'open', done: 0, total: 0 }, pages: [] };
   run.dir = runDir(id);
   if (name) setSiteName(hostOf(u.href), name);
   saveRun(run); active[id] = run;
   scan(run).catch(e => { run.status = 'scan_failed'; run.scan.error = friendly(e); run.scan.ended = Date.now(); saveRun(run); push(run); }).finally(() => { delete active[id]; });
   return run;
 }
+// Errors people can act on, in place of the browser's or the engine's codes.
 const friendly = e => {
   const m = String(e && e.message || e);
-  if (/ERR_NAME_NOT_RESOLVED/.test(m)) return 'We couldn’t find that site. Check the address.';
-  if (/ERR_CONNECTION|ECONNREFUSED/.test(m)) return 'The site didn’t respond. Is it online?';
-  if (/Timeout/i.test(m)) return 'The site took too long to load.';
+  if (/ERR_INTERNET_DISCONNECTED|ENETUNREACH|EAI_AGAIN/.test(m)) return 'This Mac seems to be offline. Check the internet connection and try again.';
+  if (/ERR_NAME_NOT_RESOLVED|ENOTFOUND/.test(m)) return 'We couldn’t find that site. Check the address for typos.';
+  if (/ERR_CONNECTION|ECONNREFUSED|ECONNRESET/.test(m)) return 'The site didn’t respond. Check that it’s online, then try again.';
+  if (/ERR_CERT|SSL|certificate/i.test(m)) return 'The site’s security certificate isn’t valid, so the browser won’t open it. Try the http:// address, or fix the certificate first.';
+  if (/ERR_TOO_MANY_REDIRECTS/.test(m)) return 'The site keeps redirecting in a loop, so no page loads.';
+  if (/Timeout|timed out/i.test(m)) return 'The site took too long to load. Try again, or scan fewer pages.';
+  const http = m.match(/HTTP (\d{3})/);
+  if (http && (http[1] === '401' || http[1] === '403')) return `The site blocked the scan (HTTP ${http[1]}). It may be password-protected or behind a firewall such as Cloudflare.`;
+  if (http && http[1] === '404') return 'That address returned “page not found” (HTTP 404). Check the address.';
+  if (http && http[1][0] === '5') return `The site had a server error (HTTP ${http[1]}). Try again in a few minutes.`;
+  if (/rate.?limit|usage limit|\b429\b|quota/i.test(m)) return 'Your AI plan’s usage limit was reached. Try again when it resets; the pages already planned are kept.';
+  if (/not logged in|login required|unauthori[sz]ed|invalid api key|authentication/i.test(m)) return 'The AI engine isn’t signed in any more. Open Settings, Engines to sign in again.';
   return m.split('\n')[0];
 };
 
@@ -245,7 +255,7 @@ async function startJob(run, settings, selected) {
     model: String(settings.model || 'default'), effort: String(settings.effort || 'medium'),
     notes: String(settings.notes || '').trim().slice(0, 2000)
   };
-  // The skill in use: the one picked in the composer, else the one remembered, else the built-in.
+  // The skill in use: the one picked in the Run panel, else the one remembered, else the built-in.
   const sk = SK.get(settings.skill || (getSettings().prefs || {}).skill, 'headings');
   Object.assign(S, { skill: sk.id, skillName: sk.name, skillSlug: sk.slug });
   const ids = new Set(run.pages.map(p => p.id));
@@ -598,10 +608,10 @@ const server = http.createServer(async (req, res) => {
     if (p === '/api/estimate' && M === 'POST') { const b = await body(req); return json(res, estimate(b.settings || {}, +b.pages || 1, b.tool === 'seo' ? 'seo' : 'headings')); }
     if (p === '/api/runs' && M === 'GET') {
       const names = readJson(sitesFile, {});
-      const list = fs.readdirSync(RUNS).map(id => loadRun(id)).filter(Boolean).map(r => ({ id: r.id, name: r.name, url: r.url, host: hostOf(r.origin || r.url), siteName: (names[hostOf(r.origin || r.url)] || {}).name || null, hasIcon: !!r.favicon, status: r.status, created: r.created, updated: r.updated, pages: (r.selected || []).length, progress: r.progress || null, percent: r.status === 'running' || r.status === 'scanning' ? (progress(r) || {}).percent : null, settings: r.settings || null, seo: r.seo ? { status: r.seo.status, progress: r.seo.progress || null, percent: r.seo.status === 'running' ? (jobProgress(r, 'seo') || {}).percent : null } : null }));
+      const list = fs.readdirSync(RUNS).map(id => loadRun(id)).filter(Boolean).map(r => ({ id: r.id, projectId: r.projectId || null, site: r.site || null, name: r.name, url: r.url, host: hostOf(r.origin || r.url), siteName: (names[hostOf(r.origin || r.url)] || {}).name || null, hasIcon: !!r.favicon, status: r.status, created: r.created, updated: r.updated, pages: (r.selected || []).length, progress: r.progress || null, percent: r.status === 'running' || r.status === 'scanning' ? (progress(r) || {}).percent : null, settings: r.settings || null, seo: r.seo ? { status: r.seo.status, progress: r.seo.progress || null, percent: r.seo.status === 'running' ? (jobProgress(r, 'seo') || {}).percent : null } : null }));
       return json(res, list.sort((a, b) => b.created - a.created));
     }
-    if (p === '/api/scan' && M === 'POST') { const b = await body(req); try { const run = await startScan(b.url, b.name); return json(res, { id: run.id }); } catch (e) { return json(res, { error: e.message }, 400); } }
+    if (p === '/api/open-data' && M === 'POST') { execFile(process.platform === 'win32' ? 'explorer' : process.platform === 'darwin' ? 'open' : 'xdg-open', [DATA], () => {}); return json(res, { ok: true }); }
 
     // ---- templates ----
     if (p === '/api/templates' && M === 'GET') return json(res, P.templateList());
@@ -618,14 +628,20 @@ const server = http.createServer(async (req, res) => {
     if (p === '/api/projects' && M === 'POST') {
       const b = await body(req);
       try {
-        let url = String(b.url || '').trim(), run = null;
-        if (url) {
-          if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
-          // Reuse the site's scans if Groundwork already knows it; otherwise start one.
-          if (!runsFor(hostOf(url)).length) run = await startScan(url, b.name);
-          else if (b.name) setSiteName(hostOf(url), b.name);
+        const proj = P.create(b), sites = P.sitesOf(proj);
+        // An audit of the same site becomes part of the new project: its scans and plans move over.
+        const hosts = Object.values(sites).filter(Boolean).map(hostOf);
+        for (const other of P.listRaw()) {
+          if (other.kind !== 'audit' || other.id === proj.id || !hosts.includes(other.host)) continue;
+          // Each scan takes the role its address has in the new project: usually the old site being replaced.
+          for (const r of P.runsOf(other)) { const run = readRun(r.id); if (run) { const h = hostOf(run.origin || run.url); run.projectId = proj.id; run.site = ['old', 'staging', 'live'].find(k => sites[k] && hostOf(sites[k]) === h) || null; saveRun(run); } }
+          P.remove(other.id);
         }
-        const proj = P.create({ ...b, url: run ? run.url : url || null });
+        // Scan the old site (a redesign) or the site being audited, unless it's already been scanned.
+        const which = proj.kind === 'audit' ? 'live' : sites.old ? 'old' : null;
+        let run = null;
+        if (which && !P.runsOf(proj).some(r => (r.pages || []).length)) run = await startScan(sites[which], proj.name, { projectId: proj.id, site: which });
+        if (b.name && proj.host) setSiteName(proj.host, b.name);
         return json(res, { id: proj.id, runId: run ? run.id : null });
       } catch (e) { return json(res, { error: e.message }, 400); }
     }
@@ -636,7 +652,11 @@ const server = http.createServer(async (req, res) => {
       try {
         if (!sub && M === 'GET') return json(res, P.get(id));
         if (!sub && M === 'PATCH') { const b = await body(req); P.update(id, b); if (b.name && P.readRaw(id).host) setSiteName(P.readRaw(id).host, b.name); return json(res, P.get(id)); }
-        if (!sub && M === 'DELETE') { P.remove(id); return json(res, { ok: true }); }
+        if (!sub && M === 'DELETE') {
+          // A project owns its scans and plans, so they go with it.
+          for (const r of P.runsOf(P.readRaw(id))) { if (L(r.id).proc) L(r.id).proc.kill(); fs.rmSync(runDir(r.id), { recursive: true, force: true }); delete live[r.id]; }
+          P.remove(id); return json(res, { ok: true });
+        }
         if (sub === '/template' && M === 'POST') { const b = await body(req); const r = P.templateUpdate(id, b); return json(res, b.dryRun ? r : { ...r, project: P.get(id) }); }
         if (sub === '/shift' && M === 'POST') { const b = await body(req); const r = P.shiftPlan(id, b); return json(res, b.dryRun ? r : P.get(id)); }
         let mm = sub.match(/^\/items\/([\w-]+)$/);
@@ -656,9 +676,12 @@ const server = http.createServer(async (req, res) => {
         if (sub === '/redirects/test' && M === 'POST') { const b = await body(req); P.startRedirectTest(id, b.url); return json(res, P.redirectState(id)); }
         if (sub === '/redirects/rows' && M === 'POST') { P.setRedirects(id, await body(req)); return json(res, P.redirectState(id)); }
         if (sub === '/scan' && M === 'POST') {
-          const b = await body(req), raw = P.readRaw(id);
-          const run = await startScan(b.url || raw.url, raw.name);
-          P.update(id, { url: run.url });
+          // Scan one of the project's sites: the old one, staging or live.
+          const b = await body(req), raw = P.readRaw(id), sites = P.sitesOf(raw);
+          const site = ['old', 'staging', 'live'].includes(b.site) ? b.site : sites.old ? 'old' : sites.staging ? 'staging' : 'live';
+          const url = sites[site] || b.url;
+          if (!url) return json(res, { error: 'Add the site’s address to the project first.' }, 400);
+          const run = await startScan(url, raw.name, { projectId: id, site });
           return json(res, { runId: run.id });
         }
         mm = sub.match(/^\/files\/([^/]+)$/);
@@ -752,7 +775,7 @@ const server = http.createServer(async (req, res) => {
         res.writeHead(200, { 'content-type': run.favicon.type || 'image/x-icon', 'cache-control': 'max-age=86400' });
         return fs.createReadStream(f).pipe(res);
       }
-      if (sub === '/rescan' && M === 'POST') { const r2 = await startScan(run.url); return json(res, { id: r2.id }); }
+      if (sub === '/rescan' && M === 'POST') { const r2 = await startScan(run.url, null, { projectId: run.projectId || null, site: run.site || null }); return json(res, { id: r2.id }); }
       if (sub === '/result') {
         let result = readJson(path.join(run.dir, 'result.json'));
         if (!result && run.settings && fs.existsSync(path.join(run.dir, 'plan'))) result = H.assemble(run);
@@ -797,6 +820,26 @@ for (const id of fs.readdirSync(RUNS)) {
   if (r && (r.status === 'running' || r.status === 'scanning')) { r.status = r.status === 'running' ? 'failed' : 'scan_failed'; r.error = 'Interrupted: Groundwork was closed while this was running.'; if (r.scan) r.scan.error = r.error; if (r.job) r.job.ended = Date.now(); saveRun(r); }
   if (r && r.seo && r.seo.status === 'running') { r.seo.status = 'failed'; r.seo.error = 'Interrupted: Groundwork was closed while this was running.'; r.seo.job.ended = Date.now(); saveRun(r); }
 }
+// Every scan belongs to a project. Scans from before that are claimed by the project with the same address; the
+// rest (sites scanned on their own) become audit projects, grouped by site.
+(function claimRuns() {
+  const projects = P.listRaw();
+  const byHost = new Map();
+  for (const pr of projects) for (const [k, u] of Object.entries(P.sitesOf(pr))) if (u && !byHost.has(hostOf(u))) byHost.set(hostOf(u), { id: pr.id, site: k });
+  const loose = new Map();
+  for (const id of fs.readdirSync(RUNS)) {
+    const r = readRun(id); if (!r || r.projectId) continue;
+    const h = hostOf(r.origin || r.url), owner = byHost.get(h);
+    if (owner) { r.projectId = owner.id; r.site = r.site || owner.site; saveRun(r); continue; }
+    if (!loose.has(h)) loose.set(h, []);
+    loose.get(h).push(r);
+  }
+  for (const [h, list] of loose) {
+    const latest = list.sort((a, b) => b.created - a.created)[0];
+    const audit = P.createAudit({ name: siteName(h) || latest.name || h, url: latest.origin || latest.url });
+    for (const r of list) { r.projectId = audit.id; r.site = 'live'; saveRun(r); }
+  }
+})();
 // Ctrl+C, closing the Terminal window or a kill: stop AI runs and the browser, then exit.
 for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(sig, async () => {
   for (const l of Object.values(live)) if (l.proc) l.proc.kill('SIGTERM');

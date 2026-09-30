@@ -11,13 +11,13 @@ import { api, type EngineId } from "@/lib/api"
 import { ago, cap, clock, pct } from "@/lib/format"
 import { SkillsSection } from "@/components/settings/Skills"
 
-const SECTIONS = [["you", "You"], ["engines", "Engines"], ["skills", "Skills"], ["updates", "Updates"], ["scanning", "Scanning"]] as const
+const SECTIONS = [["you", "You"], ["engines", "Engines"], ["privacy", "Data and privacy"], ["skills", "Skills"], ["updates", "Updates"], ["scanning", "Scanning"]] as const
 
-export function SettingsPage({ focus }: { focus?: EngineId }) {
+export function SettingsPage({ focus }: { focus?: EngineId | "privacy" }) {
   const { status } = useApp()
   const [at, setAt] = React.useState<string>("you")
   const scroller = React.useRef<HTMLDivElement>(null)
-  React.useEffect(() => { if (focus) document.getElementById("engine-" + focus)?.scrollIntoView({ behavior: "smooth" }) }, [focus])
+  React.useEffect(() => { if (focus) document.getElementById(focus === "privacy" ? "s-privacy" : "engine-" + focus)?.scrollIntoView({ behavior: "smooth" }) }, [focus, status])
   // The nav follows the section you've scrolled to.
   React.useEffect(() => {
     const el = scroller.current; if (!el) return
@@ -48,17 +48,36 @@ export function SettingsPage({ focus }: { focus?: EngineId }) {
             <Section id="engines" title="Engines" desc={<>Groundwork runs Claude Code or Codex on this computer, signed in to <b className="font-medium text-foreground">your own account</b>. Every plan counts toward that plan’s usage limits. Groundwork never sees your password, and nothing goes through a Groundwork server.</>}>
               <div className="grid gap-4"><EngineCard k="claude" highlight={focus === "claude"} /><EngineCard k="codex" highlight={focus === "codex"} /></div>
             </Section>
+            <Section id="privacy" title="Data and privacy"><Privacy /></Section>
             <Section id="skills" title="Skills" desc="The rules the AI follows. The built-in ones are always here. Add your own to change the rules, and pick which one each plan uses."><SkillsSection /></Section>
             <Section id="updates" title="Updates"><Updates /></Section>
             <Section id="scanning" title="Scanning">
               <div className="grid gap-px overflow-hidden rounded-xl border bg-border">
                 <div className="flex items-center gap-3 bg-card p-4 text-sm"><Globe className="size-4" /><span className="flex-1">Browser for scans</span>{status.browser.ok ? <span className="flex items-center gap-2"><Dot tone="ink" />{status.browser.name}</span> : <span className="text-brand">{status.browser.error}</span>}</div>
-                <div className="flex items-center gap-3 bg-card p-4 text-sm"><HardDrive className="size-4" /><span className="flex-1">Where projects, sites and plans are saved</span><span className="text-xs text-muted-foreground">The app’s data folder (Help, Show app data in Finder)</span></div>
               </div>
             </Section>
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+/** What stays on this Mac and what goes to the AI engine, in plain words. */
+function Privacy() {
+  const row = (title: string, body: React.ReactNode) => (
+    <div className="grid gap-1 bg-card p-4 text-[13.5px]"><span className="font-medium">{title}</span><span className="leading-relaxed text-muted-foreground">{body}</span></div>
+  )
+  return (
+    <div className="grid gap-px overflow-hidden rounded-xl border bg-border">
+      <div className="flex items-center gap-3 bg-card p-4 text-[13.5px]">
+        <HardDrive className="size-4 shrink-0" />
+        <span className="flex-1"><span className="font-medium">Everything is saved on this Mac.</span> <span className="text-muted-foreground">Projects, checklists, sign-off proof, scans and plans live in Groundwork’s data folder. There’s no Groundwork account or server.</span></span>
+        <Button size="sm" variant="outline" onClick={() => api.openData().catch((e) => toast.error(e.message))}>Show in Finder</Button>
+      </div>
+      {row("What the AI sees", <>Only the heading plan and the SEO plan use AI. They run Claude Code or Codex on this Mac, signed in to your own account, so the provider’s own privacy terms apply. The AI reads the pages you chose from the scan (their public text, headings, current titles and descriptions, and a screenshot when a layout is unclear), your notes and the skill. Checklists, client names, messages and sign-off files are never sent.</>)}
+      {row("Scans and checks", "The site scan, launch check and redirect test run in a browser on this Mac. They only visit the addresses you give them, and they don’t use AI.")}
+      {row("Other connections", "Groundwork checks GitHub for new versions a few times a day. The usage bars ask Claude for your plan’s limits when you refresh them.")}
     </div>
   )
 }
@@ -103,7 +122,7 @@ function EngineCard({ k, highlight }: { k: EngineId; highlight?: boolean }) {
       <header className="flex items-center gap-3 border-b px-5 py-4">
         <Terminal className="size-5" />
         <div className="flex-1">
-          <div className="font-medium">{cat.name} <span className="font-normal text-muted-foreground">by {cat.vendor}</span></div>
+          <div className="flex items-center gap-2 font-medium">{cat.name} <span className="font-normal text-muted-foreground">by {cat.vendor}</span>{cat.beta && <span className="tag-label" title="Works, but tested far less than Claude Code">Beta</span>}</div>
           <div className="text-xs text-muted-foreground">Needs {cat.plans}. <a href={cat.plansUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-0.5 hover:text-foreground">Plans<ExternalLink className="size-3" /></a></div>
         </div>
         {step === 3 ? <Tag tone="solid"><Check className="size-3" />Ready</Tag> : <Tag tone="brand">{e.installed ? "Not signed in" : "Not installed"}</Tag>}

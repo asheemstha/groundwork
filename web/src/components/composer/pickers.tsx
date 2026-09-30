@@ -53,28 +53,6 @@ export function OutputPicker({ value, onChange }: { value: Output; onChange: (v:
 }
 
 export type PlanTool = "headings" | "seo"
-const TOOLS: Record<PlanTool, { label: string; desc: string }> = {
-  headings: { label: "Heading plan", desc: "H1 to H6 for every page: tag fixes, and keyword rewrites if you want them." },
-  seo: { label: "SEO plan", desc: "A title, meta description and URL for every page. Uses the heading plan’s keywords when there is one." },
-}
-export function ToolPicker({ value, onChange }: { value: PlanTool; onChange: (v: PlanTool) => void }) {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger render={<ChipButton />}><Sparkles />{TOOLS[value].label}<ChevronDown className="opacity-60" /></DropdownMenuTrigger>
-      <DropdownMenuContent className="w-80" align="start">
-        <DropdownMenuGroup>
-          <DropdownMenuLabel>What to plan</DropdownMenuLabel>
-          {(Object.keys(TOOLS) as PlanTool[]).map((k) => (
-            <DropdownMenuItem key={k} className="items-start" onClick={() => onChange(k)}>
-              <span className="flex-1"><span className="block font-medium">{TOOLS[k].label}</span><span className="block text-xs text-muted-foreground">{TOOLS[k].desc}</span></span>
-              <Check className={cn("mt-0.5", k !== value && "invisible")} />
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  )
-}
 
 export function CountryPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const [open, setOpen] = React.useState(false)
@@ -120,12 +98,12 @@ export function EnginePicker({ value, onChange }: { value: EngineId; onChange: (
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-80" align="start">
         <DropdownMenuGroup>
-          <DropdownMenuLabel>Runs on your own account and counts toward its usage limits</DropdownMenuLabel>
+          <DropdownMenuLabel>Runs on your own Claude or ChatGPT subscription and counts toward its usage limits</DropdownMenuLabel>
           {(["claude", "codex"] as EngineId[]).map((k) => (
             <DropdownMenuItem key={k} className="items-start" onClick={() => (ready(k) ? onChange(k) : go(routes.settings(k)))}>
               <Cpu className="mt-0.5" />
               <span className="flex-1">
-                <span className="block font-medium">{status.catalog[k].name}</span>
+                <span className="flex items-center gap-2 font-medium">{status.catalog[k].name}{status.catalog[k].beta && <span className="tag-label">Beta</span>}</span>
                 <span className="block text-xs text-muted-foreground">
                   {ready(k) ? `${E[k].account || "Signed in"}${E[k].plan ? ` · ${cap(E[k].plan)} plan` : ""}` : E[k].installed ? "Installed, not signed in. Set up →" : "Not installed. Set up →"}
                 </span>

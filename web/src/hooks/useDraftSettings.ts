@@ -3,7 +3,7 @@ import { useApp } from "./useApp"
 import type { EngineId, Settings } from "@/lib/api"
 import { guessMarket } from "@/lib/countries"
 
-/** Plan settings being edited in the composer. Starts from this site's last plan, then your last choices. */
+/** Plan settings being edited in the Run panel. Starts from this site's last plan, then your last choices. */
 export function useDraftSettings(base: Partial<Settings> | undefined, hostName: string) {
   const { status, prefs } = useApp()
   const init = (): Settings => {

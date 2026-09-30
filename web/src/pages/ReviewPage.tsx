@@ -8,10 +8,11 @@ import { Switch } from "@/components/ui/switch"
 import { DropdownMenu, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card"
-import { ActBadge, Bar, HTag, Kbd, Ring, SiteIcon, Spinner, Tag, TopBar } from "@/components/common/bits"
+import { ActBadge, Bar, HTag, Kbd, Ring, Spinner, Tag, TopBar } from "@/components/common/bits"
 import { Screenshot, type Marker } from "@/components/common/Screenshot"
 import { ExportItems, modelName } from "@/components/run/blocks"
 import { SiteMenu, VersionMenu } from "@/components/shell/AppShell"
+import { Crumbs } from "@/components/project/Crumbs"
 import { useApp } from "@/hooks/useApp"
 import { useRun } from "@/hooks/useRun"
 import { api, shotUrl, type CState, type ResultPage, type Row } from "@/lib/api"
@@ -19,7 +20,7 @@ import { finalMode, isH, isTask, pageChecks, phases, siteChecks, taskCounts } fr
 import { ago, pct, plural } from "@/lib/format"
 import { go, routes } from "@/lib/router"
 import { store } from "@/lib/store"
-import { Empty, hostOf } from "./RunPage"
+import { Empty } from "./RunPage"
 
 type PRow = Row & { mode: "live" | "optimize"; phase: 1 | 2 }
 const keyOf = (pid: string, r: PRow) => `${r.mode}|${pid}|${r.key}`
@@ -29,7 +30,7 @@ export function ReviewPage({ view }: { view: string }) {
   const { run, result, cstate, setCState, progress, notFound } = useRun()
   const app = useApp()
   const [checking, setChecking] = React.useState(false)
-  if (notFound) return <Empty title="This site plan doesn’t exist any more." />
+  if (notFound) return <Empty title="This plan doesn’t exist any more." />
   if (!run || !result) return <div className="grid h-full place-items-center"><Spinner className="size-5" /></div>
 
   const pages = result.pages
@@ -59,9 +60,9 @@ export function ReviewPage({ view }: { view: string }) {
       else toast("None of the planned changes are on the live site yet", { description: `${plural(r.todo, "change")} to do.` })
     } catch (e) { toast.error((e as Error).message) } finally { setChecking(false) }
   }
-  const rescan = async () => { const { id } = await api.rescan(run.id); await app.refreshRuns(); go(routes.run(id)) }
+  const rescan = async () => { const { id } = await api.rescan(run.id); await app.refreshRuns(); go(routes.run(id, "headings")) }
   const reshoot = async () => {
-    const t = toast.loading("Retaking screenshots…", { description: "Runs on your Mac. No AI plan usage." })
+    const t = toast.loading("Retaking screenshots…", { description: "Runs on your Mac. No AI." })
     try { const r = await api.reshoot(run.id); toast.success(`New screenshots for ${plural(r.pages, "page")}`, { id: t, description: "" }) } catch (e) { toast.error((e as Error).message, { id: t }) }
   }
   const page = view.startsWith("p:") ? pages.find((p) => p.id === view.slice(2)) : null
@@ -87,17 +88,17 @@ export function ReviewPage({ view }: { view: string }) {
   return (
     <div className="flex h-full min-h-0 flex-col">
       <TopBar className="gap-3">
-        <SiteIcon runId={run.id} name={app.siteLabel(hostOf(run))} className="size-5 text-[10px]" />
-        <button onClick={() => go(routes.run(run.id))} className="truncate text-sm font-medium hover:underline" title={hostOf(run)}>{app.siteLabel(hostOf(run))}</button>
-        <span className="text-muted-foreground">/</span>
-        <VersionMenu runId={run.id} />
+        <Crumbs projectId={run.projectId || null} label={<button onClick={() => go(routes.run(run.id, "headings"))} className="hover:underline">Heading plan</button>}>
+          <span className="text-muted-foreground/60">/</span>
+          <VersionMenu runId={run.id} />
+        </Crumbs>
         <select aria-label="Go to" className="h-8 max-w-44 rounded-lg border bg-card px-2 text-sm min-[1400px]:hidden" value={view} onChange={(e) => go(routes.review(run.id, e.target.value))}>
           <option value="overview">Overview</option>
           <option value="signoff">{signoffLabel}</option>
           {planned.map((p) => { const c = pageCounts(p, cstate.done); return <option key={p.id} value={"p:" + p.id}>{p.name} ({c.done}/{c.tasks})</option> })}
         </select>
         <span className="flex-1" />
-        {running && <button onClick={() => go(routes.run(run.id))} className="flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs"><Spinner className="size-3" />Planning {progress?.percent || 0}%</button>}
+        {running && <button onClick={() => go(routes.run(run.id, "headings"))} className="flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs"><Spinner className="size-3" />Planning {progress?.percent || 0}%</button>}
         <div className="hidden items-center gap-2 lg:flex" title="Changes done across all pages">
           <Bar value={tot.tasks ? (100 * tot.done) / tot.tasks : 0} className="w-28" />
           <span className="text-xs whitespace-nowrap text-muted-foreground"><b className="text-foreground tabular">{tot.done}</b> / {tot.tasks} done</span>
@@ -112,7 +113,7 @@ export function ReviewPage({ view }: { view: string }) {
           <DropdownMenuTrigger render={<Button variant="outline" size="sm" disabled={running} />}><Download /> Export</DropdownMenuTrigger>
           <ExportItems id={run.id} modes={result.site.modes} />
         </DropdownMenu>
-        <SiteMenu host={hostOf(run)} onRescan={rescan} onReshoot={reshoot} onDelete={() => go(routes.run(run.id))}><Button variant="ghost" size="icon-sm" aria-label="Site options"><MoreHorizontal /></Button></SiteMenu>
+        <SiteMenu onRescan={rescan} onReshoot={reshoot} onDelete={() => go(routes.run(run.id, "headings"))}><Button variant="ghost" size="icon-sm" aria-label="Site options"><MoreHorizontal /></Button></SiteMenu>
       </TopBar>
       <div className="flex min-h-0 flex-1">
         <nav className="scrollbar-thin hidden w-52 shrink-0 overflow-auto border-r px-2 py-3 min-[1400px]:block" aria-label="Pages">

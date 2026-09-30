@@ -1,5 +1,5 @@
 // Helpers for projects: due dates, due-rule labels and filling in message templates.
-import type { DueRule, LaunchCheckId, MessageTemplate, PItem, Project } from "@/lib/api"
+import type { DueRule, LaunchCheckId, MessageTemplate, PItem, Project, SiteKey } from "@/lib/api"
 
 const parse = (d: string) => { const [y, m, day] = d.split("-").map(Number); return new Date(y!, m! - 1, day!) }
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
@@ -60,3 +60,8 @@ export const LAUNCH_CHECKS: Record<LaunchCheckId, string> = {
   legal: "Legal pages linked",
   https: "SSL and redirects",
 }
+
+/** A project's three websites: the one being replaced, the new one on staging, and the live domain. */
+export const SITE_NAME: Record<SiteKey, string> = { old: "Old site", staging: "Staging", live: "Live site" }
+export const SITE_KEYS: SiteKey[] = ["old", "staging", "live"]
+export const hostOfUrl = (u?: string | null) => { if (!u) return ""; try { return new URL(u).hostname.replace(/^www\./, "") } catch { return u } }
