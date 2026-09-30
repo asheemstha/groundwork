@@ -1,0 +1,55 @@
+{
+  "about": "What Groundwork knows about each website platform: its staging or preview addresses, and the redirect formats it imports. Sources and dates are in the product plan's platform appendix. Checked 2026-09-30.",
+  "list": [
+    {
+      "id": "webflow",
+      "name": "Webflow",
+      "staging": ["\\.webflow\\.io$"],
+      "redirects": ["webflow"]
+    },
+    {
+      "id": "wordpress",
+      "name": "WordPress",
+      "staging": ["\\.wpengine\\.com$", "\\.wpenginepowered\\.com$", "^(stg|env|staging)-.*\\.kinsta\\.cloud$", "^staging-.*\\.wpcomstaging\\.com$"],
+      "redirects": ["wordpress", "htaccess", "nginx"]
+    },
+    {
+      "id": "shopify",
+      "name": "Shopify",
+      "staging": ["\\.myshopify\\.com$"],
+      "redirects": ["shopify"]
+    },
+    {
+      "id": "framer",
+      "name": "Framer",
+      "staging": ["\\.framer\\.app$", "\\.framer\\.website$"],
+      "redirects": ["framer"]
+    },
+    {
+      "id": "squarespace",
+      "name": "Squarespace",
+      "staging": ["\\.squarespace\\.com$"],
+      "redirects": ["squarespace"]
+    },
+    {
+      "id": "wix",
+      "name": "Wix",
+      "staging": ["\\.wixsite\\.com$"],
+      "redirects": ["wix"]
+    },
+    {
+      "id": "custom",
+      "name": "Custom or other",
+      "staging": ["\\.netlify\\.app$", "\\.vercel\\.app$"],
+      "redirects": ["netlify", "vercel", "htaccess", "nginx"]
+    }
+  ],
+  "detect": {
+    "Webflow": "webflow",
+    "WordPress": "wordpress",
+    "Shopify": "shopify",
+    "Framer": "framer",
+    "Squarespace": "squarespace",
+    "Wix": "wix"
+  }
+}

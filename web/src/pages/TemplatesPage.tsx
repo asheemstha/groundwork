@@ -58,9 +58,9 @@ export function TemplatesPage() {
                       {t.kind === "checklist" ? (
                         <>
                           <span className="mb-1 grid size-7 place-items-center rounded-md bg-muted text-foreground/70"><ListChecks className="size-[15px]" /></span>
-                          <span className="truncate font-medium">{t.name}</span>
-                          <span className="text-[12.5px] text-muted-foreground">{t.items} items in {t.phases} phases</span>
-                          <span className={cn("text-[12.5px]", t.used ? "text-muted-foreground" : "text-muted-foreground/60")}>{t.used ? `Used by ${t.used} ${t.used === 1 ? "project" : "projects"}` : "Not used yet"}</span>
+                          <span className="truncate pr-6 font-medium">{t.name}</span>
+                          {t.desc && <span className="line-clamp-2 text-[12.5px] leading-snug text-muted-foreground">{t.desc}</span>}
+                          <span className={cn("mt-auto text-[12px]", t.used ? "text-muted-foreground" : "text-muted-foreground/70")}>{t.items} items{t.repeat ? ", monthly" : ""} · {t.used ? `used by ${t.used} ${t.used === 1 ? "project" : "projects"}` : "not used yet"}</span>
                         </>
                       ) : (
                         <>

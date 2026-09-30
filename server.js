@@ -108,15 +108,22 @@ const friendly = e => {
   if (http && (http[1] === '401' || http[1] === '403')) return `The site blocked the scan (HTTP ${http[1]}). It may be password-protected or behind a firewall such as Cloudflare.`;
   if (http && http[1] === '404') return 'That address returned “page not found” (HTTP 404). Check the address.';
   if (http && http[1][0] === '5') return `The site had a server error (HTTP ${http[1]}). Try again in a few minutes.`;
+  if (/CLOUDFLARE_CHALLENGE/.test(m)) return 'The site’s Cloudflare bot protection turned the scan away. Scan the staging address instead, or allow Groundwork in the site’s Cloudflare settings.';
   if (/rate.?limit|usage limit|\b429\b|quota/i.test(m)) return 'Your AI plan’s usage limit was reached. Try again when it resets; the pages already planned are kept.';
   if (/not logged in|login required|unauthori[sz]ed|invalid api key|authentication/i.test(m)) return 'Claude Code or Codex isn’t signed in any more. Open Settings, AI accounts, to sign in again.';
   return m.split('\n')[0];
 };
 
 async function scan(run) {
-  const d = await crawl.discover(run.url, step => { run.scan.step = step; push(run); });
+  // One browser session for the whole scan, so the site sees one visitor with its cookies.
+  const ctx = await crawl.newContext();
+  try { await scanWith(run, ctx); } finally { await ctx.close().catch(() => {}); }
+}
+async function scanWith(run, ctx) {
+  const d = await crawl.discover(run.url, step => { run.scan.step = step; push(run); }, ctx);
   if (d.status >= 400) throw new Error(`The home page returned HTTP ${d.status}.`);
   Object.assign(run, { origin: d.origin, platform: d.platform, navText: d.navText, dead: d.dead, siteTitle: d.title });
+  if (run.projectId) P.notePlatform(run.projectId, d.platform);
   saveFavicon(run, d.favicon);
   const used = new Set();
   run.pages = d.pages.map(p => {
@@ -127,8 +134,8 @@ async function scan(run) {
   run.selected = run.pages.filter(p => p.selected).map(p => p.id);
   const toScan = run.pages.slice(0, 60);
   run.scan.step = 'pages'; run.scan.total = toScan.length; run.scan.pagesStarted = Date.now(); push(run);
-  const ctx = await crawl.newContext();
-  try {
+  let challenged = 0;
+  {
     await crawl.pool(toScan, 3, async p => {
       const a = await crawl.auditPage(ctx, run.origin, p.path);
       if (a.shot) fs.writeFileSync(path.join(run.dir, 'shots', p.id + '.jpg'), a.shot);
@@ -136,10 +143,14 @@ async function scan(run) {
       writeJson(path.join(run.dir, 'crawl', p.id + '.json'), a);
       Object.assign(p, { status: a.status || 0, error: a.error || null, counts: a.counts || null, title: a.title || '', height: a.height || 0, headings: (a.items || []).filter(i => /^H[1-6]$/.test(i.kind)).length, styled: (a.items || []).filter(i => i.styled && !i.hidden).length });
       if (!p.name) p.name = crawl.nameFromTitle(a.title, d.title) || p.path;
+      if (a.challenge) challenged++;
       if (p.status >= 400 || !p.status) run.selected = run.selected.filter(x => x !== p.id);
       run.scan.done++; push(run);
     });
-  } finally { await ctx.close().catch(() => {}); }
+  }
+  // Bot protection that lets the home page through and then turns every page away: say so plainly.
+  if (challenged && challenged >= toScan.length / 2) throw new Error('CLOUDFLARE_CHALLENGE');
+  if (challenged) run.scan.blocked = challenged;
   for (const p of run.pages) if (!p.name) p.name = p.path;
   run.name = (crawl.nameFromTitle(d.title, d.title) || run.name).slice(0, 40);
   run.crawledAt = run.shotsAt = Date.now(); run.status = 'scanned'; run.scan.ended = Date.now();
@@ -522,6 +533,66 @@ async function checkLive(run) {
 // ---------- updates (from the GitHub repo this folder was cloned from) ----------
 const { execFile } = require('child_process');
 const VERSION = readJson(path.join(ROOT, 'package.json'), {}).version || '0';
+// ---------- backup, export and import ----------
+// A backup is the whole data folder as a zip in Documents/Groundwork Backups. A project export is one project with its
+// scans and plans, which another Groundwork can import.
+const os = require('os');
+const zipDir = (src, dest) => new Promise((ok, no) => process.platform === 'darwin'
+  ? execFile('/usr/bin/ditto', ['-c', '-k', '--norsrc', '--noextattr', '--noqtn', '--keepParent', src, dest], { timeout: 600000 }, e => e ? no(e) : ok())
+  : execFile('zip', ['-qr', dest, path.basename(src)], { cwd: path.dirname(src), timeout: 600000 }, e => e ? no(e) : ok()));
+const unzipTo = (file, dest) => new Promise((ok, no) => process.platform === 'darwin'
+  ? execFile('/usr/bin/ditto', ['-x', '-k', file, dest], { timeout: 600000 }, e => e ? no(e) : ok())
+  : execFile('unzip', ['-q', '-o', file, '-d', dest], { timeout: 600000 }, e => e ? no(e) : ok()));
+const stamp = () => { const d = new Date(), z = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())} ${z(d.getHours())}.${z(d.getMinutes())}`; };
+async function backupData() {
+  const dir = path.join(os.homedir(), 'Documents', 'Groundwork Backups');
+  fs.mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, `Groundwork backup ${stamp()}.zip`);
+  await zipDir(DATA, file);
+  return file;
+}
+async function exportProject(id) {
+  const raw = P.readRaw(id), tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gw-export-')), root = path.join(tmp, 'groundwork-project');
+  fs.cpSync(P.dirOf(id), path.join(root, 'project'), { recursive: true });
+  for (const r of P.runsOf(raw)) if (fs.existsSync(runDir(r.id))) fs.cpSync(runDir(r.id), path.join(root, 'runs', r.id), { recursive: true });
+  writeJson(path.join(root, 'manifest.json'), { format: 'groundwork-project', version: 1, app: VERSION, exported: Date.now(), name: raw.name });
+  const file = path.join(tmp, 'project.zip');
+  await zipDir(root, file);
+  fs.rmSync(root, { recursive: true, force: true });
+  return { file, name: raw.name };
+}
+async function importProject(data) {
+  const buf = Buffer.from(String(data || ''), 'base64');
+  if (!buf.length) throw new Error('Choose a Groundwork project file.');
+  if (buf.length > 800e6) throw new Error('That file is over 800 MB.');
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gw-import-'));
+  try {
+    fs.writeFileSync(path.join(tmp, 'in.zip'), buf);
+    await unzipTo(path.join(tmp, 'in.zip'), path.join(tmp, 'x')).catch(() => { throw new Error('That isn’t a Groundwork project file.'); });
+    const root = [path.join(tmp, 'x', 'groundwork-project'), path.join(tmp, 'x')].find(d => fs.existsSync(path.join(d, 'manifest.json')));
+    const proj = root && readJson(path.join(root, 'project', 'project.json'));
+    if (!proj) throw new Error('That isn’t a Groundwork project file.');
+    // Keep the ids unless this Groundwork already has them.
+    const id = P.readRaw(proj.id) ? P.newId() : proj.id;
+    const renamed = {};
+    for (const rid of fs.existsSync(path.join(root, 'runs')) ? fs.readdirSync(path.join(root, 'runs')) : []) {
+      if (!/^[a-z0-9]+$/.test(rid)) continue;
+      const nid = fs.existsSync(runDir(rid)) ? Date.now().toString(36) + Math.random().toString(36).slice(2, 5) : rid;
+      fs.cpSync(path.join(root, 'runs', rid), runDir(nid), { recursive: true });
+      const m = readJson(path.join(runDir(nid), 'meta.json'), null);
+      if (m) { m.id = nid; m.projectId = id; if (m.status === 'running' || m.status === 'scanning') m.status = 'failed'; writeJson(path.join(runDir(nid), 'meta.json'), m); }
+      renamed[rid] = nid;
+    }
+    fs.cpSync(path.join(root, 'project'), P.dirOf(id), { recursive: true });
+    const pj = readJson(path.join(P.dirOf(id), 'project.json'));
+    pj.id = id; if (id !== proj.id) pj.name = pj.name + ' (imported)';
+    writeJson(path.join(P.dirOf(id), 'project.json'), pj);
+    const rf = path.join(P.dirOf(id), 'redirects.json'), rm = readJson(rf, null);
+    if (rm && renamed[rm.oldRunId]) { rm.oldRunId = renamed[rm.oldRunId]; writeJson(rf, rm); }
+    return { id, name: pj.name, runs: Object.keys(renamed).length };
+  } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+}
+
 const git = (args, ms = 20000) => new Promise(r => execFile('git', args, { cwd: ROOT, timeout: ms }, (e, out, err) => r({ ok: !e, out: String(out || '').trim(), err: String(err || '').trim() })));
 let update = { enabled: !!(DESKTOP() && DESKTOP().enabled), version: VERSION, app: !!process.env.GW_APP, commit: null, behind: 0, latest: null, checkedAt: 0, error: null, launcher: !!process.env.GW_LAUNCHER };
 async function checkUpdate() {
@@ -611,6 +682,10 @@ const server = http.createServer(async (req, res) => {
       const list = fs.readdirSync(RUNS).map(id => loadRun(id)).filter(Boolean).map(r => ({ id: r.id, projectId: r.projectId || null, site: r.site || null, name: r.name, url: r.url, host: hostOf(r.origin || r.url), siteName: (names[hostOf(r.origin || r.url)] || {}).name || null, hasIcon: !!r.favicon, status: r.status, created: r.created, updated: r.updated, pages: (r.selected || []).length, progress: r.progress || null, percent: r.status === 'running' || r.status === 'scanning' ? (progress(r) || {}).percent : null, settings: r.settings || null, seo: r.seo ? { status: r.seo.status, progress: r.seo.progress || null, percent: r.seo.status === 'running' ? (jobProgress(r, 'seo') || {}).percent : null } : null }));
       return json(res, list.sort((a, b) => b.created - a.created));
     }
+    // ---- backup, export, import, sample ----
+    if (p === '/api/backup' && M === 'POST') { try { const file = await backupData(); execFile('/usr/bin/open', ['-R', file], () => {}); return json(res, { file }); } catch (e) { return json(res, { error: 'Couldn’t make the backup: ' + friendly(e) }, 500); } }
+    if (p === '/api/projects/import' && M === 'POST') { const b = await body(req); try { return json(res, await importProject(b.data)); } catch (e) { return json(res, { error: e.message }, 400); } }
+    if (p === '/api/sample' && M === 'POST') { const x = P.createSample(); return json(res, { id: x.id }); }
     if (p === '/api/open-data' && M === 'POST') { execFile(process.platform === 'win32' ? 'explorer' : process.platform === 'darwin' ? 'open' : 'xdg-open', [DATA], () => {}); return json(res, { ok: true }); }
 
     // ---- templates ----
@@ -658,6 +733,7 @@ const server = http.createServer(async (req, res) => {
           P.remove(id); return json(res, { ok: true });
         }
         if (sub === '/template' && M === 'POST') { const b = await body(req); const r = P.templateUpdate(id, b); return json(res, b.dryRun ? r : { ...r, project: P.get(id) }); }
+        if (sub === '/next-cycle' && M === 'POST') { P.nextCycle(id); return json(res, P.get(id)); }
         if (sub === '/shift' && M === 'POST') { const b = await body(req); const r = P.shiftPlan(id, b); return json(res, b.dryRun ? r : P.get(id)); }
         let mm = sub.match(/^\/items\/([\w-]+)$/);
         if (mm && M === 'POST') { P.setItem(id, mm[1], await body(req)); return json(res, P.get(id)); }
@@ -683,6 +759,12 @@ const server = http.createServer(async (req, res) => {
           if (!url) return json(res, { error: 'Add the site’s address to the project first.' }, 400);
           const run = await startScan(url, raw.name, { projectId: id, site });
           return json(res, { runId: run.id });
+        }
+        if (sub === '/export' && M === 'GET') {
+          const { file, name } = await exportProject(id);
+          res.writeHead(200, { 'content-type': 'application/zip', 'content-disposition': `attachment; filename="${name.replace(/[^\w .()-]+/g, '')} - Groundwork project.zip"` });
+          const st = fs.createReadStream(file); st.pipe(res); st.on('close', () => fs.rmSync(path.dirname(file), { recursive: true, force: true }));
+          return;
         }
         mm = sub.match(/^\/files\/([^/]+)$/);
         if (mm && M === 'GET') {

@@ -1,6 +1,7 @@
 import * as React from "react"
 import { Mail, Plus, User, Stamp } from "lucide-react"
 import { cn } from "cn"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { SiteIcon, TopBar } from "@/components/common/bits"
 import { newProject } from "@/components/project/NewProjectDialog"
@@ -12,7 +13,7 @@ import { go, routes } from "@/lib/router"
 
 /** Home: what needs doing across every project, soonest first, and where each project stands. */
 export function Dashboard() {
-  const { projects, runs } = useApp()
+  const { projects, runs, refreshProjects } = useApp()
   const [data, setData] = React.useState<HomeData | null>(null)
   React.useEffect(() => { api.home().then(setData).catch(() => {}) }, [projects, runs])
   const today = new Date().toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" })
@@ -33,7 +34,7 @@ export function Dashboard() {
           {!work.length ? (
             <div className="rounded-lg bg-muted/50 px-6 py-8 text-center">
               <p className="text-[14px] text-muted-foreground">A project follows a website checklist from kickoff to launch. An audit just scans a site and checks it.</p>
-              <div className="mt-4 flex justify-center gap-2"><Button onClick={() => newProject()}><Plus />New project</Button><Button variant="outline" onClick={() => newProject({ audit: true })}>Audit a site</Button></div>
+              <div className="mt-4 flex flex-wrap justify-center gap-2"><Button onClick={() => newProject()}><Plus />New project</Button><Button variant="outline" onClick={() => newProject({ audit: true })}>Audit a site</Button><Button variant="ghost" onClick={async () => { try { const r = await api.createSample(); await refreshProjects(); go(routes.project(r.id)) } catch (e) { toast.error((e as Error).message) } }}>Explore a sample project</Button></div>
             </div>
           ) : (
             <>
@@ -80,7 +81,7 @@ function Setup() {
     [!!(status.engines.claude?.loggedIn || status.engines.codex?.loggedIn), "Sign in to Claude Code or Codex (optional)", "Only the heading and SEO plans use AI, on your own Claude or ChatGPT subscription. Checklists, scans and checks work without it.", () => go(routes.settings())],
     [!!status.browser?.ok, "Chrome or Edge for scans", "Groundwork uses the browser already on this Mac.", () => go(routes.settings())],
     [!!prefs.appliedBy, "Add your name", "It signs client messages and exported guides.", () => go(routes.settings())],
-    [projects.length > 0, "Create your first project", "From the Website project checklist, or your own.", () => newProject()],
+    [projects.some((p) => !p.sample), "Create your first project", "Pick a checklist that fits: a redesign, a new site, a store and more.", () => newProject()],
   ]
   const done = steps.filter((x) => x[0]).length
   if (done === steps.length) return null

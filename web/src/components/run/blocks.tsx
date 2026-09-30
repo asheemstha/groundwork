@@ -7,6 +7,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Bar, HTag, Spinner, Tag } from "@/components/common/bits"
+import { CloudflareHelp, isCloudflare } from "@/components/common/CloudflareHelp"
 import { Screenshot, type Marker } from "@/components/common/Screenshot"
 import { useApp } from "@/hooks/useApp"
 import { api, exportUrl, seoCsvUrl, shotUrl, type CrawlData, type LogEntry, type Progress, type Run, type ScanPage, type Result, type Mode, type SeoResult, type SeoState } from "@/lib/api"
@@ -88,6 +89,12 @@ export function ScanBlock({ run, progress }: { run: Run; progress: Progress | nu
           </div>
         ))}
       </div>
+      {!!s?.blocked && (
+        <div className="grid gap-2 border-b px-5 py-3 text-[13px]">
+          <span><span className="text-destructive">Cloudflare turned {plural(s.blocked, "page")} away.</span> <span className="text-muted-foreground">Those pages show as not loaded, and the plans skip them.</span></span>
+          <CloudflareHelp />
+        </div>
+      )}
       <Collapsible>
         <CollapsibleTrigger className="group flex w-full items-center gap-2 px-5 py-2.5 text-xs text-muted-foreground hover:text-foreground">
           <ChevronDown className="size-3.5 transition-transform group-data-[panel-open]:rotate-180" /> What the scan did
@@ -354,6 +361,7 @@ export function FailedBlock({ run, onRetry }: { run: Run; onRetry: () => void })
   return (
     <Block label="Problem" title={run.status === "scan_failed" ? "Groundwork couldn’t scan this site" : "The plan didn’t finish"} right={<Button size="sm" variant="outline" onClick={onRetry}><RefreshCw /> Try again</Button>}>
       <p className="border-t px-5 py-3 text-sm text-muted-foreground">{run.status === "scan_failed" ? run.scan?.error : run.error || "Unknown error."}</p>
+      {isCloudflare(run.scan?.error) && <CloudflareHelp open className="border-t px-5 py-3" />}
     </Block>
   )
 }

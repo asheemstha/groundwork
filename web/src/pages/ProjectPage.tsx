@@ -1,10 +1,11 @@
 import * as React from "react"
 import { cn } from "cn"
-import { Ban, CalendarDays, Check, ChevronDown, ChevronRight, ChevronUp, Copy, ExternalLink, FolderPlus, Info, Layers, Link2, Loader2, Mail, MessageSquare, MoreHorizontal, Paperclip, Pencil, RefreshCw, Stamp, Trash2, Undo2, User, X } from "lucide-react"
+import { Ban, CalendarDays, Check, ChevronDown, ChevronRight, ChevronUp, Copy, Download, ExternalLink, FolderPlus, Info, Layers, Link2, Loader2, Mail, MessageSquare, MoreHorizontal, Paperclip, Pencil, RefreshCw, Stamp, Trash2, Undo2, User, X } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
+import { PLATFORMS, platformOf, stagingExample, type PlatformId } from "@/lib/platforms"
 import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
@@ -67,6 +68,7 @@ export function ProjectPage({ id, tab: asked, sub }: { id: string; tab: Tab; sub
             {!audit && <DropdownMenuItem onClick={shiftPlan}><CalendarDays /> Move dates…</DropdownMenuItem>}
             {!audit && <DropdownMenuItem onClick={updateFromTemplate}><RefreshCw /> Update from the template…{p.templateChanged && <span className="ml-auto size-1.5 rounded-full bg-foreground/60" />}</DropdownMenuItem>}
             {audit && <DropdownMenuItem onClick={() => newProject({ name: p.name, old: p.sites.live || p.url || "" })}><FolderPlus /> Start a project for this site…</DropdownMenuItem>}
+            <DropdownMenuItem onClick={() => { const a = document.createElement("a"); a.href = `/api/projects/${p.id}/export`; a.download = ""; a.click(); toast("Exporting the project", { description: "Its checklist, files, scans and plans, as one zip another Groundwork can import." }) }}><Download /> Export project…</DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem variant="destructive" onClick={() => setRemoving(true)}><Trash2 /> {audit ? "Delete audit…" : "Delete project…"}</DropdownMenuItem>
           </DropdownMenuContent>
@@ -77,14 +79,15 @@ export function ProjectPage({ id, tab: asked, sub }: { id: string; tab: Tab; sub
           <header className="px-12 pt-7">
             <SiteIcon runId={p.tools.iconRun || undefined} name={p.name} className="size-10 rounded-lg text-lg" />
             <h1 className="mt-2.5 text-[32px] leading-tight font-medium">{p.name}</h1>
-            <dl className="mt-4 grid max-w-2xl gap-y-0.5 text-[14px] [--prop-w:130px] lg:max-w-5xl lg:grid-flow-col lg:grid-cols-2 lg:grid-rows-4 lg:gap-x-12">
+            <dl className="mt-4 grid max-w-2xl gap-y-0.5 text-[14px] [--prop-w:130px] lg:max-w-5xl lg:grid-flow-col lg:grid-cols-2 lg:grid-rows-5 lg:gap-x-12">
               {(audit ? (["live"] as const) : SITE_KEYS).map((k) => (
                 <Prop key={k} icon={<Link2 className="size-3.5" />} label={audit ? "Site" : SITE_NAME[k]}>{p.sites[k] ? <a href={p.sites[k]!} target="_blank" rel="noreferrer" className="hover:underline">{hostOfUrl(p.sites[k])}</a> : <button onClick={() => setEditing(true)} className="text-muted-foreground hover:text-foreground">Empty</button>}</Prop>
               ))}
+              <Prop icon={<Layers className="size-3.5" />} label="Built with">{platformOf(p.platform) ? <button onClick={() => setEditing(true)} className="hover:underline">{platformOf(p.platform)!.name}</button> : <button onClick={() => setEditing(true)} className="text-muted-foreground hover:text-foreground">Not known yet</button>}</Prop>
               {!audit && <>
               <Prop icon={<User className="size-3.5" />} label="Client">{p.clientName ? <button onClick={() => setEditing(true)} className="hover:underline">{p.clientName}</button> : <button onClick={() => setEditing(true)} className="text-muted-foreground hover:text-foreground">Empty</button>}</Prop>
-              <Prop icon={<CalendarDays className="size-3.5" />} label="Kickoff"><DateField value={p.kickoff} placeholder="Empty" icon={false} className="-ml-2" onChange={async (v) => { try { setP(await api.updateProject(id, { kickoff: v })); refreshProjects() } catch (e) { toast.error((e as Error).message) } }} /></Prop>
-              <Prop icon={<CalendarDays className="size-3.5" />} label="Launch"><DateField value={p.launch} placeholder="Empty" icon={false} className="-ml-2" onChange={async (v) => { try { setP(await api.updateProject(id, { launch: v })); refreshProjects() } catch (e) { toast.error((e as Error).message) } }} /></Prop>
+              <Prop icon={<CalendarDays className="size-3.5" />} label={p.labels?.kickoff || "Kickoff"}><DateField value={p.kickoff} placeholder="Empty" icon={false} className="-ml-2" onChange={async (v) => { try { setP(await api.updateProject(id, { kickoff: v })); refreshProjects() } catch (e) { toast.error((e as Error).message) } }} /></Prop>
+              <Prop icon={<CalendarDays className="size-3.5" />} label={p.labels?.launch || "Launch"}><DateField value={p.launch} placeholder="Empty" icon={false} className="-ml-2" onChange={async (v) => { try { setP(await api.updateProject(id, { launch: v })); refreshProjects() } catch (e) { toast.error((e as Error).message) } }} /></Prop>
               <Prop icon={<Stamp className="size-3.5" />} label="Phase">{(() => { const c = p.phases.find((x) => x.id === p.current); return c ? <span>{c.name} <span className="text-muted-foreground">· {c.done} of {c.total} done</span></span> : <span className="text-muted-foreground">All signed off</span> })()}</Prop>
               <Prop icon={<Layers className="size-3.5" />} label="Template"><span>{p.templateName}</span>{p.templateChanged && <button onClick={updateFromTemplate} className="ml-2 inline-flex items-center gap-1.5 text-[12.5px] text-muted-foreground underline underline-offset-2 hover:text-foreground">Template updated. Review changes</button>}</Prop>
               </>}
@@ -149,6 +152,7 @@ function StatusIcon({ it, onClick, size = 18 }: { it: PItem; onClick?: () => voi
 // ---------- checklist ----------
 type Filter = "all" | "us" | "client"
 function ChecklistTab({ p, setItem, setP, reload }: { p: Project; setItem: SetItem; setP: (x: Project) => void; reload: () => void }) {
+  const { refreshProjects } = useApp()
   const [sel, setSel] = React.useState(p.current || p.phases[p.phases.length - 1]!.id)
   const [filter, setFilter] = React.useState<Filter>("all")
   const [toolsOnly, setToolsOnly] = React.useState(false)
@@ -176,6 +180,20 @@ function ChecklistTab({ p, setItem, setP, reload }: { p: Project; setItem: SetIt
 
   return (
     <div className="flex flex-col">
+      {p.sample && (
+        <div className="mx-12 mt-5 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg bg-muted/60 px-4 py-3 text-[14px]">
+          <Info className="size-4 text-muted-foreground" />
+          <span className="min-w-0 flex-1">This is a sample project with made-up details. <span className="text-muted-foreground">Tick items, open them, try the Client tab. Nothing here is sent anywhere.</span></span>
+          <Button size="sm" variant="outline" onClick={async () => { await api.removeProject(p.id); await refreshProjects(); go(routes.home); toast("Deleted the sample project") }}>Delete the sample</Button>
+        </div>
+      )}
+      {p.repeat && !p.current && (
+        <div className="mx-12 mt-5 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg bg-muted/60 px-4 py-3 text-[14px]">
+          <RefreshCw className="size-4 text-muted-foreground" />
+          <span className="min-w-0 flex-1">Month {p.cycle} is closed. <span className="text-muted-foreground">Start the next month to open every item again, with dates a month later.</span></span>
+          <Button size="sm" onClick={async () => { try { setP(await api.nextCycle(p.id)); toast(`Started month ${p.cycle + 1}`) } catch (e) { toast.error((e as Error).message) } }}>Start month {p.cycle + 1}</Button>
+        </div>
+      )}
       {p.behind.items >= 3 && p.behind.days >= 7 && (
         <div className="mx-12 mt-5 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg bg-muted/60 px-4 py-3 text-[14px]">
           <CalendarDays className="size-4 text-muted-foreground" />
@@ -229,8 +247,8 @@ function ChecklistTab({ p, setItem, setP, reload }: { p: Project; setItem: SetIt
             <dl className="mt-3.5 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5 text-[13px]">
               {ph.due && <><dt className="text-muted-foreground">{ph.state === "signed" ? "Planned sign-off" : "Sign-off planned"}</dt><dd className="text-right">{fmtDay(ph.due)}</dd></>}
               {ph.signoff && <><dt className="text-muted-foreground">Signed off</dt><dd className="text-right">{fmtDay(ph.signoff.date)}</dd></>}
-              {p.kickoff && <><dt className="text-muted-foreground">Kickoff</dt><dd className="text-right">{fmtDay(p.kickoff)}</dd></>}
-              {p.launch && <><dt className="text-muted-foreground">Launch</dt><dd className="text-right">{fmtDay(p.launch)}</dd></>}
+              {p.kickoff && <><dt className="text-muted-foreground">{p.labels?.kickoff || "Kickoff"}</dt><dd className="text-right">{fmtDay(p.kickoff)}</dd></>}
+              {p.launch && <><dt className="text-muted-foreground">{p.labels?.launch || "Launch"}</dt><dd className="text-right">{fmtDay(p.launch)}</dd></>}
             </dl>
           </section>
           <section className="flex flex-col gap-1 rounded-xl border bg-card p-4">
@@ -702,7 +720,7 @@ function SiteTools({ p, k, label, busy, onScan, onEdit }: { p: Project; k: SiteK
   if (!url) return (
     <div className="grid grid-cols-[110px_minmax(0,1fr)_auto] items-center gap-3 border-t px-4 py-3 text-[13.5px] first:border-t-0">
       <span className="font-medium">{label}</span>
-      <span className="text-muted-foreground">{k === "old" ? "Only for redesigns: the site being replaced." : k === "staging" ? "The new site before launch, like new-site.webflow.io." : "Where the site launches."}</span>
+      <span className="text-muted-foreground">{k === "old" ? "Only for redesigns: the site being replaced." : k === "staging" ? `The new site before launch, like ${stagingExample(p.platform)}.` : "Where the site launches."}</span>
       <Button size="xs" variant="ghost" onClick={onEdit}>Add</Button>
     </div>
   )
@@ -732,13 +750,13 @@ function SiteTools({ p, k, label, busy, onScan, onEdit }: { p: Project; k: SiteK
 // ---------- edit details ----------
 function EditDialog({ p, open, onClose, onSaved }: { p: Project; open: boolean; onClose: () => void; onSaved: (x: Project) => void }) {
   const audit = p.kind === "audit"
-  const init = () => ({ name: p.name, clientName: p.clientName, old: p.sites.old || "", staging: p.sites.staging || "", live: p.sites.live || "", kickoff: p.kickoff || "", launch: p.launch || "" })
+  const init = () => ({ name: p.name, clientName: p.clientName, platform: (p.platform || "") as PlatformId | "", old: p.sites.old || "", staging: p.sites.staging || "", live: p.sites.live || "", kickoff: p.kickoff || "", launch: p.launch || "" })
   const [f, setF] = React.useState(init)
   React.useEffect(() => { if (open) setF(init()) }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
   const save = async () => {
     try {
       const sites = audit ? { live: f.live.trim() } : { old: f.old.trim(), staging: f.staging.trim(), live: f.live.trim() }
-      onSaved(await api.updateProject(p.id, audit ? { name: f.name, sites } : { name: f.name, clientName: f.clientName, kickoff: f.kickoff || null, launch: f.launch || null, sites }))
+      onSaved(await api.updateProject(p.id, audit ? { name: f.name, sites, platform: f.platform || null } : { name: f.name, clientName: f.clientName, kickoff: f.kickoff || null, launch: f.launch || null, sites, platform: f.platform || null }))
       onClose()
     } catch (e) { toast.error((e as Error).message) }
   }
@@ -751,9 +769,14 @@ function EditDialog({ p, open, onClose, onSaved }: { p: Project; open: boolean; 
         <DialogHeader><DialogTitle>{audit ? "Audit details" : "Project details"}</DialogTitle>{!audit && <DialogDescription>Changing the dates moves every due date that hasn’t been set by hand.</DialogDescription>}</DialogHeader>
         <div className="grid gap-3">
           <label className="grid gap-1.5 text-[13px] font-medium">Name<Input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} className="font-normal" /></label>
+          <label className="grid gap-1.5 text-[13px] font-medium">Built with
+            <select value={f.platform} onChange={(e) => setF({ ...f, platform: e.target.value as PlatformId | "" })} className="h-9 rounded-lg border border-input bg-card px-2.5 text-sm font-normal">
+              <option value="">Not known yet</option>{PLATFORMS.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+            </select>
+          </label>
           {audit ? site("live", "Site", "", "client-site.com") : <>
             {site("old", "Old site", "(the one being replaced)", "old-site.com")}
-            {site("staging", "Staging", "(the new site before launch)", "new-site.webflow.io")}
+            {site("staging", "Staging", "(the new site before launch)", stagingExample(f.platform))}
             {site("live", "Live domain", "(where it launches)", "client-site.com")}
             <label className="grid gap-1.5 text-[13px] font-medium">Client contact<Input value={f.clientName} onChange={(e) => setF({ ...f, clientName: e.target.value })} placeholder="Used in messages" className="font-normal" /></label>
             <div className="grid grid-cols-2 gap-3">

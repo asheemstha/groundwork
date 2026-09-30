@@ -76,11 +76,20 @@ function Privacy() {
         <span className="flex-1"><span className="font-medium">Everything is saved on this Mac.</span> <span className="text-muted-foreground">Projects, checklists, sign-off proof, scans and plans live in Groundwork’s data folder. There’s no Groundwork account or server.</span></span>
         <Button size="sm" variant="outline" onClick={() => api.openData().catch((e) => toast.error(e.message))}>Show in Finder</Button>
       </div>
+      <div className="flex items-center gap-3 bg-card p-4 text-[13.5px]">
+        <span className="flex-1"><span className="font-medium">Backups.</span> <span className="text-muted-foreground">Save everything as one zip in Documents, Groundwork Backups. To move a single project to another Mac, use Export project in the project’s ⋯ menu.</span></span>
+        <BackupButton />
+      </div>
       {row("What the AI sees", <>Only the heading plan and the SEO plan use AI. They send the pages you chose from a scan (their public text, headings, current titles and descriptions, and a screenshot when a layout is unclear), your notes and the rules they follow to Anthropic (Claude Code) or OpenAI (Codex), through your own account, so that provider’s privacy terms apply. Groundwork runs the AI in that scan’s folder only. {status?.engines.claude.restricted ? "Claude Code is confined to it, so it can’t open your projects, client details, messages, sign-off files or other scans." : "Update Claude Code to confine it to that folder."} Codex (Beta) is pointed at the folder but not confined to it.</>)}
       {row("Scans and checks", "The site scan, launch check and redirect test run in a browser on this Mac. They only visit the addresses you give them, and they don’t use AI.")}
       {row("Other connections", "Groundwork checks GitHub for new versions a few times a day. The usage bars ask Claude for your plan’s limits when you refresh them.")}
     </div>
   )
+}
+
+function BackupButton() {
+  const [busy, setBusy] = React.useState(false)
+  return <Button size="sm" variant="outline" disabled={busy} onClick={async () => { setBusy(true); try { const r = await api.backup(); toast.success("Backup saved", { description: r.file.split("/").pop() }) } catch (e) { toast.error((e as Error).message) } finally { setBusy(false) } }}>{busy && <Loader2 className="animate-spin" />}Back up now</Button>
 }
 
 function Cmd({ cmd }: { cmd: string }) {

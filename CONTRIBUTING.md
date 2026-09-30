@@ -32,12 +32,24 @@ How updates install:
 
 - `desktop/`: the Electron app. `main.js` starts the server inside the app and picks the newest compatible code update; `updater.js` updates it from GitHub Releases.
 - `server.js`: local API and job runner, bound to 127.0.0.1.
-- `lib/projects.js`: projects, templates, due dates and what each Groundwork tool ticks. `lib/templates-default.js`: the built-in checklists and messages.
+- `lib/projects.js`: projects, templates, due dates and what each Groundwork tool ticks.
+- `lib/templates-gallery.js`: the seven gallery checklists, written from the public guidance they credit in `basedOn`. `lib/templates-default.js`: the full agency checklist and the messages. Bump `SEED` when a built-in checklist changes, so untouched copies update; new built-ins arrive once (`data/templates-seen.json`).
+- `shared/platforms.json`: each platform's staging addresses and redirect formats, read by `lib/platforms.js` (server) and `web/src/lib/platforms.ts` (the app, which also writes the redirect files).
 - `lib/engines.js`: Claude Code and Codex detection, models, efforts and the runner.
 - `lib/crawl.js`: browser scans, screenshots and live checks. On a Mac, Chrome is started with `open` so macOS attributes it to Chrome, not Groundwork.
 - `lib/headings.js`, `lib/seo.js`, `lib/skills.js`: the AI plans and their skills.
 - `shared/checks.mjs`, `shared/seo.mjs`: checks used by both the server and the app.
 - `web/`: the app's interface. React, Vite, Tailwind v4, shadcn/ui on Base UI, Lucide icons and the Geist font. Neutral palette with one orange accent (`web/src/index.css`), no gradients.
+
+## Notarizing the Mac app
+
+The app is ad-hoc signed today, so macOS asks people to allow it in Privacy & Security the first time. Signing it with a Developer ID and notarizing it removes that step. It needs an Apple Developer account ($99 a year). Then:
+
+1. Create a "Developer ID Application" certificate, export it as a .p12 with a password, and add it to the repository's Actions secrets as `CSC_LINK` (base64 of the file) and `CSC_KEY_PASSWORD`.
+2. Create an app-specific password for the Apple ID, and add `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD` and `APPLE_TEAM_ID` as secrets.
+3. In `package.json`, under `build.mac`, set `identity` to the certificate's name, add `"hardenedRuntime": true` and `"notarize": true`, and add an entitlements file that allows JIT (`com.apple.security.cs.allow-jit`) and unsigned executable memory, which Electron needs.
+4. In the release workflow, pass the five secrets to the electron-builder step and remove `CSC_IDENTITY_AUTO_DISCOVERY: "false"`. Drop the ad-hoc signing in `desktop/after-sign.js`.
+5. Bump `gwShell`, because this changes the app itself, not only its code.
 
 ## Writing style
 

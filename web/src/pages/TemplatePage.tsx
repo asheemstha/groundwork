@@ -2,6 +2,7 @@ import * as React from "react"
 import { cn } from "cn"
 import { Info, Plus, Stamp, Trash2, User } from "lucide-react"
 import { toast } from "sonner"
+import { PLATFORMS, type PlatformId } from "@/lib/platforms"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -93,7 +94,7 @@ function ChecklistEditor({ t, onChange }: { t: ChecklistTemplate; onChange: (t: 
 
   return (
     <>
-      <div className="flex shrink-0 items-center gap-2.5 border-b bg-muted/40 px-4 py-2.5 text-[13px] text-foreground/70"><Info className="size-4 text-muted-foreground" />Changes apply to new projects.{running ? ` Your ${running} running ${running === 1 ? "project keeps its" : "projects keep their"} own copy.` : ""}</div>
+      <div className="flex shrink-0 items-center gap-2.5 border-b bg-muted/40 px-4 py-2.5 text-[13px] text-foreground/70"><Info className="size-4 shrink-0 text-muted-foreground" /><span className="min-w-0 flex-1">Changes apply to new projects.{running ? ` Your ${running} running ${running === 1 ? "project keeps its" : "projects keep their"} own copy.` : ""}</span>{!!t.basedOn?.filter((b) => b.url).length && <span className="truncate text-muted-foreground">Based on {t.basedOn.filter((b) => b.url).map((b, i) => <React.Fragment key={b.url}>{i > 0 && ", "}<a href={b.url} target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-foreground">{b.label}</a></React.Fragment>)}</span>}</div>
       <div className="grid min-h-0 flex-1 grid-cols-[240px_minmax(0,1fr)]">
         <nav aria-label="Phases" className="scrollbar-thin flex flex-col gap-px overflow-auto border-r px-3 py-4">
           <span className="px-2 pb-1.5 text-[12.5px] text-muted-foreground">Phases</span>
@@ -174,6 +175,9 @@ function ItemEditor({ it, t, onChange, onDelete, onDone }: { it: TItem; t: Check
           <select value={it.tool || ""} onChange={(e) => onChange({ tool: (e.target.value || null) as ToolId | null, check: null })} className="h-8 rounded-lg border border-input bg-card px-2 text-[13px] text-foreground"><option value="">None</option>{(Object.keys(TOOL_NAMES) as ToolId[]).map((k) => <option key={k} value={k}>{TOOL_NAMES[k].name}{TOOL_NAMES[k].ready ? "" : " (soon)"}</option>)}</select>
         </label>
       </div>
+      <label className="grid grid-cols-[minmax(0,0.8fr)_minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1.1fr)] items-center gap-2.5 text-[12.5px] text-muted-foreground"><span className="col-span-2">Show it on projects built with</span>
+        <select value={it.platforms?.[0] || ""} onChange={(e) => onChange({ platforms: e.target.value ? [e.target.value as PlatformId] : null })} className="col-span-2 h-8 rounded-lg border border-input bg-card px-2 text-[13px] text-foreground"><option value="">Any platform</option>{PLATFORMS.map((p) => <option key={p.id} value={p.id}>{p.name} only</option>)}</select>
+      </label>
       {(it.tool === "launch" || it.tool === "seo" || it.tool === "redirects" || it.tool === "scan") && (
         <label className="grid grid-cols-[minmax(0,0.8fr)_minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1.1fr)] items-center gap-2.5 text-[12.5px] text-muted-foreground"><span className="col-span-2">{it.tool === "seo" ? "What the SEO plan does for it" : it.tool === "redirects" || it.tool === "scan" ? "What ticks it" : "Which part of the launch check ticks it"}</span>
           <select value={it.check || ""} onChange={(e) => onChange({ check: (e.target.value || null) as TItem["check"] })} className="col-span-2 h-8 rounded-lg border border-input bg-card px-2 text-[13px] text-foreground"><option value="">{it.tool === "scan" ? "Any scan of the old site" : "Guess from the item’s name"}</option>{it.tool === "scan" ? <option value="recrawl">A scan of the old site in the 10 days before launch</option> : it.tool === "seo" ? <><option value="plan">Ticks it when the plan covers every page</option><option value="live">Shows how many changes are done</option></> : it.tool === "redirects" ? <><option value="map">Every old URL has a match</option><option value="live">A test of the live domain passes</option><option value="after">A test after launch day passes</option></> : (Object.keys(LAUNCH_CHECKS) as LaunchCheckId[]).map((k) => <option key={k} value={k}>{LAUNCH_CHECKS[k]}</option>)}</select>

@@ -10,6 +10,8 @@ import { useApp } from "@/hooks/useApp"
 import { api, type LaunchCheck, type LaunchCheckId, type LaunchIssue, type LaunchReport, type LaunchSummary, type PItem, type Project } from "@/lib/api"
 import { go, routes } from "@/lib/router"
 import { hostOfUrl, today } from "@/lib/project"
+import { stagingExample } from "@/lib/platforms"
+import { CloudflareHelp, isCloudflare } from "@/components/common/CloudflareHelp"
 
 const ORDER: LaunchCheckId[] = ["indexing", "placeholders", "links", "seo", "canonicals", "legal", "https"]
 const STEPS = [
@@ -116,7 +118,7 @@ export function LaunchCard({ p, reload }: { p: Project; reload: () => void }) {
       {running && r?.status === "running" ? (
         <button onClick={() => go(routes.launch(p.id, running.id))} className="rounded-lg bg-muted/50 px-3.5 py-3 text-left"><Progress r={r} /></button>
       ) : (
-        <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="client-site.webflow.io" className="h-8" />
+        <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder={stagingExample(p.platform)} className="h-8" />
       )}
       {history.length > 1 && (
         <div className="grid">
@@ -148,7 +150,7 @@ export function LaunchReportPage({ p, sub, reload }: { p: Project; sub?: string;
     <div className="grid max-w-4xl gap-5 px-12 pt-8 pb-10">
       {head}
       <div><h1 className="text-[24px] leading-tight font-medium">Launch check</h1><p className="mt-1.5 text-sm text-muted-foreground">{missing ? "That report isn’t on this Mac any more." : `Not run for ${p.name} yet.`} Use the staging address before launch and the live one after.</p></div>
-      <div className="flex gap-2"><Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="client-site.webflow.io" /><Button onClick={() => run(url)} disabled={busy || !url.trim()}>{busy ? <Loader2 className="animate-spin" /> : <Play />}Run the check</Button></div>
+      <div className="flex gap-2"><Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder={stagingExample(p.platform)} /><Button onClick={() => run(url)} disabled={busy || !url.trim()}>{busy ? <Loader2 className="animate-spin" /> : <Play />}Run the check</Button></div>
     </div>
   )
   if (!r) return <div className="grid h-full place-items-center py-24"><Spinner /></div>
@@ -167,7 +169,7 @@ export function LaunchReportPage({ p, sub, reload }: { p: Project; sub?: string;
   if (r.status === "failed" || r.status === "cancelled") return (
     <div className="grid max-w-4xl gap-5 px-12 pt-8 pb-10">
       {head}
-      <div><h1 className="text-[24px] leading-tight font-medium">{r.status === "cancelled" ? "The check was stopped" : "The check didn’t finish"}</h1><p className="mt-1.5 text-sm text-muted-foreground">{hostOf(r.url)}, {when(r.started)}. {r.error}</p></div>
+      <div><h1 className="text-[24px] leading-tight font-medium">{r.status === "cancelled" ? "The check was stopped" : "The check didn’t finish"}</h1><p className="mt-1.5 text-sm text-muted-foreground">{hostOf(r.url)}, {when(r.started)}. {r.error}</p>{isCloudflare(r.error) && <CloudflareHelp open className="mt-3" />}</div>
       <div><Button onClick={() => run(r.url)} disabled={busy}>{busy ? <Loader2 className="animate-spin" /> : <RotateCw />}Try again</Button></div>
     </div>
   )

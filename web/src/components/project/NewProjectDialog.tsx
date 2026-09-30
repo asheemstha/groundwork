@@ -1,10 +1,10 @@
 import * as React from "react"
-import { cn } from "cn"
 import { Layers, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { DateField } from "@/components/common/DateField"
+import { PLATFORMS, stagingExample, type PlatformId } from "@/lib/platforms"
 import { Switch } from "@/components/ui/switch"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { useApp } from "@/hooks/useApp"
@@ -16,12 +16,16 @@ type Detail = { name?: string; old?: string; audit?: boolean; template?: string 
 export const newProject = (detail?: Detail) => window.dispatchEvent(new CustomEvent("gw:new-project", { detail: detail || {} }))
 
 const addDays = (n: number) => { const d = new Date(); d.setDate(d.getDate() + n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}` }
-const OFF_BY_DEFAULT = ["languages", "payments", "existing"]
+// Optional parts that start switched off. "existing", "moving" and "domain" follow the site fields instead.
+const OFF_BY_DEFAULT = ["languages", "payments", "existing", "local", "moving", "domain"]
+const hostOf = (u: string) => { try { return new URL(/^https?:/i.test(u) ? u : "https://" + u.trim()).hostname.replace(/^www\./, "") } catch { return "" } }
 
 export function NewProjectDialog() {
   const { refreshRuns, prefs, setPrefs } = useApp()
   const [open, setOpen] = React.useState(false)
   const [audit, setAudit] = React.useState(false)
+  // First "What are you starting?", then the details.
+  const [step, setStep] = React.useState<"pick" | "details">("pick")
   const [name, setName] = React.useState("")
   const [sites, setSites] = React.useState({ old: "", staging: "", live: "" })
   const [clientName, setClientName] = React.useState("")
@@ -32,6 +36,8 @@ export function NewProjectDialog() {
   const [tpl, setTpl] = React.useState<ChecklistTemplate | null>(null)
   const [parts, setParts] = React.useState<string[]>([])
   const [startAt, setStartAt] = React.useState("")
+  const [platform, setPlatform] = React.useState<PlatformId | "">("")
+  const [pickedPlatform, setPickedPlatform] = React.useState(false)
   // "Replacing an existing website" follows the Old site field until it's switched by hand.
   const [touched, setTouched] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
@@ -39,8 +45,8 @@ export function NewProjectDialog() {
   React.useEffect(() => {
     const on = (e: Event) => {
       const d = (e as CustomEvent<Detail>).detail || {}
-      setAudit(!!d.audit); setName(d.name || ""); setSites({ old: d.old || "", staging: "", live: "" }); setClientName(""); setBusy(false)
-      setKickoff(addDays(7)); setLaunch(addDays(77)); setStartAt(""); setTouched(false)
+      setAudit(!!d.audit); setStep(d.audit || d.template ? "details" : "pick"); setName(d.name || ""); setSites({ old: d.old || "", staging: "", live: "" }); setClientName(""); setBusy(false)
+      setKickoff(addDays(7)); setLaunch(addDays(77)); setStartAt(""); setTouched(false); setPlatform(""); setPickedPlatform(false)
       api.templates().then((l) => {
         const c = l.filter((t) => t.kind === "checklist"); setList(c)
         setTid((t) => c.find((x) => x.id === d.template)?.id || (c.some((x) => x.id === t) ? t : c.find((x) => x.id === prefs.template)?.id || c[0]?.id || ""))
@@ -52,20 +58,37 @@ export function NewProjectDialog() {
   }, [prefs.template])
   React.useEffect(() => {
     if (!tid) return
-    api.template(tid).then((t) => { if (t.kind === "checklist") { setTpl(t); setStartAt(""); setParts(t.parts.map((p) => p.id).filter((id) => !OFF_BY_DEFAULT.includes(id) || (id === "existing" && !!sites.old.trim()))) } }).catch(() => {})
+    api.template(tid).then((t) => {
+      if (t.kind !== "checklist") return
+      setTpl(t); setStartAt(""); setTouched(false)
+      setParts(t.parts.map((p) => p.id).filter((id) => !OFF_BY_DEFAULT.includes(id)))
+      // Each template has its own usual length: three weeks for a landing page, a month for a care plan.
+      setLaunch(addDays(7 + (t.refSpan || 70)))
+    }).catch(() => {})
   }, [tid]) // eslint-disable-line react-hooks/exhaustive-deps
   const hasOld = !!sites.old.trim()
+  // A staging address like *.webflow.io or *.myshopify.com says which platform it is.
   React.useEffect(() => {
-    if (touched || !tpl?.parts.some((p) => p.id === "existing")) return
-    setParts((x) => (hasOld ? (x.includes("existing") ? x : [...x, "existing"]) : x.filter((y) => y !== "existing")))
-  }, [hasOld, touched, tpl])
+    if (pickedPlatform) return
+    const h = (() => { try { return new URL(/^https?:/i.test(sites.staging) ? sites.staging : "https://" + sites.staging.trim()).hostname } catch { return "" } })()
+    const hit = PLATFORMS.find((p) => p.staging.some((r) => new RegExp(r, "i").test(h)))
+    setPlatform(hit ? hit.id : "")
+  }, [sites.staging, pickedPlatform])
+  // Parts that follow the site fields until switched by hand: an old site means old content to move; an old site on a
+  // different domain from the live one means a domain change.
+  const moved = hasOld && !!sites.live.trim() && hostOf(sites.old) !== hostOf(sites.live)
+  React.useEffect(() => {
+    if (touched || !tpl) return
+    const want: Record<string, boolean> = { existing: hasOld, moving: hasOld, domain: moved }
+    setParts((x) => { let n = x; for (const [id, on] of Object.entries(want)) { if (!tpl.parts.some((p) => p.id === id)) continue; n = on ? (n.includes(id) ? n : [...n, id]) : n.filter((y) => y !== id) } return n })
+  }, [hasOld, moved, touched, tpl])
 
   const counts = React.useMemo(() => {
     if (!tpl) return null
     const every = tpl.phases.flatMap((ph) => [...ph.groups.flatMap((g) => g.items), ...ph.handoff.items])
-    const items = every.filter((it) => !it.part || parts.includes(it.part))
+    const items = every.filter((it) => (!it.part || parts.includes(it.part)) && (!it.platforms?.length || (!!platform && it.platforms.includes(platform))))
     return { total: items.length, client: items.filter((i) => i.who === "client").length, tools: items.filter((i) => i.tool).length, phases: tpl.phases.length, byPart: (id: string) => every.filter((it) => it.part === id).length }
-  }, [tpl, parts])
+  }, [tpl, parts, platform])
 
   const create = async () => {
     const s = { old: sites.old.trim(), staging: sites.staging.trim(), live: sites.live.trim() }
@@ -75,13 +98,28 @@ export function NewProjectDialog() {
     try {
       const r = audit
         ? await api.createProject({ kind: "audit", name: name.trim(), sites: { live: s.live } })
-        : await api.createProject({ name: name.trim(), sites: s, templateId: tid, kickoff, launch, parts, clientName, startAt: startAt || undefined })
+        : await api.createProject({ name: name.trim(), sites: s, platform: platform || null, templateId: tid, kickoff, launch, parts, clientName, startAt: startAt || undefined })
       if (!audit) { setPrefs({ template: tid }); api.savePrefs({ template: tid }).catch(() => {}) }
       await refreshRuns()
       setOpen(false)
       go(routes.project(r.id, audit ? "tools" : undefined))
       if (r.runId) toast(audit ? "Scanning the site" : "Scanning the old site", { description: audit ? "Runs on your Mac. Plans and checks start from the scan." : "The “Crawl the current site” item ticks itself when it’s done." })
     } catch (e) { toast.error((e as Error).message); setBusy(false) }
+  }
+  // A project exported from another Groundwork: a zip with its checklist, files, scans and plans.
+  const importFile = (f?: File) => {
+    if (!f) return
+    if (f.size > 800e6) return toast.error("That file is over 800 MB.")
+    setBusy(true)
+    const r = new FileReader()
+    r.onload = async () => {
+      try {
+        const x = await api.importProject(String(r.result).split(",")[1] || "")
+        await refreshRuns(); setOpen(false); go(routes.project(x.id))
+        toast.success(`Imported ${x.name}`, { description: x.runs ? `With ${x.runs} ${x.runs === 1 ? "scan" : "scans"}.` : undefined })
+      } catch (e) { toast.error((e as Error).message) } finally { setBusy(false) }
+    }
+    r.readAsDataURL(f)
   }
   const site = (k: "old" | "staging" | "live", label: string, hint: string, placeholder: string) => (
     <label className="grid content-start gap-1.5 text-[13px] font-medium">
@@ -93,16 +131,41 @@ export function NewProjectDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="gap-0 p-0 sm:max-w-[640px]">
+        {step === "pick" ? (
+          <>
+            <DialogHeader className="px-6 pt-6">
+              <DialogTitle>What are you starting?</DialogTitle>
+              <DialogDescription>Each checklist is written from public guidance and works on any platform. You can change anything once the project exists.</DialogDescription>
+            </DialogHeader>
+            <div className="scrollbar-thin grid max-h-[66vh] grid-cols-1 gap-2.5 overflow-auto px-6 py-5 sm:grid-cols-2">
+              {list.map((t) => (
+                <button key={t.id} onClick={() => { setAudit(false); setTid(t.id); setStep("details") }} className="grid content-start gap-1 rounded-xl border bg-card px-4 py-3.5 text-left hover:border-foreground/25 hover:bg-muted/30 focus-visible:border-foreground/40">
+                  <span className="flex items-center gap-2 font-medium">{t.name}{t.id === prefs.template && <span className="tag-label">Last used</span>}</span>
+                  {t.desc && <span className="line-clamp-2 text-[12.5px] leading-snug text-muted-foreground">{t.desc}</span>}
+                  <span className="mt-1 truncate text-[12px] text-muted-foreground/80">{t.items} items{t.repeat ? ", repeats monthly" : ""}{t.basedOn?.[0]?.url ? ` · Based on ${t.basedOn[0].label.replace(/:.*/, "")}` : ""}</span>
+                </button>
+              ))}
+              <button onClick={() => { setAudit(true); setStep("details") }} className="grid content-start gap-1 rounded-xl border border-dashed px-4 py-3.5 text-left hover:border-foreground/25 hover:bg-muted/30">
+                <span className="font-medium">Audit a site</span>
+                <span className="text-[12.5px] leading-snug text-muted-foreground">Scan one site and check it, with no checklist. Turns into a project if the redesign is won.</span>
+              </button>
+            </div>
+            <div className="flex items-center gap-2 border-t px-6 py-3.5 text-[13px] text-muted-foreground">
+              <span className="flex-1">Moving a project from another Mac?</span>
+              <label className="cursor-pointer rounded-md px-2 py-1 text-foreground underline underline-offset-2 hover:bg-muted/60">
+                <input type="file" accept=".zip,application/zip" className="hidden" onChange={(e) => importFile(e.target.files?.[0])} />
+                {busy ? "Importing…" : "Import a project file"}
+              </label>
+            </div>
+          </>
+        ) : (
         <DialogHeader className="px-6 pt-6">
-          <DialogTitle>{audit ? "Audit a site" : "New project"}</DialogTitle>
-          <DialogDescription>{audit ? "Scan one site and run Groundwork’s tools on it, with no checklist. You can start a full project for it later." : "A website project follows a checklist, phase by phase. Anything you change stays in this project."}</DialogDescription>
-          <div role="group" aria-label="Kind" className="mt-3 inline-flex w-fit gap-0.5 rounded-lg bg-muted p-0.5">
-            {([[false, "Website project"], [true, "Audit a site"]] as const).map(([a, l]) => (
-              <button key={l} aria-pressed={audit === a} onClick={() => setAudit(a)} className={cn("inline-flex h-7 items-center rounded-md px-2.5 text-[13px]", audit === a ? "bg-card font-medium shadow-sm" : "text-muted-foreground")}>{l}</button>
-            ))}
-          </div>
+          <DialogTitle className="flex items-center gap-2">{audit ? "Audit a site" : tpl?.name || "New project"}<Button variant="ghost" size="xs" className="text-muted-foreground" onClick={() => setStep("pick")}>Change</Button></DialogTitle>
+          <DialogDescription>{audit ? "Scan one site and run Groundwork’s tools on it, with no checklist. You can start a full project for it later." : tpl?.desc || "A checklist, phase by phase. Anything you change stays in this project."}</DialogDescription>
+          {!audit && !!tpl?.basedOn?.filter((b) => b.url).length && <p className="text-[12px] text-muted-foreground">Based on {tpl.basedOn.filter((b) => b.url).map((b, i) => <React.Fragment key={b.url}>{i > 0 && ", "}<a href={b.url} target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-foreground">{b.label}</a></React.Fragment>)}</p>}
         </DialogHeader>
-        {audit ? (
+        )}
+        {step === "pick" ? null : audit ? (
           <div className="grid gap-4 px-6 py-5">
             <div className="grid grid-cols-2 gap-3">
               {site("live", "Site to audit", "", "client-site.com")}
@@ -118,18 +181,21 @@ export function NewProjectDialog() {
             </div>
             <div className="grid gap-2">
               <div className="grid grid-cols-3 gap-3">
-                {site("old", "Old site", "(if replacing one)", "old-site.com")}
-                {site("staging", "Staging", "(optional)", "new-site.webflow.io")}
+                {site("old", "Old site", tid === "website-new" ? "(if there is one)" : "(if replacing one)", "old-site.com")}
+                {site("staging", "Staging", "(optional)", stagingExample(platform))}
                 {site("live", "Live domain", "(optional)", "client-site.com")}
               </div>
               <p className="flex items-start gap-2 text-[12.5px] text-muted-foreground"><span className="mt-px grid size-4 shrink-0 place-items-center rounded bg-brand text-brand-foreground"><Layers className="size-2.5" strokeWidth={2.6} /></span>{hasOld ? "Groundwork scans the old site on your Mac, with no AI, and ticks “Crawl the current site” when it’s done. " : ""}Launch checks and redirect tests only tick items when they run on the live domain. Add any of these later.</p>
             </div>
-            <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)] gap-3">
-              <label className="grid gap-1.5 text-[13px] font-medium">Checklist template
-                <select value={tid} onChange={(e) => setTid(e.target.value)} className="h-9 rounded-lg border border-input bg-card px-2.5 text-sm font-normal">{list.map((t) => <option key={t.id} value={t.id}>{t.name} ({t.items} items)</option>)}</select>
-              </label>
-              <div className="grid gap-1.5 text-[13px] font-medium">Kickoff<DateField boxed value={kickoff} onChange={(v) => v && setKickoff(v)} /></div>
-              <div className="grid gap-1.5 text-[13px] font-medium">Target launch<DateField boxed value={launch} onChange={(v) => v && setLaunch(v)} /></div>
+            <label className="grid gap-1.5 text-[13px] font-medium">Built with
+              <select value={platform} onChange={(e) => { setPickedPlatform(true); setPlatform(e.target.value as PlatformId | "") }} className="h-9 rounded-lg border border-input bg-card px-2.5 text-sm font-normal">
+                <option value="">Not sure yet (the first scan fills it in)</option>
+                {PLATFORMS.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-1.5 text-[13px] font-medium">{tpl?.labels?.kickoff || "Kickoff"}<DateField boxed value={kickoff} onChange={(v) => v && setKickoff(v)} /></div>
+              <div className="grid gap-1.5 text-[13px] font-medium">{tpl?.labels?.launch || "Target launch"}<DateField boxed value={launch} onChange={(v) => v && setLaunch(v)} /></div>
             </div>
             {tpl && tpl.phases.length > 1 && (
               <label className="flex items-center gap-3 text-[13px]">
@@ -149,7 +215,7 @@ export function NewProjectDialog() {
                     <label key={p.id} className="grid cursor-pointer grid-cols-[minmax(0,1fr)_64px_auto] items-center gap-3 border-b px-3.5 py-2.5 last:border-b-0">
                       <span className="grid gap-0.5"><span className="text-[13.5px]">{p.name}</span>{p.desc && <span className="text-[12.5px] text-muted-foreground">{p.desc}</span>}</span>
                       <span className="text-right text-xs text-muted-foreground tabular">{counts?.byPart(p.id)} {counts?.byPart(p.id) === 1 ? "item" : "items"}</span>
-                      <Switch checked={parts.includes(p.id)} onCheckedChange={(v) => { if (p.id === "existing") setTouched(true); setParts((x) => (v ? [...x, p.id] : x.filter((y) => y !== p.id))) }} />
+                      <Switch checked={parts.includes(p.id)} onCheckedChange={(v) => { if (["existing", "moving", "domain"].includes(p.id)) setTouched(true); setParts((x) => (v ? [...x, p.id] : x.filter((y) => y !== p.id))) }} />
                     </label>
                   ))}
                 </div>
@@ -164,11 +230,13 @@ export function NewProjectDialog() {
             )}
           </div>
         )}
-        <DialogFooter className="mx-0 mb-0 items-center rounded-b-xl border-t bg-muted/30 px-6 py-3.5">
-          <span className="mr-auto text-[12.5px] text-muted-foreground">{audit ? "Free: scans and checks don’t use AI." : "Due dates stretch to fit between kickoff and launch. You can move any of them."}</span>
-          <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-          <Button onClick={create} disabled={busy || (!audit && !tid)}>{busy && <Loader2 className="animate-spin" />}{audit ? "Scan and audit" : "Create project"}</Button>
-        </DialogFooter>
+        {step === "details" && (
+          <DialogFooter className="mx-0 mb-0 items-center rounded-b-xl border-t bg-muted/30 px-6 py-3.5">
+            <span className="mr-auto text-[12.5px] text-muted-foreground">{audit ? "Free: scans and checks don’t use AI." : tpl?.repeat ? "Due dates fit the month. Close the month and it starts again." : "Due dates stretch to fit between the two dates. You can move any of them."}</span>
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button onClick={create} disabled={busy || (!audit && !tid)}>{busy && <Loader2 className="animate-spin" />}{audit ? "Scan and audit" : "Create project"}</Button>
+          </DialogFooter>
+        )}
       </DialogContent>
     </Dialog>
   )
