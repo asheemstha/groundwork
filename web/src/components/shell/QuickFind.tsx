@@ -1,6 +1,6 @@
 import * as React from "react"
 import { FileText, FolderKanban, Home, LayoutTemplate, Plus, Rocket, Search, Settings, Wrench, Users } from "lucide-react"
-import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandShortcut } from "@/components/ui/command"
+import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandShortcut } from "@/components/ui/command"
 import { SiteIcon } from "@/components/common/bits"
 import { newProject } from "@/components/project/NewProjectDialog"
 import { useApp } from "@/hooks/useApp"
@@ -24,6 +24,8 @@ export function QuickFind() {
   const run = (f: () => void) => { setOpen(false); f() }
   return (
     <CommandDialog open={open} onOpenChange={setOpen} title="Quick find" description="Jump to a project or template" className="sm:max-w-[640px]">
+      {/* The dialog is only the frame; cmdk's parts need their own Command around them. */}
+      <Command>
       <CommandInput placeholder="Search projects, templates, actions…" />
       <CommandList className="max-h-[420px]">
         <CommandEmpty>Nothing matches.</CommandEmpty>
@@ -56,6 +58,7 @@ export function QuickFind() {
           </CommandGroup>
         )}
       </CommandList>
+      </Command>
     </CommandDialog>
   )
 }
