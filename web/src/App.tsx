@@ -31,7 +31,7 @@ export default function App() {
     <AppProvider>
       <TooltipProvider>
         <AppShell><Routes /></AppShell>
-        <Toaster position="bottom-center" />
+        <Toaster position="bottom-right" />
       </TooltipProvider>
     </AppProvider>
   )

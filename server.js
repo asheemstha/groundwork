@@ -624,6 +624,7 @@ const server = http.createServer(async (req, res) => {
         if (!sub && M === 'GET') return json(res, P.get(id));
         if (!sub && M === 'PATCH') { const b = await body(req); P.update(id, b); if (b.name && P.readRaw(id).host) setSiteName(P.readRaw(id).host, b.name); return json(res, P.get(id)); }
         if (!sub && M === 'DELETE') { P.remove(id); return json(res, { ok: true }); }
+        if (sub === '/shift' && M === 'POST') { const b = await body(req); const r = P.shiftPlan(id, b); return json(res, b.dryRun ? r : P.get(id)); }
         let mm = sub.match(/^\/items\/([\w-]+)$/);
         if (mm && M === 'POST') { P.setItem(id, mm[1], await body(req)); return json(res, P.get(id)); }
         if (sub === '/ask' && M === 'POST') { const b = await body(req); P.askItems(id, b.items || []); return json(res, P.get(id)); }

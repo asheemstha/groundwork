@@ -35,7 +35,7 @@ export function Dashboard() {
           ) : (
             <>
               <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                <Stat n={s?.dueThisWeek ?? 0} label="due this week" />
+                {s?.overdue ? <Stat n={s.overdue} label={<><span className="text-destructive">overdue</span>, {s.dueThisWeek} more due this week</>} /> : <Stat n={s?.dueThisWeek ?? 0} label="due this week" />}
                 <Stat n={s?.waiting ?? 0} label={<>waiting on clients{s?.late ? <>, <span className="text-destructive">{s.late} late</span></> : null}</>} />
                 <Stat n={s?.signoffs ?? 0} label={s?.signoffs === 1 ? "sign-off ready to record" : "sign-offs ready to record"} />
                 <Stat n={s?.nextLaunch ? fmtDay(s.nextLaunch.date) : "None"} label={s?.nextLaunch ? `next launch: ${s.nextLaunch.name}` : "no launch date set"} />
@@ -72,17 +72,21 @@ function Stat({ n, label }: { n: React.ReactNode; label: React.ReactNode }) {
   return <div className="flex flex-col gap-0.5 rounded-xl border bg-card px-4 py-3.5"><span className="text-2xl font-medium tabular">{n}</span><span className="text-[13px] text-muted-foreground">{label}</span></div>
 }
 
+// Two lines, so the title gets the full width: what to do, then where it belongs.
 function NextRow({ n }: { n: NextUp }) {
   const open = () => go(n.kind === "client" ? routes.project(n.projectId, "client") : routes.project(n.projectId))
   const due = n.kind === "signoff" ? "Ready" : dueLabel({ due: n.due, late: n.late, status: "todo" })
   return (
-    <button onClick={open} className="grid h-[46px] w-full grid-cols-[18px_minmax(0,1fr)_96px_150px_72px] items-center gap-3.5 border-t px-4 text-left text-[13.5px] hover:bg-muted/40">
+    <button onClick={open} className="grid min-h-[54px] w-full grid-cols-[18px_minmax(0,1fr)_84px] items-center gap-3.5 border-t px-4 py-2 text-left hover:bg-muted/40">
       <span className="size-[17px] rounded-full border-[1.5px] border-input" />
-      <span className="truncate">{n.title}</span>
-      <span>
-        {n.kind === "client" ? <Chip><User className="size-3" />Client</Chip> : n.kind === "signoff" ? <Chip><Stamp className="size-3" />Sign-off</Chip> : <Chip>{n.phaseName}</Chip>}
+      <span className="grid min-w-0 gap-0.5">
+        <span className="truncate text-[13.5px]">{n.title}</span>
+        <span className="flex min-w-0 items-center gap-1.5 text-[12px] text-muted-foreground">
+          <SiteIcon runId={n.iconRun || undefined} name={n.projectName} className="size-3.5 rounded-[3px] text-[8px]" /><span className="truncate">{n.projectName}</span>
+          <span className="text-muted-foreground/50">·</span>
+          {n.kind === "client" ? <span className="inline-flex items-center gap-1"><User className="size-3" />From the client</span> : n.kind === "signoff" ? <span className="inline-flex items-center gap-1"><Stamp className="size-3" />Sign-off</span> : <span>{n.phaseName}</span>}
+        </span>
       </span>
-      <span className="flex min-w-0 items-center gap-1.5 text-[12.5px] text-muted-foreground"><SiteIcon runId={n.iconRun || undefined} name={n.projectName} className="size-4 rounded text-[9px]" /><span className="truncate">{n.projectName}</span></span>
       <span className={cn("text-right text-[12.5px] whitespace-nowrap", n.late ? "text-destructive" : n.kind === "signoff" ? "text-foreground" : "text-muted-foreground")}>{due}</span>
     </button>
   )
@@ -116,6 +120,7 @@ function ProjectCard({ p }: { p: ProjectSummary }) {
         <span className="flex-1" />
         <span>Client {p.clientOpen}{p.clientLate ? <>, <span className="text-destructive">{p.clientLate} late</span></> : null}</span>
       </div>
+      {p.behind.items >= 3 && p.behind.days >= 7 && <span className="grid grid-cols-[6px_minmax(0,1fr)] items-baseline gap-2 text-[12.5px]"><span className="size-1.5 translate-y-[-1px] rounded-full bg-brand" /><span>Slipped about {p.behind.days} days <span className="text-muted-foreground">· open it to shift the plan</span></span></span>}
     </button>
   )
 }

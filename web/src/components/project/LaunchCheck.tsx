@@ -164,6 +164,8 @@ function Report({ p, r, focus, busy, onRun, head }: { p: Project; r: LaunchRepor
   const checks = ORDER.map((id) => r.checks!.find((c) => c.id === id)).filter(Boolean) as LaunchCheck[]
   const later = (c: LaunchCheck) => !!r.staging && LATER.includes(c.id)
   const now = checks.filter((c) => !later(c)), ok = now.filter((c) => c.ok).length
+  const failing = now.filter((c) => !c.ok), passedChecks = now.filter((c) => c.ok), afterChecks = checks.filter(later)
+  const newCount = now.reduce((n, c) => n + c.issues.filter((i) => i.isNew).length, 0)
   const items = itemsOf(p)
   const history = p.tools.launchHistory.filter((h) => h.status === "done")
   const copy = () => { navigator.clipboard.writeText(toMarkdown(r, checks)); toast("Copied the issues as a checklist", { description: "Paste it into Slack or a task." }) }
@@ -183,20 +185,24 @@ function Report({ p, r, focus, busy, onRun, head }: { p: Project; r: LaunchRepor
         <Button size="sm" onClick={onRun} disabled={busy || !!p.tools.launchRunning}>{busy ? <Loader2 className="animate-spin" /> : <RotateCw />}Run again</Button>
       </div>
       <div>
-        <h1 className="text-[22px] font-medium">{ok === now.length ? (r.staging ? "Staging is ready" : "Ready to launch") : `${ok} of ${now.length} checks pass`}</h1>
+        <h1 className="text-[22px] font-medium">{failing.length ? `${failing.length} ${failing.length === 1 ? "check needs" : "checks need"} fixing` : r.staging ? "Staging is ready" : "Ready to launch"}</h1>
         <p className="mt-1.5 text-sm text-muted-foreground">
-          <a href={r.url} target="_blank" rel="noreferrer" className="text-foreground/80 underline-offset-2 hover:underline">{r.host}</a>{r.staging ? ", staging" : ""}. {r.pagesChecked} pages and {r.linksChecked?.toLocaleString()} links, {when(r.started)}.{r.staging && " Indexing and redirects are checked after launch."}
+          <a href={r.url} target="_blank" rel="noreferrer" className="text-foreground/80 underline-offset-2 hover:underline">{r.host}</a>{r.staging ? ", staging" : ""}. {r.pagesChecked} pages and {r.linksChecked?.toLocaleString()} links, {when(r.started)}.
+          {r.previous && <> Since the {day(r.previous.at)} check: {newCount} new {newCount === 1 ? "issue" : "issues"}, {(r.fixed || []).length} fixed.</>}
         </p>
       </div>
-      <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${checks.length}, minmax(0, 1fr))` }} aria-hidden>
-        {checks.map((c) => <span key={c.id} className={cn("h-1 rounded-full", later(c) ? "bg-muted" : c.ok ? "bg-done" : "bg-destructive/35")} />)}
-      </div>
       {r.staging && (
-        <p className="flex items-start gap-2.5 rounded-lg bg-muted/60 px-3.5 py-3 text-[13px] leading-relaxed text-muted-foreground"><Info className="mt-0.5 size-4 shrink-0" />This is the staging site. {r.liveHost !== r.host ? `Canonicals are compared to ${r.liveHost}, the live domain.` : "Add the live domain in the project details to check where canonicals point."} Indexing and redirects don’t tick their checklist items from a staging check, so run it again on the live domain after launch.</p>
+        <p className="flex items-start gap-2.5 rounded-lg bg-muted/60 px-3.5 py-3 text-[13px] leading-relaxed text-muted-foreground"><Info className="mt-0.5 size-4 shrink-0" />This is the staging site. {r.liveHost !== r.host ? `Canonicals are compared to ${r.liveHost}, the live domain.` : "Add the live domain in the project details to check where canonicals point."}</p>
       )}
-      <section className="overflow-hidden rounded-xl border bg-card">
-        {checks.map((c) => <CheckRow key={c.id} r={r} c={c} later={later(c)} items={items.filter((x) => x.check === c.id)} open={focus === c.id} />)}
-      </section>
+      {([["Needs fixing", failing], ["Passed", passedChecks], ["After launch", afterChecks]] as [string, LaunchCheck[]][]).filter(([, list]) => list.length).map(([title, list]) => (
+        <section key={title} className="grid gap-1">
+          <h2 className="mb-1 flex items-baseline gap-2 text-sm font-medium">{title}<span className="text-[12.5px] font-normal text-muted-foreground tabular">{list.length}</span>{title === "After launch" && <span className="text-[12.5px] font-normal text-muted-foreground">staging is hidden and redirected on purpose, so these wait for the live domain</span>}</h2>
+          <div className="overflow-hidden rounded-xl border bg-card">
+            {list.map((c) => <CheckRow key={c.id} r={r} c={c} later={later(c)} items={items.filter((x) => x.check === c.id)} open={focus ? focus === c.id : title === "Needs fixing"} />)}
+          </div>
+        </section>
+      ))}
+      {(r.fixed || []).length > 0 && <Fixed r={r} />}
 
       <section className="grid gap-1">
         <h2 className="mb-1 text-sm font-medium">Also found</h2>
@@ -242,21 +248,44 @@ function CheckRow({ r, c, later, items, open: initial }: { r: LaunchReport; c: L
 
 function IssueRow({ i, base }: { i: LaunchIssue; base: string }) {
   const [all, setAll] = React.useState(false)
-  const shown = all ? i.pages : i.pages.slice(0, 3)
+  const shown = all ? i.pages : i.pages.slice(0, i.pages.length > 3 ? 2 : 3)
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,240px)] gap-4 border-b border-border/60 py-2.5 text-[13px] last:border-b-0">
-      <span className={cn(i.soft && "text-muted-foreground")}>{i.text}{i.soft && <span className="ml-2 text-xs">worth a look</span>}</span>
-      <span className="flex flex-wrap justify-end gap-x-2 gap-y-1 text-right text-[12.5px] text-muted-foreground">
+    <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,260px)] gap-4 border-b border-border/60 py-2.5 text-[13px] last:border-b-0">
+      <span className="grid gap-0.5">
+        <span className={cn(i.soft && "text-muted-foreground")}>{i.text}{i.isNew && <span className="ml-2 rounded-full border border-brand/40 px-1.5 py-px text-[11px] text-brand-ink">New</span>}{i.soft && <span className="ml-2 text-xs">worth a look</span>}</span>
+        {i.fix && <span className="text-[12.5px] text-muted-foreground">{i.fix}</span>}
+      </span>
+      <span className="text-right text-[12.5px] leading-relaxed text-muted-foreground">
         {i.pages.length === 0 ? "Whole site" : <>
-          {shown.map((pg) => <PageLink key={pg} base={base} path={pg} />)}
-          {i.pages.length > 3 && <button onClick={() => setAll(!all)} className="text-foreground/70 hover:text-foreground">{all ? "Show fewer" : `and ${i.pages.length - 3} more`}</button>}
+          {shown.map((pg, n) => <React.Fragment key={pg}>{n ? ", " : ""}<PageLink base={base} path={pg} /></React.Fragment>)}
+          {i.pages.length > 3 && <> {all ? "" : "and "}<button onClick={() => setAll(!all)} className="whitespace-nowrap text-foreground/70 hover:text-foreground">{all ? "show fewer" : `${i.pages.length - 2} more`}</button></>}
         </>}
       </span>
     </div>
   )
 }
 
-const PageLink = ({ base, path }: { base: string; path: string }) => <a href={new URL(path, base).href} target="_blank" rel="noreferrer" className="max-w-[220px] truncate hover:text-foreground hover:underline underline-offset-2">{path === "/" ? "Home" : path}</a>
+function Fixed({ r }: { r: LaunchReport }) {
+  const [open, setOpen] = React.useState(false)
+  const list = r.fixed || []
+  return (
+    <section>
+      <button onClick={() => setOpen(!open)} className="flex h-8 items-center gap-2 text-sm font-medium"><ChevronRight className={cn("size-3.5 text-muted-foreground transition-transform", open && "rotate-90")} />Fixed since the {day(r.previous!.at)} check <span className="text-[12.5px] font-normal text-muted-foreground tabular">{list.length}</span></button>
+      {open && (
+        <div className="mt-1 overflow-hidden rounded-xl border bg-card">
+          {list.map((x, n) => (
+            <div key={n} className="grid min-h-10 grid-cols-[18px_minmax(0,1fr)_minmax(0,1fr)] items-center gap-3 border-t px-4 py-2 text-[13px] first:border-t-0">
+              <CheckMark ok size={16} /><span className="text-muted-foreground line-through decoration-muted-foreground/50">{x.text}</span><span className="text-[12.5px] text-muted-foreground">{CHECK_NAMES[x.check]}{x.pages > 1 ? `, was on ${x.pages} pages` : ""}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+const CHECK_NAMES: Record<LaunchCheckId, string> = { indexing: "Google can index the site", placeholders: "No placeholder text or dummy links", links: "Links work", seo: "Titles, descriptions, H1s, alt text, OG images, favicon", canonicals: "Canonicals point to the live domain", legal: "Legal pages linked", https: "SSL and redirects" }
+
+const PageLink = ({ base, path }: { base: string; path: string }) => <a href={new URL(path, base).href} target="_blank" rel="noreferrer" className="break-all hover:text-foreground hover:underline underline-offset-2">{path === "/" ? "Home" : path}</a>
 const Out = ({ href }: { href: string }) => <a href={href} target="_blank" rel="noreferrer" aria-label="Open" className="ml-1 inline-flex align-[-2px] text-muted-foreground hover:text-foreground"><ExternalLink className="size-3.5" /></a>
 
 function Fact({ label, bad, list, base, children }: { label: string; bad?: boolean; list?: { page: string; text: string }[]; base?: string; children: React.ReactNode }) {
@@ -307,7 +336,7 @@ function toMarkdown(r: LaunchReport, checks: LaunchCheck[]) {
     if (r.staging && LATER.includes(c.id)) continue
     const hard = c.issues.filter((i) => !i.soft)
     if (!hard.length) continue
-    out.push(`### ${c.name}`, ...hard.map((i) => `- [ ] ${i.text}${where(i)}`), "")
+    out.push(`### ${c.name}`, ...hard.map((i) => `- [ ] ${i.text}${where(i)}${i.fix ? `. ${i.fix}` : ""}`), "")
   }
   return out.join("\n").trim()
 }

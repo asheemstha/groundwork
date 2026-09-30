@@ -18,6 +18,7 @@ import { ago } from "@/lib/format"
 import { go, routes } from "@/lib/router"
 import { LaunchCard, LaunchItemPanel, LaunchReportPage, useLaunchRefresh } from "@/components/project/LaunchCheck"
 import { RedirectCard, RedirectsPage } from "@/components/project/Redirects"
+import { ShiftDialog, shiftPlan } from "@/components/project/ShiftDialog"
 
 type Tab = "checklist" | "client" | "tools" | "launch" | "redirects"
 type SetItem = (itemId: string, b: Parameters<typeof api.setItem>[2]) => Promise<void>
@@ -59,6 +60,7 @@ export function ProjectPage({ id, tab, sub }: { id: string; tab: Tab; sub?: stri
           <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label="Project options" />}><MoreHorizontal /></DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuItem onClick={() => setEditing(true)}><Pencil /> Edit details…</DropdownMenuItem>
+            <DropdownMenuItem onClick={shiftPlan}><CalendarDays /> Shift the plan…</DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem variant="destructive" onClick={() => setRemoving(true)}><Trash2 /> Delete project…</DropdownMenuItem>
           </DropdownMenuContent>
@@ -72,6 +74,7 @@ export function ProjectPage({ id, tab, sub }: { id: string; tab: Tab; sub?: stri
         {tab === "redirects" && <RedirectsPage p={p} reload={load} />}
       </div>
       <EditDialog p={p} open={editing} onClose={() => setEditing(false)} onSaved={(x) => { setP(x); refreshProjects() }} />
+      <ShiftDialog p={p} onDone={(x) => { setP(x); refreshProjects() }} />
       <AlertDialog open={removing} onOpenChange={setRemoving}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -124,6 +127,13 @@ function ChecklistTab({ p, setItem, setP, reload }: { p: Project; setItem: SetIt
 
   return (
     <div className="flex flex-col">
+      {p.behind.items >= 3 && p.behind.days >= 7 && (
+        <div className="mx-7 mt-5 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-[10px] border bg-card px-3.5 py-2.5 text-[13px]">
+          <span className="size-1.5 rounded-full bg-brand" />
+          <span className="min-w-0 flex-1">The plan has slipped. <span className="text-muted-foreground">{p.behind.items} items are late, the oldest in this phase by {p.behind.days} days.</span></span>
+          <Button size="sm" variant="outline" onClick={shiftPlan}>Shift the plan…</Button>
+        </div>
+      )}
       <ol aria-label="Phases" className="grid gap-2 px-7 pt-5" style={{ gridTemplateColumns: `repeat(${p.phases.length}, minmax(0, 1fr))` }}>
         {p.phases.map((x) => (
           <li key={x.id}>

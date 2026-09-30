@@ -248,6 +248,8 @@ export interface ProjectRun { id: string; status: RunStatus; created: number; pa
 export interface Project {
   id: string; name: string; url: string | null; host: string | null; created: number; updated: number; kickoff: string | null; launch: string | null
   clientName: string; templateId: string; templateName: string; parts: string[]
+  /** Days the plan has been shifted, and how far behind it is now. */
+  slip: number; behind: Behind
   phases: PPhase[]; current: string | null
   client: { late: PItem[]; soon: PItem[]; notAsked: PItem[]; received: number }
   tools: {
@@ -267,7 +269,7 @@ export interface RedirectMap { built: number; oldHost: string; oldRunId: string;
 export interface RedirectState { map: RedirectMap | null; job: { kind: "build" | "test"; progress: { step: string; done: number; total: number }; started: number } | null; error: string | null }
 export interface RedirectSummary { built: number; total: number; redirects: number; same: number; review: number; test: RedirectTest | null }
 export interface LaunchSummary { id: string; at: number; url: string; status: "done" | "failed"; staging: boolean; pages: number; checks: Partial<Record<LaunchCheckId, { ok: boolean; count: number }>> }
-export interface LaunchIssue { text: string; pages: string[]; soft: boolean }
+export interface LaunchIssue { text: string; pages: string[]; soft: boolean; fix?: string; isNew?: boolean }
 export interface LaunchCheck { id: LaunchCheckId; name: string; ok: boolean; issues: LaunchIssue[]; note?: string }
 export interface LaunchReport {
   id: string; projectId: string; url: string; started: number; ended?: number; status: "running" | "done" | "failed"; error?: string
@@ -279,12 +281,19 @@ export interface LaunchReport {
     external: { checked: number; broken: { url: string; status: number; page: string }[]; social: number }
   }
   pages?: { path: string; status: number; title: string; error: string | null }[]
+  /** The last check of the same site, and what was fixed since. */
+  previous?: { id: string; at: number }; fixed?: { check: LaunchCheckId; text: string; pages: number }[]
 }
 export interface ProjectSummary {
   id: string; name: string; host: string | null; url: string | null; launch: string | null; iconRun: string | null
   current: { index: number; id: string; name: string; done: number; total: number; ready: boolean; needs: "us" | "client"; handoffTitle: string } | null
   phases: { state: PPhase["state"]; done: number; total: number }[]
-  clientOpen: number; clientLate: number
+  clientOpen: number; clientLate: number; behind: Behind
+}
+export interface Behind { items: number; days: number }
+export interface ShiftPreview {
+  days: number; launch: { from: string | null; to: string | null }; late: { before: number; after: number }
+  next: { title: string; due: string } | null; phases: { name: string; from: string | null; to: string; clash: boolean }[]
 }
 export interface NextUp { key: string; kind: "item" | "client" | "signoff"; projectId: string; projectName: string; iconRun: string | null; itemId?: string; title: string; phaseId: string; phaseName: string; due: string | null; late: boolean }
 export interface HomeData { next: NextUp[]; stats: { dueThisWeek: number; overdue: number; waiting: number; late: number; signoffs: number; nextLaunch: { name: string; date: string } | null }; projects: ProjectSummary[] }
@@ -338,6 +347,8 @@ export const api = {
   project: (id: string) => req<Project>("GET", `/api/projects/${id}`),
   createProject: (b: NewProject) => req<{ id: string; runId: string | null }>("POST", "/api/projects", b),
   updateProject: (id: string, b: Partial<{ name: string; kickoff: string | null; launch: string | null; clientName: string; url: string }>) => req<Project>("PATCH", `/api/projects/${id}`, b),
+  shiftPlan: (id: string, b: { days: number; launch: boolean }) => req<Project>("POST", `/api/projects/${id}/shift`, b),
+  previewShift: (id: string, b: { days: number; launch: boolean }) => req<ShiftPreview>("POST", `/api/projects/${id}/shift`, { ...b, dryRun: true }),
   removeProject: (id: string) => req<{ ok: boolean }>("DELETE", `/api/projects/${id}`),
   setItem: (id: string, itemId: string, b: Partial<{ status: PItem["status"]; note: string; link: string; asked: boolean | number; due: string | null }>) => req<Project>("POST", `/api/projects/${id}/items/${itemId}`, b),
   askItems: (id: string, items: string[]) => req<Project>("POST", `/api/projects/${id}/ask`, { items }),

@@ -19,7 +19,7 @@ import { Empty, hostOf } from "./RunPage"
 type Filter = "all" | "todo" | "done"
 const LABEL: Record<SeoFieldId | "redirect", string> = { title: "Title", description: "Description", slug: "URL", redirect: "Redirect" }
 // One grid for every row on the page, so the columns line up from card to card.
-const ROW = "grid grid-cols-[20px_88px_minmax(0,1fr)_36px_60px] items-start gap-x-3"
+const ROW = "grid grid-cols-[20px_88px_minmax(0,1fr)_56px_60px] items-start gap-x-3"
 
 export function SeoPage({ view }: { view: string }) {
   const { run, seo, seoState, setSeoState, notFound, seoProgress } = useRun()
@@ -197,10 +197,32 @@ function PageCard({ page: p, state, focus, save }: { page: SPage; state: SeoStat
         <div className="border-t">
           {(["title", "description", "slug"] as SeoFieldId[]).map((f) => <FieldRow key={f} page={p} field={f} state={state} verified={v?.[`${p.id}|${f}`]} save={save} />)}
           {slugChange && !p.pattern && <RedirectRow page={p} state={state} verified={v?.[`${p.id}|redirect`]} save={save} />}
+          <GooglePreview page={p} edits={edits} url={url} site={seo!.site.name} />
         </div>
       )}
       {p.notes.length > 0 && <ul className="grid gap-1 border-t px-4 py-2.5 pl-[135px] text-[13px] text-foreground/75">{p.notes.map((n) => <li key={n}>{n}</li>)}</ul>}
     </section>
+  )
+}
+
+// How the page would look in Google with the new wording. Google cuts titles near 60 characters and
+// descriptions near 155, at a word where it can.
+const cut = (t: string, n: number) => { if (t.length <= n) return t; const x = t.slice(0, n); const i = x.lastIndexOf(" "); return (i > n * 0.6 ? x.slice(0, i) : x).replace(/[\s,.;:|-]+$/, "") + " …" }
+function GooglePreview({ page: p, edits, url, site }: { page: SPage; edits: SeoState["edits"]; url: string; site: string }) {
+  const title = SEO.value(p, "title", edits), desc = SEO.value(p, "description", edits)
+  let host = "", crumbs: string[] = []
+  try { const u = new URL(url); host = u.hostname.replace(/^www\./, ""); crumbs = SEO.normPath(SEO.value(p, "slug", edits)).split("/").filter(Boolean) } catch { /* not a URL */ }
+  return (
+    <div className={cn(ROW, "border-b border-border/60 bg-muted/20 px-4 py-3 last:border-b-0")}>
+      <span />
+      <span className="pt-px text-[13px] text-muted-foreground">In Google</span>
+      <div className="grid min-w-0 max-w-[600px] gap-0.5">
+        <span className="truncate text-xs text-muted-foreground">{site} <span className="text-muted-foreground/70">· {[host, ...crumbs].join(" › ")}</span></span>
+        <span className="text-[16px] leading-snug">{p.pattern && /\{/.test(title) ? title : cut(title, 60)}</span>
+        <span className="text-[13px] leading-relaxed text-muted-foreground">{desc ? (p.pattern && /\{/.test(desc) ? desc : cut(desc, 155)) : "Google writes its own snippet from the page when there’s no description."}</span>
+      </div>
+      <span /><span />
+    </div>
   )
 }
 
@@ -256,7 +278,7 @@ function FieldRow({ page: p, field: f, state, verified, save }: { page: SPage; f
           </div>
         )}
       </div>
-      <span className={cn("pt-0.5 text-right text-xs tabular", limit && len > limit ? "text-destructive" : "text-muted-foreground")}>{limit ? len : ""}</span>
+      <span className={cn("pt-0.5 text-right text-xs tabular", limit && len > limit ? "text-destructive" : "text-muted-foreground")} title={limit ? `Google shows about ${limit} characters` : undefined}>{limit ? <>{len}<span className="text-muted-foreground/60"> / {limit}</span></> : ""}</span>
       <span className="flex justify-end gap-0.5 opacity-60 group-hover:opacity-100">
         {canEdit && !editing && <Button variant="ghost" size="icon-xs" onClick={() => { setDraft(shown); setEditing(true) }} aria-label={`Change the ${LABEL[f].toLowerCase()}`}><Pencil /></Button>}
         {copyText && !editing && <Button variant="ghost" size="icon-xs" onClick={() => { navigator.clipboard.writeText(copyText); toast("Copied", { description: f === "slug" ? `“${copyText}”, the part Webflow’s slug field takes` : undefined, duration: 1400 }) }} aria-label={`Copy the ${LABEL[f].toLowerCase()}`}><Copy /></Button>}
