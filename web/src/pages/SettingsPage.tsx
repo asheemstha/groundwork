@@ -11,7 +11,7 @@ import { api, type EngineId } from "@/lib/api"
 import { ago, cap, clock, pct } from "@/lib/format"
 import { SkillsSection } from "@/components/settings/Skills"
 
-const SECTIONS = [["you", "You"], ["engines", "Engines"], ["privacy", "Data and privacy"], ["skills", "Skills"], ["updates", "Updates"], ["scanning", "Scanning"]] as const
+const SECTIONS = [["you", "You"], ["engines", "AI accounts"], ["privacy", "Data and privacy"], ["skills", "AI rules"], ["updates", "Updates"], ["scanning", "Scanning"]] as const
 
 export function SettingsPage({ focus }: { focus?: EngineId | "privacy" }) {
   const { status } = useApp()
@@ -45,11 +45,11 @@ export function SettingsPage({ focus }: { focus?: EngineId | "privacy" }) {
           <div className="max-w-3xl px-12 pt-10 pb-16">
             <h1 className="mb-8 text-[32px] leading-tight font-medium">Settings</h1>
             <Section id="you" title="You"><Preferences /></Section>
-            <Section id="engines" title="Engines" desc={<>Groundwork runs Claude Code or Codex on this computer, signed in to <b className="font-medium text-foreground">your own account</b>. Every plan counts toward that plan’s usage limits. Groundwork never sees your password, and nothing goes through a Groundwork server.</>}>
+            <Section id="engines" title="AI accounts" desc={<>Optional. The heading and SEO plans run Claude Code or Codex on this computer, signed in to <b className="font-medium text-foreground">your own account</b>, and count toward your Claude or ChatGPT subscription’s limits. Groundwork never sees your password, and nothing goes through a Groundwork server.</>}>
               <div className="grid gap-4"><EngineCard k="claude" highlight={focus === "claude"} /><EngineCard k="codex" highlight={focus === "codex"} /></div>
             </Section>
             <Section id="privacy" title="Data and privacy"><Privacy /></Section>
-            <Section id="skills" title="Skills" desc="The rules the AI follows. The built-in ones are always here. Add your own to change the rules, and pick which one each plan uses."><SkillsSection /></Section>
+            <Section id="skills" title="AI rules" desc="The rules each AI plan follows, packaged as a skill (a folder with a SKILL.md). The built-in rules are always here. Add your own to change them, and pick which one each plan uses."><SkillsSection /></Section>
             <Section id="updates" title="Updates"><Updates /></Section>
             <Section id="scanning" title="Scanning">
               <div className="grid gap-px overflow-hidden rounded-xl border bg-border">
@@ -126,7 +126,7 @@ function EngineCard({ k, highlight }: { k: EngineId; highlight?: boolean }) {
           <div className="flex items-center gap-2 font-medium">{cat.name} <span className="font-normal text-muted-foreground">by {cat.vendor}</span>{cat.beta && <span className="tag-label" title="Works, but tested far less than Claude Code">Beta</span>}</div>
           <div className="text-xs text-muted-foreground">Needs {cat.plans}. <a href={cat.plansUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-0.5 hover:text-foreground">Plans<ExternalLink className="size-3" /></a></div>
         </div>
-        {step === 3 ? <Tag tone="solid"><Check className="size-3" />Ready</Tag> : <Tag tone="brand">{e.installed ? "Not signed in" : "Not installed"}</Tag>}
+        {step === 3 ? <Tag tone="solid"><Check className="size-3" />Ready</Tag> : <Tag tone="bad">{e.installed ? "Not signed in" : "Not installed"}</Tag>}
       </header>
       {step === 3 ? (
         <div className="grid gap-4 px-5 py-4">

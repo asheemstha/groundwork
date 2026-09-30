@@ -145,19 +145,19 @@ export function LaunchReportPage({ p, sub, reload }: { p: Project; sub?: string;
   const head = null
 
   if (!checkId || missing) return (
-    <div className="grid max-w-3xl gap-5 px-12 pt-8 pb-10">
+    <div className="grid max-w-4xl gap-5 px-12 pt-8 pb-10">
       {head}
-      <div><h1 className="text-[22px] font-medium">Launch check</h1><p className="mt-1.5 text-sm text-muted-foreground">{missing ? "That report isn’t on this Mac any more." : `Not run for ${p.name} yet.`} Use the staging address before launch and the live one after.</p></div>
+      <div><h1 className="text-[24px] leading-tight font-medium">Launch check</h1><p className="mt-1.5 text-sm text-muted-foreground">{missing ? "That report isn’t on this Mac any more." : `Not run for ${p.name} yet.`} Use the staging address before launch and the live one after.</p></div>
       <div className="flex gap-2"><Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="client-site.webflow.io" /><Button onClick={() => run(url)} disabled={busy || !url.trim()}>{busy ? <Loader2 className="animate-spin" /> : <Play />}Run the check</Button></div>
     </div>
   )
   if (!r) return <div className="grid h-full place-items-center py-24"><Spinner /></div>
 
   if (r.status === "running") return (
-    <div className="grid max-w-3xl gap-5 px-12 pt-8 pb-10">
+    <div className="grid max-w-4xl gap-5 px-12 pt-8 pb-10">
       {head}
       <div className="flex items-start gap-3">
-        <div className="flex-1"><h1 className="text-[22px] font-medium">Checking {hostOf(r.url)}</h1><p className="mt-1.5 text-sm text-muted-foreground">Up to 60 pages, then every link on them. It usually takes a minute or two. You can leave this page, the check keeps going.</p></div>
+        <div className="flex-1"><h1 className="text-[24px] leading-tight font-medium">Checking {hostOf(r.url)}</h1><p className="mt-1.5 text-sm text-muted-foreground">Up to 60 pages, then every link on them. It usually takes a minute or two. You can leave this page, the check keeps going.</p></div>
         <Button variant="outline" size="sm" onClick={() => api.cancelLaunch(p.id, r.id).then(() => toast("Stopping the check…")).catch(() => {})}>Stop</Button>
       </div>
       <section className="rounded-xl border bg-card p-4"><Progress r={r} /></section>
@@ -165,9 +165,9 @@ export function LaunchReportPage({ p, sub, reload }: { p: Project; sub?: string;
   )
 
   if (r.status === "failed" || r.status === "cancelled") return (
-    <div className="grid max-w-3xl gap-5 px-12 pt-8 pb-10">
+    <div className="grid max-w-4xl gap-5 px-12 pt-8 pb-10">
       {head}
-      <div><h1 className="text-[22px] font-medium">{r.status === "cancelled" ? "The check was stopped" : "The check didn’t finish"}</h1><p className="mt-1.5 text-sm text-muted-foreground">{hostOf(r.url)}, {when(r.started)}. {r.error}</p></div>
+      <div><h1 className="text-[24px] leading-tight font-medium">{r.status === "cancelled" ? "The check was stopped" : "The check didn’t finish"}</h1><p className="mt-1.5 text-sm text-muted-foreground">{hostOf(r.url)}, {when(r.started)}. {r.error}</p></div>
       <div><Button onClick={() => run(r.url)} disabled={busy}>{busy ? <Loader2 className="animate-spin" /> : <RotateCw />}Try again</Button></div>
     </div>
   )
@@ -200,7 +200,7 @@ function Report({ p, r, focus, busy, onRun, head }: { p: Project; r: LaunchRepor
         <Button size="sm" onClick={onRun} disabled={busy || !!p.tools.launchRunning}>{busy ? <Loader2 className="animate-spin" /> : <RotateCw />}Run again</Button>
       </div>
       <div>
-        <h1 className="text-[22px] font-medium">{r.oldSite ? "The old site" : failing.length ? `${failing.length} ${failing.length === 1 ? "check needs" : "checks need"} fixing` : r.staging ? "Staging is ready" : "Ready to launch"}</h1>
+        <h1 className="text-[24px] leading-tight font-medium">{r.oldSite ? "The old site" : failing.length ? `${failing.length} ${failing.length === 1 ? "check needs" : "checks need"} fixing` : r.staging ? "Staging is ready" : "Ready to launch"}</h1>
         <p className="mt-1.5 text-sm text-muted-foreground">
           <a href={r.url} target="_blank" rel="noreferrer" className="text-foreground/80 underline-offset-2 hover:underline">{r.host}</a>{where(r)}. {r.pagesChecked} pages and {r.linksChecked?.toLocaleString()} links, {when(r.started)}.
           {r.previous && <> Since the {day(r.previous.at)} check: {newCount} new {newCount === 1 ? "issue" : "issues"}, {(r.fixed || []).length} fixed.</>}
@@ -270,7 +270,7 @@ function IssueRow({ i, base }: { i: LaunchIssue; base: string }) {
   return (
     <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,260px)] gap-4 border-b border-border/60 py-2.5 text-[13px] last:border-b-0">
       <span className="grid gap-0.5">
-        <span className={cn(i.soft && "text-muted-foreground")}>{i.text}{i.isNew && <span className="ml-2 rounded-full border border-brand/40 px-1.5 py-px text-[11px] text-brand-ink">New</span>}{i.soft && <span className="ml-2 text-xs">worth a look</span>}</span>
+        <span className={cn(i.soft && "text-muted-foreground")}>{i.text}{i.isNew && <span className="ml-2 rounded-full border border-input px-1.5 py-px text-[11px] text-foreground">New</span>}{i.soft && <span className="ml-2 text-xs">worth a look</span>}</span>
         {i.fix && <span className="text-[12.5px] text-muted-foreground">{i.fix}</span>}
       </span>
       <span className="text-right text-[12.5px] leading-relaxed text-muted-foreground">

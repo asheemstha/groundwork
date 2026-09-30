@@ -18,6 +18,7 @@ import { useDraftSettings } from "@/hooks/useDraftSettings"
 import { api, type Estimate, type Run } from "@/lib/api"
 import { fmtRange, plural } from "@/lib/format"
 import { go, routes } from "@/lib/router"
+import { subName } from "@/lib/project"
 
 export const hostOf = (run: Pick<Run, "origin" | "url" | "name">) => { try { return new URL(run.origin || run.url).hostname.replace(/^www\./, "") } catch { return run.name } }
 
@@ -76,7 +77,7 @@ function Thread({ tool }: { tool: PlanTool | null }) {
         <SiteMenu onRescan={rescan} onReshoot={busy ? undefined : reshoot} onDelete={() => setConfirm("delete")}><Button variant="ghost" size="icon-sm" aria-label="Scan options"><MoreHorizontal /></Button></SiteMenu>
       </TopBar>
       <div className="scrollbar-thin min-h-0 flex-1 overflow-auto">
-        <div className="mx-auto grid max-w-3xl gap-4 px-4 py-6">
+        <div className="grid max-w-4xl gap-4 px-12 pt-8 pb-10">
           {run.status === "scan_failed" ? <FailedBlock run={run} onRetry={rescan} /> : <ScanBlock run={run} progress={run.status === "scanning" ? progress : null} />}
           {!tool && run.status === "scanned" && <NextBlock runId={run.id} />}
           {run.status !== "scanning" && run.status !== "scan_failed" && <PagesBlock key={run.id + (run.settings ? "p" : "") + (tool || "")} run={run} selected={selected} setSelected={setSelected} browse={!tool} locked={run.status === "running" || seoRunning} />}
@@ -104,6 +105,7 @@ function Thread({ tool }: { tool: PlanTool | null }) {
 
 /** After a scan: the two plans it can start. */
 function NextBlock({ runId }: { runId: string }) {
+  const { status } = useApp()
   const opt = (t: PlanTool, desc: string) => (
     <button onClick={() => go(routes.run(runId, t))} className="grid content-start gap-1 rounded-lg border bg-card px-4 py-3 text-left hover:border-foreground/25 hover:bg-muted/30">
       <span className="flex items-center gap-2 font-medium">{TOOL_LABEL[t]}<ArrowRight className="size-3.5 text-muted-foreground" /></span>
@@ -112,7 +114,7 @@ function NextBlock({ runId }: { runId: string }) {
   )
   return (
     <section className="grid gap-3 rounded-xl border bg-muted/30 p-4">
-      <div><h3 className="font-medium">Plan from this scan</h3><p className="text-[13px] text-muted-foreground">Both use AI through your own Claude or ChatGPT subscription. You choose the pages on the next screen.</p></div>
+      <div><h3 className="font-medium">Plan from this scan</h3><p className="text-[13px] text-muted-foreground">Both use AI through your own {subName(status)} subscription. You choose the pages on the next screen.</p></div>
       <div className="grid gap-2 sm:grid-cols-2">
         {opt("headings", "H1 to H6 for each page: which tags to fix, and rewrites if you want them.")}
         {opt("seo", "A title, meta description and URL for each page.")}
@@ -183,7 +185,7 @@ function RunPanel({ tool }: { tool: PlanTool }) {
       <dl className="grid grid-cols-[120px_minmax(0,1fr)] gap-y-0.5 px-5 py-3 text-[13.5px] [&_dd>button]:-ml-2">
         <Field label="Market"><CountryPicker value={d.s.market} onChange={(market) => d.set({ market })} /></Field>
         {!isSeo && <Field label="What to make"><OutputPicker value={d.s.output} onChange={(output) => d.set({ output })} /></Field>}
-        <Field label="Skill"><SkillPicker tool={isSeo ? "seo" : "headings"} always /></Field>
+        <Field label="Rules"><SkillPicker tool={isSeo ? "seo" : "headings"} always /></Field>
         <Field label="AI engine"><EnginePicker value={d.s.engine} onChange={d.setEngine} /></Field>
         <Field label="Model"><ModelPicker engine={d.s.engine} model={d.s.model} effort={d.s.effort} custom={d.custom} onChange={d.setModel} /></Field>
         <Field label="Notes" top>

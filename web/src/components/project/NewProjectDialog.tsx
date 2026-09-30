@@ -4,6 +4,7 @@ import { Layers, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { DateField } from "@/components/common/DateField"
 import { Switch } from "@/components/ui/switch"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { useApp } from "@/hooks/useApp"
@@ -127,8 +128,8 @@ export function NewProjectDialog() {
               <label className="grid gap-1.5 text-[13px] font-medium">Checklist template
                 <select value={tid} onChange={(e) => setTid(e.target.value)} className="h-9 rounded-lg border border-input bg-card px-2.5 text-sm font-normal">{list.map((t) => <option key={t.id} value={t.id}>{t.name} ({t.items} items)</option>)}</select>
               </label>
-              <label className="grid gap-1.5 text-[13px] font-medium">Kickoff<Input type="date" value={kickoff} onChange={(e) => setKickoff(e.target.value)} className="font-normal" /></label>
-              <label className="grid gap-1.5 text-[13px] font-medium">Target launch<Input type="date" value={launch} onChange={(e) => setLaunch(e.target.value)} className="font-normal" /></label>
+              <div className="grid gap-1.5 text-[13px] font-medium">Kickoff<DateField boxed value={kickoff} onChange={(v) => v && setKickoff(v)} /></div>
+              <div className="grid gap-1.5 text-[13px] font-medium">Target launch<DateField boxed value={launch} onChange={(v) => v && setLaunch(v)} /></div>
             </div>
             {tpl && tpl.phases.length > 1 && (
               <label className="flex items-center gap-3 text-[13px]">

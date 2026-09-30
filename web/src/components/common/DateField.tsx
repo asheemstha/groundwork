@@ -3,13 +3,16 @@ import { cn } from "cn"
 import { CalendarDays, X } from "lucide-react"
 import { fmtDay } from "@/lib/project"
 
-/** A date shown the way the rest of the app writes it ("Sun, Nov 15"), opening the system date picker on click. */
-export function DateField({ value, onChange, placeholder = "No date", clearable, className, icon = true }: { value: string | null | undefined; onChange: (v: string | null) => void; placeholder?: string; clearable?: boolean; className?: string; icon?: boolean }) {
+/**
+ * A date shown the way the rest of the app writes it ("Sun, Nov 15"), opening the system date picker on click.
+ * `boxed` draws it like a text field, for forms.
+ */
+export function DateField({ value, onChange, placeholder = "No date", clearable, className, icon = true, boxed }: { value: string | null | undefined; onChange: (v: string | null) => void; placeholder?: string; clearable?: boolean; className?: string; icon?: boolean; boxed?: boolean }) {
   const ref = React.useRef<HTMLInputElement>(null)
   const open = () => { const el = ref.current; if (!el) return; try { el.showPicker() } catch { el.focus(); el.click() } }
   return (
-    <span className={cn("relative inline-flex h-8 items-center", className)}>
-      <button type="button" onClick={open} className="inline-flex h-8 items-center gap-2 rounded-md px-2 text-[13.5px] hover:bg-muted/70">
+    <span className={cn("relative inline-flex h-8 items-center", boxed && "h-9 w-full rounded-lg border border-input bg-card font-normal", className)}>
+      <button type="button" onClick={open} className={cn("inline-flex h-8 items-center gap-2 rounded-md px-2 text-[13.5px] hover:bg-muted/70", boxed && "h-full w-full rounded-lg px-2.5 hover:bg-muted/40")}>
         {icon && <CalendarDays className="size-3.5 text-muted-foreground" />}
         {value ? fmtDay(value, true) : <span className="text-muted-foreground">{placeholder}</span>}
       </button>

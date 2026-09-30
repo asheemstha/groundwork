@@ -73,12 +73,14 @@ export function Bar({ value, className, tone = "ink" }: { value: number; classNa
 }
 
 /** Small mono label in a thin pill. */
-export function Tag({ children, className, tone }: { children: React.ReactNode; className?: string; tone?: "brand" | "solid" | "muted" }) {
+/** Tones: none (outlined), "solid", "muted", "brand" (needs doing, quiet) and "bad" (failed or broken, red). Orange is kept for progress. */
+export function Tag({ children, className, tone }: { children: React.ReactNode; className?: string; tone?: "brand" | "bad" | "solid" | "muted" }) {
   return (
     <span
       className={cn(
         "tag-label",
-        tone === "brand" && "border-brand/40 text-brand-ink",
+        tone === "brand" && "border-input text-foreground",
+        tone === "bad" && "border-destructive/40 text-destructive",
         tone === "solid" && "border-transparent bg-muted text-foreground",
         tone === "muted" && "border-border text-muted-foreground",
         !tone && "border-input text-foreground",
@@ -109,8 +111,8 @@ export function HTag({ tag, to }: { tag?: string; to?: boolean }) {
 export const ACT: Record<NonNullable<Row["act"]>, { label: string; cls: string }> = {
   retag: { label: "Re-tag", cls: "bg-muted text-foreground" },
   tag: { label: "Make heading", cls: "bg-muted text-foreground" },
-  rewrite: { label: "Rewrite", cls: "bg-brand/10 text-brand-ink" },
-  add: { label: "Add heading", cls: "bg-brand/10 text-brand-ink" },
+  rewrite: { label: "Rewrite", cls: "bg-muted text-foreground" },
+  add: { label: "Add heading", cls: "bg-muted text-foreground" },
   remove: { label: "Remove", cls: "border border-destructive text-destructive" },
   keep: { label: "Keep", cls: "border border-input text-muted-foreground" },
   none: { label: "Not a heading", cls: "border border-input text-muted-foreground" },

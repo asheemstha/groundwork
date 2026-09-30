@@ -27,7 +27,9 @@ export function TemplatesPage() {
   const count = (k: Template["kind"]) => list?.filter((t) => t.kind === k).length ?? 0
   const remove = async (t: TemplateSummary) => {
     if (t.kind === "checklist" && t.used) return toast.error(`${t.used} ${t.used === 1 ? "project uses" : "projects use"} this checklist. Projects keep their own copy, so you can duplicate it and change the copy instead.`)
-    await api.removeTemplate(t.id); load(); toast(`Deleted ${t.name}`)
+    const full = await api.template(t.id).catch(() => null)
+    await api.removeTemplate(t.id); load()
+    toast(`Deleted ${t.name}`, full ? { action: { label: "Undo", onClick: () => api.restoreTemplate(full).then(load).catch((e) => toast.error(e.message)) } } : undefined)
   }
   return (
     <div className="flex h-full flex-col">
@@ -44,7 +46,7 @@ export function TemplatesPage() {
           {KINDS.map((k) => <TypeLink key={k.kind} on={show === k.kind} onClick={() => setShow(k.kind)} icon={k.icon} label={k.label} n={count(k.kind)} />)}
         </nav>
         <div className="scrollbar-thin min-w-0 overflow-auto px-8 py-7">
-          <h1 className="text-[22px] font-medium">Templates</h1>
+          <h1 className="text-[24px] leading-tight font-medium">Templates</h1>
           <p className="mt-1.5 text-sm text-muted-foreground">Checklists you start projects from, and the messages and emails you send to clients.</p>
           {KINDS.filter((k) => show === "all" || show === k.kind).map((k) => (
             <section key={k.kind} className="mt-6 grid gap-2.5">
@@ -52,7 +54,7 @@ export function TemplatesPage() {
               <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
                 {list?.filter((t) => t.kind === k.kind).map((t) => (
                   <div key={t.id} className="group relative">
-                    <button onClick={() => go(routes.template(t.id))} className="flex h-[124px] w-full flex-col gap-1.5 rounded-xl border bg-card p-3.5 text-left hover:border-input">
+                    <button onClick={() => go(routes.template(t.id))} className="flex h-full min-h-[132px] w-full flex-col gap-1.5 rounded-xl border bg-card p-3.5 text-left hover:border-input [&>span]:shrink-0">
                       {t.kind === "checklist" ? (
                         <>
                           <span className="mb-1 grid size-7 place-items-center rounded-md bg-muted text-foreground/70"><ListChecks className="size-[15px]" /></span>
@@ -69,7 +71,7 @@ export function TemplatesPage() {
                       )}
                     </button>
                     <DropdownMenu>
-                      <DropdownMenuTrigger render={<button className="absolute top-2.5 right-2.5 hidden size-6 place-items-center rounded-md text-muted-foreground group-hover:grid hover:bg-muted data-[popup-open]:grid" aria-label={`${t.name} options`} />}><MoreHorizontal className="size-3.5" /></DropdownMenuTrigger>
+                      <DropdownMenuTrigger render={<button className="absolute top-2.5 right-2.5 hidden size-6 place-items-center rounded-md text-muted-foreground group-focus-within:grid group-hover:grid hover:bg-muted focus-visible:grid data-[popup-open]:grid" aria-label={`${t.name} options`} />}><MoreHorizontal className="size-3.5" /></DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-44">
                         <DropdownMenuItem onClick={() => createTemplate(t.kind, t.id)}><Copy /> Duplicate</DropdownMenuItem>
                         <DropdownMenuItem variant="destructive" onClick={() => remove(t)}><Trash2 /> Delete</DropdownMenuItem>
@@ -77,7 +79,7 @@ export function TemplatesPage() {
                     </DropdownMenu>
                   </div>
                 ))}
-                <button onClick={() => createTemplate(k.kind)} className="flex h-[124px] flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed text-muted-foreground hover:bg-muted/30"><Plus className="size-4" />{k.add}</button>
+                <button onClick={() => createTemplate(k.kind)} className="flex min-h-[132px] flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed text-muted-foreground hover:bg-muted/30"><Plus className="size-4" />{k.add}</button>
               </div>
             </section>
           ))}

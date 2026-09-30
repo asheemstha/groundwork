@@ -104,7 +104,7 @@ export function SeoPage({ view }: { view: string }) {
       </TopBar>
       {removeScan.dialog}
       <div className="scrollbar-thin min-h-0 flex-1 overflow-auto">
-        <div className="mx-auto max-w-5xl px-8 py-8">
+        <div className="max-w-5xl px-12 pt-8 pb-10">
           <Header />
           <div className="mt-8 mb-3 flex items-center gap-3">
             <div role="group" aria-label="Show" className="inline-flex gap-0.5 rounded-lg bg-muted p-0.5">
@@ -143,18 +143,18 @@ function Header() {
   const stats: [React.ReactNode, string][] = [[n("title"), n("title") === 1 ? "new title" : "new titles"], [n("description"), n("description") === 1 ? "new description" : "new descriptions"], [n("slug"), n("slug") === 1 ? "URL change, with a redirect" : "URL changes, with redirects"], [`${tot.tasks ? Math.round((100 * tot.done) / tot.tasks) : 0}%`, "done"]]
   return (
     <div>
-      <Tag tone="muted">SEO plan</Tag>
-      <h1 className="mt-2 text-3xl font-medium">{R.site.name}</h1>
+      <div className="text-[13px] text-muted-foreground">SEO plan</div>
+      <h1 className="mt-2 text-[24px] leading-tight font-medium">{R.site.name}</h1>
       <p className="mt-2 text-sm text-muted-foreground">
         {plural(planned.length, "page")}, planned {ago(j.ended || run!.updated || Date.now())} with {status?.catalog[s.engine].name} {modelName(status, s.engine, s.model)}, {status?.effort[s.effort]?.name.toLowerCase() || s.effort} effort. {R.site.keywordsFrom === "headings" ? "Keywords come from the heading plan, so titles and H1s target the same words." : "The AI chose the keywords from each page’s content. They’re unverified: no keyword tool is connected."}
       </p>
-      {R.warnings.length > 0 && <div className="mt-4 rounded-xl border border-brand/40 p-3 text-sm">{R.warnings.join(" ")}</div>}
+      {R.warnings.length > 0 && <div className="mt-4 rounded-xl border border-destructive/40 p-3 text-sm">{R.warnings.join(" ")}</div>}
       <div className="mt-6 grid grid-cols-2 gap-px overflow-hidden rounded-2xl border bg-border sm:grid-cols-4">
         {stats.map(([v, l]) => <div key={l} className="bg-card p-4"><div className="text-3xl font-medium tracking-tight tabular">{v}</div><div className="text-xs text-muted-foreground">{l}</div></div>)}
       </div>
       {(site.length > 0 || R.notes.length > 0) && (
         <ul className="mt-4 grid gap-2.5 rounded-2xl border bg-card p-4 text-sm">
-          {site.map((c) => <li key={c.text} className="grid grid-cols-[16px_minmax(0,1fr)] gap-2.5"><X className="mt-0.5 size-4 text-brand" />{c.text}</li>)}
+          {site.map((c) => <li key={c.text} className="grid grid-cols-[16px_minmax(0,1fr)] gap-2.5"><X className="mt-0.5 size-4 text-destructive" />{c.text}</li>)}
           {R.notes.map((x) => <li key={x} className="grid grid-cols-[16px_minmax(0,1fr)] gap-2.5 text-foreground/80"><span className="mt-2 size-1.5 justify-self-center rounded-full bg-muted-foreground/60" />{x}</li>)}
         </ul>
       )}
@@ -185,7 +185,7 @@ function PageCard({ page: p, state, focus, save }: { page: SPage; state: SeoStat
             <a href={url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">{p.path}<ExternalLink className="size-3" /></a>
           </div>
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-            {p.keyword ? <span className="inline-flex items-center gap-1 rounded-md bg-brand/10 px-2 py-0.5 text-xs text-brand-ink"><KeyRound className="size-3" />{p.keyword}</span> : <Tag tone="muted">No target keyword</Tag>}
+            {p.keyword ? <span className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs text-foreground"><KeyRound className="size-3" />{p.keyword}</span> : <Tag tone="muted">No target keyword</Tag>}
             {p.pattern && <Tag tone="muted">CMS template: applies to every {p.collection} item</Tag>}
             {p.h1 && <span className="min-w-0 truncate text-xs text-muted-foreground">H1: {p.h1}</span>}
           </div>
@@ -195,7 +195,7 @@ function PageCard({ page: p, state, focus, save }: { page: SPage; state: SeoStat
       </header>
       {open && fails.length > 0 && (
         <div className="grid gap-1 border-t bg-muted/30 px-4 py-2 text-[12.5px]">
-          {fails.map((c) => <span key={c.text} className={cn("flex items-center gap-1.5", c.info ? "text-muted-foreground" : "text-brand-ink")}><X className="size-3.5" />{c.text}</span>)}
+          {fails.map((c) => <span key={c.text} className={cn("flex items-center gap-1.5", c.info ? "text-muted-foreground" : "text-destructive")}><X className="size-3.5" />{c.text}</span>)}
         </div>
       )}
       {open && (

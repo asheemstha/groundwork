@@ -78,7 +78,7 @@ function Setup() {
   if (!status || hidden) return null
   const steps: [boolean, string, string, () => void][] = [
     [!!(status.engines.claude?.loggedIn || status.engines.codex?.loggedIn), "Sign in to Claude Code or Codex (optional)", "Only the heading and SEO plans use AI, on your own Claude or ChatGPT subscription. Checklists, scans and checks work without it.", () => go(routes.settings())],
-    [!!status.browser?.ok, "A browser for scans", "Chrome or Edge, found on this Mac.", () => go(routes.settings())],
+    [!!status.browser?.ok, "Chrome or Edge for scans", "Groundwork uses the browser already on this Mac.", () => go(routes.settings())],
     [!!prefs.appliedBy, "Add your name", "It signs client messages and exported guides.", () => go(routes.settings())],
     [projects.length > 0, "Create your first project", "From the Website project checklist, or your own.", () => newProject()],
   ]

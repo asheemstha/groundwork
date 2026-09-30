@@ -1,5 +1,5 @@
 // Helpers for projects: due dates, due-rule labels and filling in message templates.
-import type { DueRule, LaunchCheckId, MessageTemplate, PItem, Project, SiteKey } from "@/lib/api"
+import type { AppStatus, DueRule, LaunchCheckId, MessageTemplate, PItem, Project, SiteKey } from "@/lib/api"
 
 const parse = (d: string) => { const [y, m, day] = d.split("-").map(Number); return new Date(y!, m! - 1, day!) }
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
@@ -69,6 +69,9 @@ export const LAUNCH_CHECKS: Record<LaunchCheckId, string> = {
   legal: "Legal pages linked",
   https: "SSL and redirects",
 }
+
+/** Whose subscription the AI plans use, from what's signed in: "Claude", "ChatGPT" or "Claude or ChatGPT". */
+export const subName = (s: AppStatus | null) => { const c = !!s?.engines.claude.loggedIn, x = !!s?.engines.codex.loggedIn; return c && !x ? "Claude" : x && !c ? "ChatGPT" : "Claude or ChatGPT" }
 
 /** A project's three websites: the one being replaced, the new one on staging, and the live domain. */
 export const SITE_NAME: Record<SiteKey, string> = { old: "Old site", staging: "Staging", live: "Live site" }

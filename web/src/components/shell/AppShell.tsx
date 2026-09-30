@@ -191,7 +191,7 @@ function ProjectRow({ p, active }: { p: ProjectSummary; active: boolean }) {
     </button>
   )
   return (
-    <button onClick={() => go(routes.project(p.id))} className={cn("grid h-[30px] w-full grid-cols-[20px_minmax(0,1fr)_18px_14px] items-center gap-2 rounded-md px-2 text-left text-[14px] text-foreground/85 hover:bg-sidebar-accent", active && "bg-sidebar-accent text-foreground")}>
+    <button onClick={() => go(routes.project(p.id))} title={c ? `Phase ${c.index + 1} of ${p.phases.length}: ${c.name}, ${c.done} of ${c.total} done` : "Every phase is signed off"} className={cn("grid h-[30px] w-full grid-cols-[20px_minmax(0,1fr)_18px_14px] items-center gap-2 rounded-md px-2 text-left text-[14px] text-foreground/85 hover:bg-sidebar-accent", active && "bg-sidebar-accent text-foreground")}>
       <SiteIcon runId={p.iconRun || undefined} name={p.name} className="size-5 rounded-[5px] text-[10px]" />
       <span className="truncate">{p.name}</span>
       <span className="text-right text-[11px] text-muted-foreground tabular">{c ? String(c.index + 1).padStart(2, "0") : ""}</span>

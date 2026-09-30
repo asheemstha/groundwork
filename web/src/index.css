@@ -87,10 +87,10 @@
   /* soft states: finished items and meters, never solid black */
   --done: #bebdb9;
   --strong: #5e5d5a;
-  --destructive: #c4260f;
+  --destructive: #cc2b2b;
   --border: #e6e6e3;
   --input: #d4d4d1;
-  --ring: #ff4500;
+  --ring: #a3a29e;
   --chart-1: #ff4500;
   --chart-2: #161716;
   --chart-3: #7f7e7a;
@@ -129,10 +129,10 @@
   --brand-ink: #ff7a45;
   --done: #5c5b58;
   --strong: #c8c7c3;
-  --destructive: #ff6a4d;
+  --destructive: #f06060;
   --border: #2c2c2a;
   --input: #3a3a37;
-  --ring: #ff4500;
+  --ring: #6b6a66;
   --chart-1: #ff4500;
   --chart-2: #f4f4f2;
   --chart-3: #7f7e7a;

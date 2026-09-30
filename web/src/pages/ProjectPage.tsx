@@ -4,6 +4,7 @@ import { Ban, CalendarDays, Check, ChevronDown, ChevronRight, ChevronUp, Copy, E
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
@@ -16,7 +17,7 @@ import { DateField } from "@/components/common/DateField"
 import { Chip } from "@/pages/Dashboard"
 import { useApp } from "@/hooks/useApp"
 import { api, proofUrl, type MessageTemplate, type PItem, type PPhase, type Project, type SiteKey, type TemplateSummary } from "@/lib/api"
-import { SITE_KEYS, SITE_NAME, dayOf, dueLabel, fmtDay, hostOfUrl, renderMessage, today, waited } from "@/lib/project"
+import { SITE_KEYS, SITE_NAME, dayOf, dueLabel, fmtDay, hostOfUrl, renderMessage, subName, today, waited } from "@/lib/project"
 import { ago } from "@/lib/format"
 import { go, routes } from "@/lib/router"
 import { LaunchCard, LaunchItemPanel, LaunchReportPage, useLaunchRefresh } from "@/components/project/LaunchCheck"
@@ -64,7 +65,7 @@ export function ProjectPage({ id, tab: asked, sub }: { id: string; tab: Tab; sub
           <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuItem onClick={() => setEditing(true)}><Pencil /> Edit details…</DropdownMenuItem>
             {!audit && <DropdownMenuItem onClick={shiftPlan}><CalendarDays /> Move dates…</DropdownMenuItem>}
-            {!audit && <DropdownMenuItem onClick={updateFromTemplate}><RefreshCw /> Update from the template…{p.templateChanged && <span className="ml-auto size-1.5 rounded-full bg-brand" />}</DropdownMenuItem>}
+            {!audit && <DropdownMenuItem onClick={updateFromTemplate}><RefreshCw /> Update from the template…{p.templateChanged && <span className="ml-auto size-1.5 rounded-full bg-foreground/60" />}</DropdownMenuItem>}
             {audit && <DropdownMenuItem onClick={() => newProject({ name: p.name, old: p.sites.live || p.url || "" })}><FolderPlus /> Start a project for this site…</DropdownMenuItem>}
             <DropdownMenuSeparator />
             <DropdownMenuItem variant="destructive" onClick={() => setRemoving(true)}><Trash2 /> {audit ? "Delete audit…" : "Delete project…"}</DropdownMenuItem>
@@ -73,10 +74,10 @@ export function ProjectPage({ id, tab: asked, sub }: { id: string; tab: Tab; sub
       </TopBar>
       <div className="scrollbar-thin min-h-0 flex-1 overflow-auto">
         {!sub_label(tab) && (
-          <header className="px-12 pt-9">
-            <SiteIcon runId={p.tools.iconRun || undefined} name={p.name} className="size-11 rounded-lg text-lg" />
-            <h1 className="mt-3 text-[32px] leading-tight font-medium">{p.name}</h1>
-            <dl className="mt-4 grid max-w-2xl grid-cols-[150px_minmax(0,1fr)] gap-y-0.5 text-[14px]">
+          <header className="px-12 pt-7">
+            <SiteIcon runId={p.tools.iconRun || undefined} name={p.name} className="size-10 rounded-lg text-lg" />
+            <h1 className="mt-2.5 text-[32px] leading-tight font-medium">{p.name}</h1>
+            <dl className="mt-4 grid max-w-2xl gap-y-0.5 text-[14px] [--prop-w:130px] lg:max-w-5xl lg:grid-flow-col lg:grid-cols-2 lg:grid-rows-4 lg:gap-x-12">
               {(audit ? (["live"] as const) : SITE_KEYS).map((k) => (
                 <Prop key={k} icon={<Link2 className="size-3.5" />} label={audit ? "Site" : SITE_NAME[k]}>{p.sites[k] ? <a href={p.sites[k]!} target="_blank" rel="noreferrer" className="hover:underline">{hostOfUrl(p.sites[k])}</a> : <button onClick={() => setEditing(true)} className="text-muted-foreground hover:text-foreground">Empty</button>}</Prop>
               ))}
@@ -85,7 +86,7 @@ export function ProjectPage({ id, tab: asked, sub }: { id: string; tab: Tab; sub
               <Prop icon={<CalendarDays className="size-3.5" />} label="Kickoff"><DateField value={p.kickoff} placeholder="Empty" icon={false} className="-ml-2" onChange={async (v) => { try { setP(await api.updateProject(id, { kickoff: v })); refreshProjects() } catch (e) { toast.error((e as Error).message) } }} /></Prop>
               <Prop icon={<CalendarDays className="size-3.5" />} label="Launch"><DateField value={p.launch} placeholder="Empty" icon={false} className="-ml-2" onChange={async (v) => { try { setP(await api.updateProject(id, { launch: v })); refreshProjects() } catch (e) { toast.error((e as Error).message) } }} /></Prop>
               <Prop icon={<Stamp className="size-3.5" />} label="Phase">{(() => { const c = p.phases.find((x) => x.id === p.current); return c ? <span>{c.name} <span className="text-muted-foreground">· {c.done} of {c.total} done</span></span> : <span className="text-muted-foreground">All signed off</span> })()}</Prop>
-              <Prop icon={<Layers className="size-3.5" />} label="Template"><span>{p.templateName}</span>{p.templateChanged && <button onClick={updateFromTemplate} className="ml-2 inline-flex items-center gap-1.5 text-[12.5px] text-brand-ink hover:underline"><span className="size-1.5 rounded-full bg-brand" />Changed since, review</button>}</Prop>
+              <Prop icon={<Layers className="size-3.5" />} label="Template"><span>{p.templateName}</span>{p.templateChanged && <button onClick={updateFromTemplate} className="ml-2 inline-flex items-center gap-1.5 text-[12.5px] text-muted-foreground underline underline-offset-2 hover:text-foreground">Template updated. Review changes</button>}</Prop>
               </>}
             </dl>
             {audit ? (
@@ -94,7 +95,7 @@ export function ProjectPage({ id, tab: asked, sub }: { id: string; tab: Tab; sub
                 <Button size="sm" variant="outline" onClick={() => newProject({ name: p.name, old: p.sites.live || p.url || "" })}><FolderPlus />Start a project</Button>
               </div>
             ) : (
-              <nav aria-label="Project" className="mt-6 flex gap-1 border-b pb-2">
+              <nav aria-label="Project" className="mt-5 flex gap-1 border-b pb-2">
                 <TabLink on={tab === "checklist"} onClick={() => go(routes.project(id))}>Checklist</TabLink>
                 <TabLink on={tab === "client"} onClick={() => go(routes.project(id, "client"))}>Client <span className="text-xs text-muted-foreground tabular">{open}</span>{p.client.late.length > 0 && <span className="size-1.5 rounded-full bg-destructive" aria-label={`${p.client.late.length} late`} />}</TabLink>
                 <TabLink on={tab === "tools"} onClick={() => go(routes.project(id, "tools"))}>Tools</TabLink>
@@ -203,7 +204,7 @@ function ChecklistTab({ p, setItem, setP, reload }: { p: Project; setItem: SetIt
             </div>
             {toolCount > 0 && <button aria-pressed={toolsOnly} onClick={() => setToolsOnly(!toolsOnly)} className={cn("inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-[13px]", toolsOnly ? "border-foreground/30 bg-card font-medium" : "border-transparent text-muted-foreground hover:bg-muted/60")}><span className="size-2 rounded-[2px] bg-brand" />Groundwork tools<span className="text-xs font-normal text-muted-foreground tabular">{toolCount}</span></button>}
             <span className="flex-1" />
-            <label className="inline-flex items-center gap-2 text-[13px] text-muted-foreground"><input type="checkbox" checked={hideDone} onChange={(e) => setHideDone(e.target.checked)} className="size-[15px] accent-foreground" />Hide done</label>
+            <label className="inline-flex items-center gap-2 text-[13px] text-muted-foreground"><Checkbox checked={hideDone} onCheckedChange={(v) => setHideDone(!!v)} />Hide done</label>
           </div>
           {ph.groups.map((g) => {
             const items = g.items.filter(match)
@@ -214,7 +215,7 @@ function ChecklistTab({ p, setItem, setP, reload }: { p: Project; setItem: SetIt
         </div>
         <aside className="flex min-w-0 flex-col gap-3.5">
           <section className="rounded-xl border bg-card p-4">
-            <div className="flex items-center gap-2"><span className="text-[12.5px] text-muted-foreground">{ph.name} phase</span><span className="flex-1" />{health && <span className={cn("inline-flex h-[22px] items-center gap-1.5 rounded-full px-2 text-xs", health === "On track" ? "bg-muted text-foreground/80" : health === "At risk" ? "bg-brand/10 text-brand-ink" : "bg-destructive/10 text-destructive")}><span className={cn("size-1.5 rounded-full", health === "On track" ? "bg-done" : health === "At risk" ? "bg-brand" : "bg-destructive")} />{health}</span>}</div>
+            <div className="flex items-center gap-2"><span className="text-[12.5px] text-muted-foreground">{ph.name} phase</span><span className="flex-1" />{health && <span className={cn("inline-flex h-[22px] items-center gap-1.5 rounded-full px-2 text-xs", health === "Behind" ? "bg-destructive/10 text-destructive" : "bg-muted text-foreground/80")}><span className={cn("size-1.5 rounded-full", health === "On track" ? "bg-done" : "bg-destructive")} />{health}</span>}</div>
             <div className="mt-1.5 flex items-baseline gap-1.5"><span className="text-[22px] font-medium tabular">{ph.done}</span><span className="text-muted-foreground">of {ph.total} done</span></div>
             <div className="mt-2.5 h-[5px] overflow-hidden rounded-full bg-muted"><span className="block h-full bg-brand" style={{ width: `${ph.total ? (100 * ph.done) / ph.total : 0}%` }} /></div>
             {health && health !== "On track" && (
@@ -362,13 +363,13 @@ function ItemSheet({ p, it, onClose, setItem, reload, order, onMove }: { p: Proj
                   <span className="mt-1"><StatusIcon it={x} size={24} onClick={() => setItem(x.id, { status: x.status === "done" ? "todo" : "done" })} /></span>
                   <SheetTitle className="text-[26px] leading-tight font-medium">{x.title}</SheetTitle>
                 </div>
-                <dl className="mt-6 grid grid-cols-[140px_minmax(0,1fr)] gap-y-0.5 text-[13.5px]">
+                <dl className="mt-6 grid gap-y-0.5 text-[13.5px]">
                   <Prop icon={<Check className="size-3.5" />} label="Status"><span className={cn("inline-flex h-6 items-center rounded-md px-2 text-[12.5px]", x.status === "todo" ? (x.late ? "bg-destructive/10 text-destructive" : "bg-muted") : "bg-done/40 text-foreground/80")}>{status}</span></Prop>
                   <Prop icon={<CalendarDays className="size-3.5" />} label="Due">
                     <DateField value={x.due} onChange={(v) => setItem(x.id, { due: v })} icon={false} className="-ml-2" />
                     {x.manualDue && <button onClick={() => setItem(x.id, { due: null })} className="ml-1 text-xs text-muted-foreground hover:text-foreground">Back to the plan’s date</button>}
                   </Prop>
-                  <Prop icon={<User className="size-3.5" />} label="Whose">{x.who === "client" ? "The client’s" : "Ours"}</Prop>
+                  <Prop icon={<User className="size-3.5" />} label="Owner">{x.who === "client" ? "Client" : "Us"}</Prop>
                   {x.who === "client" && (
                     <Prop icon={<Mail className="size-3.5" />} label="Asked">
                       {x.asked ? <span>{fmtDay(dayOf(x.asked), true)}<span className="text-muted-foreground">{x.nudged ? `, nudged ${fmtDay(dayOf(x.nudged))}` : ""}</span></span> : <span className="text-muted-foreground">Not yet</span>}
@@ -392,7 +393,7 @@ function ItemSheet({ p, it, onClose, setItem, reload, order, onMove }: { p: Proj
                       : x.tool === "seo" && p.tools.seoRunning ? <div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => go(routes.run(p.tools.seoRunning!, "seo"))}><Loader2 className="animate-spin" />Planning now</Button></div>
                       : x.tool === "seo" && p.tools.scan ? <div className="flex gap-2"><Button size="sm" onClick={() => go(routes.run(p.tools.plan?.runId || p.tools.scan!.runId, "seo"))}>Plan SEO</Button></div>
                       : <div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => go(routes.project(p.id, "tools"))}>Go to Tools</Button></div>)}
-                    <p className="text-[12.5px] leading-relaxed text-muted-foreground">{!t.ready ? "When this tool is ready, it will do or check this item for you." : x.tool === "headings" ? "This item ticks itself once every tag fix in the plan is done. You can also tick it yourself." : x.tool === "launch" ? (x.check === "indexing" || x.check === "https" ? "This item ticks itself when a check of the live domain passes. A staging check shows the issues but doesn’t tick it." : "This item ticks itself when the check passes. You can also tick it yourself.") : x.tool === "redirects" ? (x.check === "map" ? "This item ticks itself when every old URL has a match you’re happy with." : x.check === "after" ? "This item ticks itself when a test of the live domain after launch day passes." : "This item ticks itself when a test of the live domain passes: every redirect is one 301 to the right page.") : x.tool === "seo" ? (x.check === "plan" ? "This item ticks itself when the SEO plan is ready. Its H1s come from the heading plan." : "Counts the plan’s titles, descriptions and URLs as they go live. This item also covers OG images, alt text, schema and the 404 page, so you tick it yourself. The launch check covers several of those.") : "This item ticks itself when the scan finishes."}</p>
+                    <p className="text-[12.5px] leading-relaxed text-muted-foreground">{!t.ready ? "When this tool is ready, it will do or check this item for you." : x.tool === "headings" ? "This item ticks itself once every tag fix in the plan is done. You can also tick it yourself." : x.tool === "launch" ? (x.check === "indexing" || x.check === "https" ? "This item ticks itself when a check of the live domain passes. A staging check shows the issues but doesn’t tick it." : "This item ticks itself when the check passes. You can also tick it yourself.") : x.tool === "redirects" ? (x.check === "map" ? "This item ticks itself when every old URL has a match you’re happy with." : x.check === "after" ? "This item ticks itself when a test of the live domain after launch day passes." : "This item ticks itself when a test of the live domain passes: every redirect is one 301 to the right page.") : x.tool === "seo" ? (x.check === "plan" ? "This item ticks itself once an SEO plan covers every page the scan read. Plan staging, so it describes the new site." : "Counts the plan’s titles, descriptions and URLs as they go live. This item also covers OG images, alt text, schema and the 404 page, so you tick it yourself. The launch check covers several of those.") : (x.check === "recrawl" ? "This item ticks itself when the old site is scanned in the 10 days before launch day. Rebuild the redirect map afterwards, so new pages get redirects too." : "This item ticks itself when the scan finishes.")}</p>
                   </section>
                 )}
                 <Textarea value={note} onChange={(e) => setNote(e.target.value)} onBlur={() => note !== x.note && setItem(x.id, { note })} rows={3} placeholder="Add notes…" className="mt-6 min-h-0 resize-none border-0 bg-transparent px-0 text-[14.5px] leading-relaxed shadow-none [field-sizing:content] focus-visible:ring-0 dark:bg-transparent" />
@@ -420,10 +421,10 @@ function ItemSheet({ p, it, onClose, setItem, reload, order, onMove }: { p: Proj
 /** A property row, Notion style: a quiet label with its icon, then the value. */
 function Prop({ icon, label, children }: { icon: React.ReactNode; label: string; children: React.ReactNode }) {
   return (
-    <>
+    <div className="grid grid-cols-[var(--prop-w,140px)_minmax(0,1fr)]">
       <dt className="flex h-8 items-center gap-2 text-muted-foreground">{icon}{label}</dt>
       <dd className="flex min-h-8 min-w-0 items-center">{children}</dd>
-    </>
+    </div>
   )
 }
 
@@ -502,7 +503,7 @@ function SignoffDialog({ p, ph, open, onClose, onDone }: { p: Project; ph: PPhas
           )}
           <div className="grid grid-cols-2 gap-3">
             <label className="grid gap-1.5 text-[13px] font-medium">Approved by<Input value={by} onChange={(e) => setBy(e.target.value)} placeholder="Name, company" className="font-normal" /></label>
-            <label className="grid gap-1.5 text-[13px] font-medium">Date<Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="font-normal" /></label>
+            <div className="grid gap-1.5 text-[13px] font-medium">Date<DateField boxed value={date} onChange={(v) => setDate(v || today())} /></div>
           </div>
           <div className="grid gap-1.5">
             <span className="text-[13px] font-medium">Proof</span>
@@ -567,15 +568,18 @@ function ClientTab({ p, setItem, setP, remind }: { p: Project; setItem: SetItem;
       toast("Copied the message", { description: [fresh.length ? `${fresh.length} marked as asked today` : "", again.length ? `${again.length} marked as nudged` : ""].filter(Boolean).join(", ") + "." })
     } catch (e) { toast.error((e as Error).message) }
   }
-  const cols = "grid-cols-[16px_18px_minmax(0,1fr)_96px_96px_132px]"
+  // One control per row: the checkbox puts the item in the message; "Received" ticks it off.
+  const cols = "grid-cols-[16px_minmax(0,1fr)_88px_60px_124px_72px]"
   const Row = ({ x, right, select = true }: { x: PItem; right: React.ReactNode; select?: boolean }) => (
-    <div className={cn("grid h-11 items-center gap-3 border-t border-border/60", cols)}>
-      {select ? <input type="checkbox" aria-label={`Include ${x.title} in the message`} checked={pick.has(x.id)} onChange={(e) => toggle(x.id, e.target.checked)} className="size-[15px] accent-foreground" /> : <span />}
-      <StatusIcon it={x} onClick={() => setItem(x.id, { status: x.status === "done" ? "todo" : "done" })} />
+    <div className={cn("group grid h-11 items-center gap-3 border-t border-border/60", cols)}>
+      {select ? <Checkbox aria-label={`Include ${x.title} in the message`} checked={pick.has(x.id)} onCheckedChange={(v) => toggle(x.id, !!v)} /> : <Check className="size-4 text-muted-foreground/70" />}
       <span className={cn("truncate", x.status === "done" && "text-muted-foreground")}>{x.title}</span>
       <span className="truncate text-muted-foreground">{x.phaseName}</span>
       <span className="text-muted-foreground">{x.asked ? new Date(x.asked).toLocaleDateString([], { month: "short", day: "numeric" }) : <span className="text-muted-foreground/60">Not yet</span>}</span>
       <span className="text-right">{right}</span>
+      <span className="text-right">{x.status === "done"
+        ? <Button size="xs" variant="ghost" className="text-muted-foreground" onClick={() => setItem(x.id, { status: "todo" })}>Undo</Button>
+        : <Button size="xs" variant="ghost" className="text-muted-foreground opacity-70 group-hover:opacity-100 hover:text-foreground focus-visible:opacity-100" onClick={() => { setItem(x.id, { status: "done" }); toggle(x.id, false) }}>Received</Button>}</span>
     </div>
   )
   const Section = ({ title, list, tone, children }: { title: string; list: PItem[]; tone?: string; children: React.ReactNode }) => {
@@ -586,18 +590,18 @@ function ClientTab({ p, setItem, setP, remind }: { p: Project; setItem: SetItem;
         <div className="flex h-[34px] items-center gap-2">
           <h2 className={cn("text-[13.5px] font-medium", tone)}>{title}</h2><span className="text-[12.5px] text-muted-foreground tabular">{list.length}</span>
           <span className="flex-1" />
-          <button onClick={() => setPick((s) => { const n = new Set(s); list.forEach((x) => (all ? n.delete(x.id) : n.add(x.id))); return n })} className="text-[12.5px] text-muted-foreground hover:text-foreground">{all ? "Leave these out" : "Include all"}</button>
+          <button onClick={() => setPick((s) => { const n = new Set(s); list.forEach((x) => (all ? n.delete(x.id) : n.add(x.id))); return n })} className="text-[12.5px] text-muted-foreground hover:text-foreground">{all ? "Untick all" : "Tick all"}</button>
         </div>
         {children}
       </div>
     )
   }
   return (
-    <div className="grid gap-10 px-12 pt-6 pb-10 lg:grid-cols-[minmax(0,1fr)_400px]">
+    <div className="grid gap-10 px-12 pt-6 pb-10 lg:grid-cols-[minmax(0,1fr)_360px]">
       <div className="min-w-0 text-[13.5px]">
         <h2 className="text-[16px] font-medium">Waiting on the client</h2>
-        <p className="mt-1 mb-4 text-sm text-muted-foreground">Everything {p.name} owes you, from every phase. Tick the box to include an item in the message, and the circle when it arrives. An item is late once its due date passes, whether or not you’ve asked yet.</p>
-        <div className={cn("grid h-[30px] items-center gap-3 border-b text-[12.5px] text-muted-foreground", cols)}><span /><span /><span>Item</span><span>Phase</span><span>Asked</span><span className="text-right">Due</span></div>
+        <p className="mt-1 mb-4 text-sm text-muted-foreground">Everything {p.name} owes you, from every phase. Tick the items to ask for or remind about, and press Received when one arrives. An item is late once its due date passes, whether or not you’ve asked yet.</p>
+        <div className={cn("grid h-[30px] items-center gap-3 border-b text-[12.5px] text-muted-foreground", cols)}><span /><span>Item</span><span>Phase</span><span>Asked</span><span className="text-right">Due</span><span /></div>
         <Section title="Late" list={c.late} tone="text-destructive">{c.late.map((x) => <Row key={x.id} x={x} right={<span className="text-destructive">{fmtDay(x.due)}, {dueLabel(x)}</span>} />)}</Section>
         <Section title="Asked, due soon" list={c.soon}>{c.soon.map((x) => <Row key={x.id} x={x} right={x.due ? fmtDay(x.due, true) : ""} />)}</Section>
         <Section title="Not asked yet" list={c.notAsked}>{c.notAsked.map((x) => <Row key={x.id} x={x} right={due(x)
@@ -613,7 +617,7 @@ function ClientTab({ p, setItem, setP, remind }: { p: Project; setItem: SetItem;
           <select value={tid} onChange={(e) => { setPicked(true); setTid(e.target.value) }} className="h-9 rounded-lg border border-input bg-card px-2.5 text-[13.5px] text-foreground">{tpls.map((t) => <option key={t.id} value={t.id}>{t.name}{t.kind === "email" ? " (email)" : ""}</option>)}</select>
         </label>
         <div className="max-h-80 overflow-auto rounded-[10px] border bg-background px-4 py-3.5 text-[13.5px] leading-relaxed whitespace-pre-line">{text || "Pick a template."}</div>
-        {chosen.length > 0 && <label className="flex items-start gap-2 text-[13px]"><input type="checkbox" checked={record} onChange={(e) => setRecord(e.target.checked)} className="mt-0.5 size-[15px] accent-foreground" /><span>Record it as sent today <span className="text-muted-foreground">({[fresh.length ? `${fresh.length} asked` : "", chosen.length - fresh.length ? `${chosen.length - fresh.length} nudged` : ""].filter(Boolean).join(", ")})</span></span></label>}
+        {chosen.length > 0 && <label className="flex items-start gap-2 text-[13px]"><Checkbox checked={record} onCheckedChange={(v) => setRecord(!!v)} className="mt-0.5" /><span>Record it as sent today <span className="text-muted-foreground">({[fresh.length ? `${fresh.length} asked` : "", chosen.length - fresh.length ? `${chosen.length - fresh.length} nudged` : ""].filter(Boolean).join(", ")})</span></span></label>}
         <Button onClick={copy} disabled={!text}><Copy />Copy message</Button>
         <p className="text-[12.5px] leading-relaxed text-muted-foreground">Groundwork doesn’t send anything. Paste the message wherever you talk to the client.{!prefs.appliedBy && " Add your name in Settings to sign it."}</p>
       </section>
@@ -627,7 +631,7 @@ const DONE = (s?: string | null) => s === "done" || s === "partial"
 const countsOf = (r: Run) => { const c = r.progress?.now || r.progress?.all || r.progress?.live; return c ? `${c.done} of ${c.tasks} tag fixes done` : "Ready" }
 
 function ToolsTab({ p, reload, onEdit }: { p: Project; reload: () => void; onEdit: () => void }) {
-  const { refreshRuns } = useApp()
+  const { refreshRuns, status } = useApp()
   const [busy, setBusy] = React.useState<SiteKey | null>(null)
   const audit = p.kind === "audit"
   const scan = async (site: SiteKey) => {
@@ -643,7 +647,7 @@ function ToolsTab({ p, reload, onEdit }: { p: Project; reload: () => void; onEdi
       <div className="overflow-hidden rounded-xl border bg-card">
         {keys.map((k) => <SiteTools key={k} p={p} k={k} label={audit ? "Site" : SITE_NAME[k]} busy={busy === k} onScan={() => scan(k)} onEdit={onEdit} />)}
       </div>
-      <p className="text-[12.5px] text-muted-foreground">Scans run on your Mac with no AI. The heading and SEO plans use your Claude or ChatGPT subscription.</p>
+      <p className="text-[12.5px] text-muted-foreground">Scans run on your Mac with no AI. The heading and SEO plans use your {subName(status)} subscription.</p>
       <h2 className="mt-4 text-[13px] font-medium text-muted-foreground">Checks</h2>
       <LaunchCard p={p} reload={reload} />
       {!audit && <RedirectCard p={p} onEdit={onEdit} />}
@@ -753,8 +757,8 @@ function EditDialog({ p, open, onClose, onSaved }: { p: Project; open: boolean; 
             {site("live", "Live domain", "(where it launches)", "client-site.com")}
             <label className="grid gap-1.5 text-[13px] font-medium">Client contact<Input value={f.clientName} onChange={(e) => setF({ ...f, clientName: e.target.value })} placeholder="Used in messages" className="font-normal" /></label>
             <div className="grid grid-cols-2 gap-3">
-              <label className="grid gap-1.5 text-[13px] font-medium">Kickoff<Input type="date" value={f.kickoff} onChange={(e) => setF({ ...f, kickoff: e.target.value })} className="font-normal" /></label>
-              <label className="grid gap-1.5 text-[13px] font-medium">Launch<Input type="date" value={f.launch} onChange={(e) => setF({ ...f, launch: e.target.value })} className="font-normal" /></label>
+              <div className="grid gap-1.5 text-[13px] font-medium">Kickoff<DateField boxed clearable value={f.kickoff} onChange={(v) => setF({ ...f, kickoff: v || "" })} placeholder="Not set" /></div>
+              <div className="grid gap-1.5 text-[13px] font-medium">Launch<DateField boxed clearable value={f.launch} onChange={(v) => setF({ ...f, launch: v || "" })} placeholder="Not set" /></div>
             </div>
           </>}
         </div>

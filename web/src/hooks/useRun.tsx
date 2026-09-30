@@ -110,7 +110,7 @@ export function RunProvider({ id, children }: { id: string; children: React.Reac
               reloadResult()
               appRef.current.refreshRuns()
               document.title = "Groundwork"
-              toast.success(`Plan ready for ${r.name}`, { description: "Work through the to-do list page by page.", action: { label: "Open to-do list", onClick: () => go(routes.review(id)) } })
+              toast.success(`Plan ready for ${r.name}`, { description: "Work through the to-do list page by page.", action: { label: "Open the plan", onClick: () => go(routes.review(id)) } })
               if (document.hidden && "Notification" in window && Notification.permission === "granted") {
                 const n = new Notification("Plan ready", { body: `${r.name}: the to-do list is ready.` })
                 n.onclick = () => { window.focus(); go(routes.review(id)) }

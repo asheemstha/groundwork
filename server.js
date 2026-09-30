@@ -109,7 +109,7 @@ const friendly = e => {
   if (http && http[1] === '404') return 'That address returned “page not found” (HTTP 404). Check the address.';
   if (http && http[1][0] === '5') return `The site had a server error (HTTP ${http[1]}). Try again in a few minutes.`;
   if (/rate.?limit|usage limit|\b429\b|quota/i.test(m)) return 'Your AI plan’s usage limit was reached. Try again when it resets; the pages already planned are kept.';
-  if (/not logged in|login required|unauthori[sz]ed|invalid api key|authentication/i.test(m)) return 'The AI engine isn’t signed in any more. Open Settings, Engines to sign in again.';
+  if (/not logged in|login required|unauthori[sz]ed|invalid api key|authentication/i.test(m)) return 'Claude Code or Codex isn’t signed in any more. Open Settings, AI accounts, to sign in again.';
   return m.split('\n')[0];
 };
 

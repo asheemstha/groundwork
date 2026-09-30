@@ -246,7 +246,7 @@ export interface CrawlData { status: number; title: string; items: CrawlItem[]; 
 export type ToolId = "scan" | "headings" | "seo" | "launch" | "redirects"
 export interface DueRule { from: "kickoff" | "launch"; days: number }
 export type LaunchCheckId = "indexing" | "placeholders" | "links" | "seo" | "canonicals" | "legal" | "https"
-export interface TItem { id: string; title: string; who: "us" | "client"; done: string; part: string | null; tool: ToolId | null; check?: LaunchCheckId | "plan" | "live" | "map" | "after" | null; due: DueRule | null }
+export interface TItem { id: string; title: string; who: "us" | "client"; done: string; part: string | null; tool: ToolId | null; check?: LaunchCheckId | "plan" | "live" | "map" | "after" | "recrawl" | null; due: DueRule | null }
 export interface TGroup { id: string; name: string; items: TItem[] }
 export interface TPhase { id: string; name: string; due: DueRule | null; groups: TGroup[]; handoff: { title: string; needs: "us" | "client"; items: TItem[] } }
 export interface TPart { id: string; name: string; desc: string }
@@ -254,8 +254,8 @@ export interface ChecklistTemplate { id: string; kind: "checklist"; name: string
 export interface MessageTemplate { id: string; kind: "message" | "email"; name: string; subject: string; body: string; use: string[]; updated: number }
 export type Template = ChecklistTemplate | MessageTemplate
 export interface TemplateSummary { id: string; kind: Template["kind"]; name: string; updated: number; used: number; items?: number; phases?: number; subject?: string; preview?: string; use?: string[] }
-export interface ToolInfo { id: ToolId; name: string; ready: boolean; text?: string; runId?: string; progress?: { done: number; total: number }; check?: LaunchCheckId | "plan" | "live" | "map" | "after"; checkName?: string; issues?: number }
-export interface PItem { id: string; title: string; check: LaunchCheckId | "plan" | "live" | "map" | "after" | null; doneMeans: string; who: "us" | "client"; part: string | null; tool: ToolId | null; toolInfo: ToolInfo | null; due: string | null; status: "todo" | "done" | "na"; auto: boolean; at: number | null; note: string; link: string; asked: number | null; nudged: number | null; hist: { at: number; what: string }[]; manualDue: boolean; phaseId: string; phaseName: string; late: boolean; carriedFrom?: string; askBy?: string | null }
+export interface ToolInfo { id: ToolId; name: string; ready: boolean; text?: string; runId?: string; progress?: { done: number; total: number }; check?: LaunchCheckId | "plan" | "live" | "map" | "after" | "recrawl"; checkName?: string; issues?: number }
+export interface PItem { id: string; title: string; check: LaunchCheckId | "plan" | "live" | "map" | "after" | "recrawl" | null; doneMeans: string; who: "us" | "client"; part: string | null; tool: ToolId | null; toolInfo: ToolInfo | null; due: string | null; status: "todo" | "done" | "na"; auto: boolean; at: number | null; note: string; link: string; asked: number | null; nudged: number | null; hist: { at: number; what: string }[]; manualDue: boolean; phaseId: string; phaseName: string; late: boolean; carriedFrom?: string; askBy?: string | null }
 export interface Signoff { by: string; date: string; note: string; link: string; file: { name: string; stored: string } | null; at: number }
 export interface PPhase { id: string; name: string; index: number; due: string | null; groups: { id: string; name: string; items: PItem[] }[]; handoff: { title: string; needs: "us" | "client"; items: PItem[] }; signoff: Signoff | null; state: "signed" | "current" | "upcoming"; done: number; total: number; ready: boolean }
 export type SiteKey = "old" | "staging" | "live"
@@ -303,7 +303,7 @@ export interface LaunchReport {
   previous?: { id: string; at: number }; fixed?: { check: LaunchCheckId; text: string; pages: number }[]
 }
 export interface ProjectSummary {
-  id: string; kind: "project" | "audit"; name: string; host: string | null; url: string | null; launch: string | null; iconRun: string | null
+  id: string; kind: "project" | "audit"; name: string; templateId: string | null; host: string | null; url: string | null; launch: string | null; iconRun: string | null
   current: { index: number; id: string; name: string; done: number; total: number; ready: boolean; needs: "us" | "client"; handoffTitle: string } | null
   phases: { state: PPhase["state"]; done: number; total: number }[]
   clientOpen: number; clientLate: number; behind: Behind
@@ -396,6 +396,8 @@ export const api = {
   template: (id: string) => req<Template>("GET", `/api/templates/${id}`),
   saveTemplate: (id: string, doc: Partial<Template>) => req<Template>("PUT", `/api/templates/${id}`, doc),
   createTemplate: (b: { kind: Template["kind"]; name?: string; copyFrom?: string }) => req<Template>("POST", "/api/templates", b),
+  /** Puts back a template that was just deleted (for Undo). */
+  restoreTemplate: (t: Template) => req<Template>("POST", "/api/templates", { kind: t.kind, restore: t }),
   removeTemplate: (id: string) => req<{ ok: boolean }>("DELETE", `/api/templates/${id}`),
 }
 // Screenshots are versioned by capture time so a retake always shows the new image.

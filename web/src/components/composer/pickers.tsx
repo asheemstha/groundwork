@@ -113,7 +113,7 @@ export function EnginePicker({ value, onChange }: { value: EngineId; onChange: (
           ))}
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => go(routes.settings())}>Manage engines and usage</DropdownMenuItem>
+        <DropdownMenuItem onClick={() => go(routes.settings())}>Manage AI accounts and usage</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   )

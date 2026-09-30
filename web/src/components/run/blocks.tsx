@@ -10,7 +10,7 @@ import { Bar, HTag, Spinner, Tag } from "@/components/common/bits"
 import { Screenshot, type Marker } from "@/components/common/Screenshot"
 import { useApp } from "@/hooks/useApp"
 import { api, exportUrl, seoCsvUrl, shotUrl, type CrawlData, type LogEntry, type Progress, type Run, type ScanPage, type Result, type Mode, type SeoResult, type SeoState } from "@/lib/api"
-import { ago, fmtClock, fmtDur, fmtTok, pct, plural } from "@/lib/format"
+import { ago, fmtClock, fmtDur, pct, plural } from "@/lib/format"
 import { go, routes } from "@/lib/router"
 import { finalMode, isTask, pageChecks, phases, siteChecks } from "@/lib/checks"
 import * as SEO from "@/lib/seo"
@@ -18,11 +18,11 @@ import * as SEO from "@/lib/seo"
 /** A block in the run thread: mono label, title, optional right side, body. */
 export function Block({ label, title, right, children, className }: { label: string; title: React.ReactNode; right?: React.ReactNode; children?: React.ReactNode; className?: string }) {
   return (
-    <section className={cn("overflow-hidden rounded-2xl border bg-card", className)}>
+    <section className={cn("overflow-hidden rounded-xl border bg-card", className)}>
       <header className="flex items-center gap-3 px-5 pt-4 pb-3">
         <div className="min-w-0 flex-1">
-          <Tag tone="muted">{label}</Tag>
-          <h2 className="mt-1.5 truncate text-lg font-medium">{title}</h2>
+          <div className="text-[12.5px] text-muted-foreground">{label}</div>
+          <h2 className="mt-0.5 truncate text-[17px] font-medium">{title}</h2>
         </div>
         {right}
       </header>
@@ -81,9 +81,9 @@ export function ScanBlock({ run, progress }: { run: Run; progress: Progress | nu
   return (
     <Block label="Scan · runs on your Mac" title={<>{pages.length > ok.length ? <>Read {ok.length} of the {pages.length} pages found</> : <>Scanned {plural(ok.length, "page")}</>}{tookSec ? <span className="font-normal text-muted-foreground"> in {fmtDur(tookSec)}</span> : null}</>} right={<span className="text-xs text-muted-foreground">{ago(run.crawledAt || run.created)}</span>}>
       <div className="grid grid-cols-2 gap-px overflow-hidden border-y bg-border sm:grid-cols-4">
-        {stats.map(([n, l, bad]) => (
+        {stats.map(([n, l]) => (
           <div key={l} className="bg-card px-5 py-3.5">
-            <div className={cn("text-2xl font-medium tracking-tight tabular", bad && "text-brand")}>{n}</div>
+            <div className="text-2xl font-medium tracking-tight tabular">{n}</div>
             <div className="text-xs text-muted-foreground">{l}</div>
           </div>
         ))}
@@ -164,10 +164,10 @@ export function PagesBlock({ run, selected, setSelected, locked, browse }: { run
                       <span className="block truncate tabular text-xs text-muted-foreground">{p.path}</span>
                     </button>
                     <span className="flex items-center gap-1.5">
-                      {bad ? <Tag tone="brand">{p.status ? `HTTP ${p.status}` : "Didn’t load"}</Tag> : uns ? <Tag tone="muted">Not scanned</Tag> : (
+                      {bad ? <Tag tone="bad">{p.status ? `HTTP ${p.status}` : "Didn’t load"}</Tag> : uns ? <Tag tone="muted">Not scanned</Tag> : (
                         <>
-                          {c.H1 === 0 && <Tag tone="brand">No H1</Tag>}
-                          {(c.H1 || 0) > 1 && <Tag tone="brand">{c.H1} H1s</Tag>}
+                          {c.H1 === 0 && <Tag tone="bad">No H1</Tag>}
+                          {(c.H1 || 0) > 1 && <Tag tone="bad">{c.H1} H1s</Tag>}
                           <span className="text-xs text-muted-foreground tabular">{plural(p.headings || 0, "heading")}</span>
                         </>
                       )}
@@ -216,7 +216,7 @@ export function PreviewSheet({ run, page, onClose }: { run: Run; page: ScanPage 
               return (
                 <button key={it.key} onMouseEnter={() => setActive(it.key)} onClick={() => setActive(it.key)} className={cn("flex w-full items-start gap-2 py-1.5 pr-4 text-left text-sm hover:bg-muted/60", active === it.key && "bg-muted")} style={{ paddingLeft: 20 + (h ? (lvl - 1) * 12 : 0) }}>
                   <span className="mt-px text-[10.5px] text-muted-foreground tabular">{i + 1}</span>
-                  {h ? <HTag tag={it.kind} /> : <Tag tone="brand">styled</Tag>}
+                  {h ? <HTag tag={it.kind} /> : <Tag tone="muted">styled</Tag>}
                   <span className={cn("min-w-0 flex-1", it.hidden && "opacity-50")}>{it.text.slice(0, 120)}{it.hidden && <span className="text-muted-foreground"> · hidden</span>}{it.zone && <span className="text-muted-foreground"> · {it.zone}</span>}{!it.rect && !it.hidden && <span className="text-muted-foreground"> · not in the screenshot (closed tab or menu)</span>}</span>
                 </button>
               )
@@ -247,7 +247,6 @@ export function PlanBlock({ run, progress, log: all, result, onStop }: { run: Ru
   const eng = status?.catalog[s.engine]?.name || s.engine
   const lim = progress?.limits || j?.limits
   const f5 = lim?.first?.five_hour, l5 = lim?.last?.five_hour
-  const tok = progress?.tokens || j?.tokens
   const took = j?.ended && j?.started ? fmtDur((j.ended - j.started) / 1000) : null
   const title = running ? <>Planning {plural(sel.length, "page")}</>
     : done ? (run.status === "partial" ? "Plan ready, some pages missing" : "Plan ready")
@@ -263,7 +262,7 @@ export function PlanBlock({ run, progress, log: all, result, onStop }: { run: Ru
             <DropdownMenuTrigger render={<Button variant="outline" size="sm" />}><Download /> Export</DropdownMenuTrigger>
             <ExportItems id={run.id} modes={result!.site.modes} />
           </DropdownMenu>
-          <Button size="sm" onClick={() => go(routes.review(run.id))}>Open to-do list <ArrowRight /></Button>
+          <Button size="sm" onClick={() => go(routes.review(run.id))}>Open the plan <ArrowRight /></Button>
         </div>
       ) : null}
     >
@@ -312,7 +311,6 @@ export function PlanBlock({ run, progress, log: all, result, onStop }: { run: Ru
           </CollapsibleTrigger>
           <span className="flex-1" />
           {took && !running && <span>Took {took}</span>}
-          <span>Tokens <b className="text-foreground tabular">{tok ? fmtTok(tok.input + tok.output + tok.cached) : "–"}</b></span>
           {running && f5 && l5 ? <span>5-hour window <b className="text-foreground tabular">{pct(f5.utilization)}% → {pct(l5.utilization)}%</b></span>
             : j?.limitDelta != null ? <span><b className="text-foreground tabular">{Math.max(1, pct(j.limitDelta))}%</b> of your 5-hour window</span> : null}
         </div>
@@ -331,10 +329,10 @@ function ResultStats({ result }: { result: Result }) {
   const cells: [React.ReactNode, string, boolean?][] = combined
     ? [[now, "tag fixes to do now", true], [later, "rewrites after client sign-off", true]]
     : [[now, result.site.modes[0] === "live" ? "tag fixes to do now" : "changes", true], [pages.filter((p) => p.modes.live?.h1.proposed).length, "H1 ideas for later"]]
-  cells.push([fails || "All", fails ? "automatic checks to look at" : "automatic checks pass", !!fails])
+  cells.push([fails || "All", fails ? (fails === 1 ? "automatic check to look at" : "automatic checks to look at") : "automatic checks pass", !!fails])
   return (
     <div className="grid gap-px border-t bg-border" style={{ gridTemplateColumns: `repeat(${cells.length}, minmax(0, 1fr))` }}>
-      {cells.map(([v, l, hi]) => <div key={l} className="bg-card px-5 py-3.5"><div className={cn("text-2xl font-medium tabular", hi && "text-brand")}>{v}</div><div className="text-xs text-muted-foreground">{l}</div></div>)}
+      {cells.map(([v, l]) => <div key={l} className="bg-card px-5 py-3.5"><div className="text-2xl font-medium tabular">{v}</div><div className="text-xs text-muted-foreground">{l}</div></div>)}
     </div>
   )
 }
@@ -354,7 +352,7 @@ export function ExportItems({ id, modes }: { id: string; modes: Mode[] }) {
 
 export function FailedBlock({ run, onRetry }: { run: Run; onRetry: () => void }) {
   return (
-    <Block label="Problem" title={run.status === "scan_failed" ? "We couldn’t scan this site" : "The plan didn’t finish"} right={<Button size="sm" variant="outline" onClick={onRetry}><RefreshCw /> Try again</Button>}>
+    <Block label="Problem" title={run.status === "scan_failed" ? "Groundwork couldn’t scan this site" : "The plan didn’t finish"} right={<Button size="sm" variant="outline" onClick={onRetry}><RefreshCw /> Try again</Button>}>
       <p className="border-t px-5 py-3 text-sm text-muted-foreground">{run.status === "scan_failed" ? run.scan?.error : run.error || "Unknown error."}</p>
     </Block>
   )
@@ -375,7 +373,7 @@ export function ActivityLog({ log }: { log: LogEntry[] }) {
           const Icon = e.kind === "tool" && /^Wrote|^Updated/.test(e.text) ? PenLine : e.kind === "tool" && /screenshot/.test(e.text) ? Eye : LOG_ICON[e.kind] || FileText
           return (
             <li key={i} className="grid grid-cols-[16px_1fr_auto] gap-2.5 text-[13px]">
-              <Icon className={cn("mt-0.5 size-4", e.kind === "error" ? "text-destructive" : e.kind === "step" ? "text-brand" : "text-muted-foreground")} />
+              <Icon className={cn("mt-0.5 size-4", e.kind === "error" ? "text-destructive" : e.kind === "step" ? "text-foreground/70" : "text-muted-foreground")} />
               <p className={cn("min-w-0 break-words", e.kind === "ai" ? "whitespace-pre-wrap text-foreground" : e.kind === "step" ? "font-medium" : "text-muted-foreground")}>{e.kind === "ai" ? e.text.slice(0, 700) : e.text}</p>
               <time className="tabular text-[10.5px] text-muted-foreground/80">{new Date(e.t).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</time>
             </li>
@@ -396,7 +394,6 @@ export function SeoBlock({ run, progress, log: all, result, state, onStop }: { r
   const running = sq.status === "running"
   const done = (sq.status === "done" || sq.status === "partial") && result
   const eng = status?.catalog[s.engine]?.name || s.engine
-  const tok = progress?.tokens || j?.tokens
   const took = j?.ended && j?.started ? fmtDur((j.ended - j.started) / 1000) : null
   const title = running ? <>Writing SEO for {plural(sel.length, "page")}</>
     : done ? (sq.status === "partial" ? "SEO plan ready, some pages missing" : "SEO plan ready")
@@ -456,7 +453,6 @@ export function SeoBlock({ run, progress, log: all, result, state, onStop }: { r
           </CollapsibleTrigger>
           <span className="flex-1" />
           {took && !running && <span>Took {took}</span>}
-          <span>Tokens <b className="text-foreground tabular">{tok ? fmtTok(tok.input + tok.output + tok.cached) : "–"}</b></span>
         </div>
         <CollapsibleContent><ActivityLog log={log} /></CollapsibleContent>
       </Collapsible>
@@ -472,7 +468,7 @@ function SeoStats({ result, state }: { result: SeoResult; state: SeoState }) {
   const cells: [React.ReactNode, string, boolean?][] = [[n("title"), "new titles", true], [n("description"), "new descriptions", true], [n("slug"), n("slug") === 1 ? "URL change" : "URL changes"], [fails || "All", fails ? "checks to look at" : "checks pass", !!fails]]
   return (
     <div className="grid grid-cols-4 gap-px border-t bg-border">
-      {cells.map(([v, l, hi]) => <div key={l} className="bg-card px-5 py-3.5"><div className={cn("text-2xl font-medium tabular", hi && "text-brand")}>{v}</div><div className="text-xs text-muted-foreground">{l}</div></div>)}
+      {cells.map(([v, l]) => <div key={l} className="bg-card px-5 py-3.5"><div className="text-2xl font-medium tabular">{v}</div><div className="text-xs text-muted-foreground">{l}</div></div>)}
     </div>
   )
 }

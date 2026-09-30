@@ -51,7 +51,7 @@ It downloads the latest version into Applications and opens it. [install.sh](ins
 4. **Tools.** Scan the old site at the start of a redesign, build the redirect map once staging has pages, and run the launch check before launch day and again on the live domain.
 5. **AI plans** (optional). Sign in to Claude Code or Codex in Settings, then plan headings or SEO from any scan in the Tools tab.
 
-Templates holds your checklists, client messages and emails. The built-in **Website project** checklist has about 40 items; **Full agency process** is a longer one with about 140. Change either, or make your own.
+Templates holds your checklists, client messages and emails. The built-in **Website project** checklist has about 50 items, each with a line on what done means; **Full agency process** is a longer one with about 140. Change either, or make your own.
 
 ## Updates
 

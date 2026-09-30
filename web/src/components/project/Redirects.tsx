@@ -80,7 +80,7 @@ export function RedirectCard({ p, onEdit }: { p: Project; onEdit: () => void }) 
     <ToolCard
       title="Redirect map" cost="runs on your Mac, no AI"
       status={p.tools.redirectsRunning ? (p.tools.redirectsRunning === "test" ? "Testing the redirects now." : "Building the map now.")
-        : r ? <>{r.total} old URLs: {r.redirects} {r.redirects === 1 ? "redirect" : "redirects"}, {r.same} kept{r.review ? <>, <span className="text-brand-ink">{r.review} to look at</span></> : ""}. {r.test ? `Last test: ${r.test.ok} of ${r.test.total} worked${r.test.live ? "" : r.test.oldSite ? " on the old site" : " on staging"}.` : "Not tested yet."}</>
+        : r ? <>{r.total} old URLs: {r.redirects} {r.redirects === 1 ? "redirect" : "redirects"}, {r.same} kept{r.review ? <>, <span className="text-foreground">{r.review} to look at</span></> : ""}. {r.test ? `Last test: ${r.test.ok} of ${r.test.total} worked${r.test.live ? "" : r.test.oldSite ? " on the old site" : " on staging"}.` : "Not tested yet."}</>
         : !old ? `Matches every URL on the old site to its page on the new one, exports the redirects for Webflow, and tests them after launch. Scan ${oldHost(p)} first; it starts from that list of URLs.`
         : `Matches the ${old.urls} URLs the scan found on ${oldHost(p)} to the new site’s pages. Enter the new site’s address, usually staging.`}
       action={p.tools.redirectsRunning || r ? <Button size="sm" variant="outline" onClick={() => go(routes.project(p.id, "redirects"))}>{p.tools.redirectsRunning ? <Loader2 className="animate-spin" /> : null}Open the map</Button> : old ? <Button size="sm" variant="outline" onClick={build} disabled={busy || !url.trim()}>{busy && <Loader2 className="animate-spin" />}Build the map</Button> : undefined}
@@ -106,9 +106,9 @@ export function RedirectsPage({ p, reload }: { p: Project; reload: () => void })
   if (st.job?.kind === "build") {
     const at = BUILD_STEPS.findIndex((s) => s.id === st.job!.progress.step)
     return (
-      <div className="grid max-w-3xl gap-5 px-12 pt-8 pb-10">
+      <div className="grid max-w-4xl gap-5 px-12 pt-8 pb-10">
         {head}
-        <div className="flex items-start gap-3"><div className="flex-1"><h1 className="text-[22px] font-medium">Building the redirect map</h1><p className="mt-1.5 text-sm text-muted-foreground">It reads both sites with plain requests. A few hundred pages take a minute or two.</p></div><Button variant="outline" size="sm" onClick={() => api.cancelRedirects(p.id).then(() => toast("Stopping…")).catch(() => {})}>Stop</Button></div>
+        <div className="flex items-start gap-3"><div className="flex-1"><h1 className="text-[24px] leading-tight font-medium">Building the redirect map</h1><p className="mt-1.5 text-sm text-muted-foreground">It reads both sites with plain requests. A few hundred pages take a minute or two.</p></div><Button variant="outline" size="sm" onClick={() => api.cancelRedirects(p.id).then(() => toast("Stopping…")).catch(() => {})}>Stop</Button></div>
         <section className="grid gap-2.5 rounded-xl border bg-card p-4">
           {BUILD_STEPS.map((s, i) => (
             <div key={s.id} className="grid grid-cols-[18px_minmax(0,1fr)_120px] items-center gap-3 text-[13.5px]">
@@ -122,15 +122,15 @@ export function RedirectsPage({ p, reload }: { p: Project; reload: () => void })
     )
   }
   if (!p.sites.old) return (
-    <div className="grid max-w-3xl gap-3 px-12 pt-8 pb-10">
-      <h1 className="text-[22px] font-medium">Redirect map</h1>
+    <div className="grid max-w-4xl gap-3 px-12 pt-8 pb-10">
+      <h1 className="text-[24px] leading-tight font-medium">Redirect map</h1>
       <p className="text-sm text-muted-foreground">Redirects are only needed when a project replaces an old site. Add the old site’s address in the project details (the ⋯ menu, Edit details), scan it, and the map starts from its URLs.</p>
     </div>
   )
   if (!st.map) return (
-    <div className="grid max-w-3xl gap-5 px-12 pt-8 pb-10">
+    <div className="grid max-w-4xl gap-5 px-12 pt-8 pb-10">
       {head}
-      <div><h1 className="text-[22px] font-medium">Redirect map</h1><p className="mt-1.5 text-sm text-muted-foreground">{st.error ? st.error : p.tools.oldScan ? `Matches the ${p.tools.oldScan.urls} URLs the scan found on ${oldHost(p)} to the new site’s pages. Enter the new site’s address, usually its staging one.` : "Scan the current site first. The map starts from its list of URLs."}</p></div>
+      <div><h1 className="text-[24px] leading-tight font-medium">Redirect map</h1><p className="mt-1.5 text-sm text-muted-foreground">{st.error ? st.error : p.tools.oldScan ? `Matches the ${p.tools.oldScan.urls} URLs the scan found on ${oldHost(p)} to the new site’s pages. Enter the new site’s address, usually its staging one.` : "Scan the current site first. The map starts from its list of URLs."}</p></div>
       {p.tools.oldScan && <div className="flex gap-2"><Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="new-site.webflow.io" /><Button onClick={() => build(url)} disabled={busy || !url.trim()}>{busy ? <Loader2 className="animate-spin" /> : <Play />}Build the map</Button></div>}
     </div>
   )
@@ -165,7 +165,7 @@ function MapView({ p, st, map, head, setSt, load, rebuild, busy }: { p: Project;
         <Button size="sm" onClick={() => setExporting(true)} disabled={!counts.moves}><Download />Export for Webflow</Button>
       </div>
       <div>
-        <h1 className="text-[22px] font-medium">{review.length ? `${review.length} ${review.length === 1 ? "match" : "matches"} to look at` : "Redirect map"}</h1>
+        <h1 className="text-[24px] leading-tight font-medium">{review.length ? `${review.length} ${review.length === 1 ? "match" : "matches"} to look at` : "Redirect map"}</h1>
         <p className="mt-1.5 text-sm text-muted-foreground">{rows.length} URLs from the current site ({map.oldHost}), matched to {map.newPages.length} pages on {hostOf(map.newUrl)}. Built {when(map.built)}.{!map.oldLive && " The current site didn’t answer, so the map uses the scan’s list."}</p>
       </div>
       <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border bg-border sm:grid-cols-4">
@@ -203,7 +203,7 @@ function MapView({ p, st, map, head, setSt, load, rebuild, busy }: { p: Project;
       <section className="overflow-hidden rounded-xl border bg-card">
         <div className={cn("grid h-9 items-center gap-3 border-b px-4 text-[12.5px] text-muted-foreground", cols)}><span /><span>Current URL</span><span /><span>New URL</span><span>Match</span><span>Last test</span><span /></div>
         {list.slice(0, limit).map((r) => <Row key={r.from} r={r} res={results[r.from]} map={map} cols={cols} change={change} />)}
-        {!list.length && <p className="px-4 py-8 text-center text-sm text-muted-foreground">{filter === "review" ? "Every match looks right." : filter === "failed" ? "Nothing failed in the last test." : "Nothing here."}</p>}
+        {!list.length && <p className="px-4 py-8 text-center text-sm text-muted-foreground">{filter === "review" ? "Every match looks right." : filter === "failed" ? "Nothing failed in the last test." : filter === "moves" ? `No redirects needed. All ${rows.length} URLs stay the same.` : "No URLs in this list."}</p>}
         {list.length > limit && <button onClick={() => setLimit(limit + 300)} className="w-full border-t py-2.5 text-[13px] text-muted-foreground hover:text-foreground">Show {Math.min(300, list.length - limit)} more of {list.length - limit}</button>}
       </section>
       <ExportDialog open={exporting} onClose={() => setExporting(false)} map={map} />
@@ -215,11 +215,11 @@ function Row({ r, res, map, cols, change }: { r: RedirectRow; res?: RedirectResu
   const moving = moves(r)
   return (
     <div className={cn("group grid min-h-12 items-center gap-3 border-b border-border/60 px-4 py-2 last:border-b-0", cols)}>
-      {r.sure ? <Check className="size-4 text-muted-foreground/70" /> : <span className="grid size-4 place-items-center rounded-full border-[1.5px] border-brand/60"><span className="size-1.5 rounded-full bg-brand" /></span>}
+      {r.sure ? <Check className="size-4 text-muted-foreground/70" /> : <span className="grid size-4 place-items-center rounded-full border-[1.5px] border-foreground/50"><span className="size-1.5 rounded-full bg-foreground/70" /></span>}
       <span className="grid min-w-0 gap-0.5"><span className="truncate text-[13.5px]">{r.from}</span>{r.title && <span className="truncate text-xs text-muted-foreground">{r.title}</span>}</span>
       <ArrowRight className={cn("size-3.5", moving ? "text-muted-foreground" : "text-muted-foreground/30")} />
       <Target r={r} map={map} onPick={(to) => change({ to: { [r.from]: to } })} />
-      <span className={cn("text-[12.5px]", r.sure ? "text-muted-foreground" : "text-brand-ink")}>{HOW[r.how](r)}</span>
+      <span className={cn("text-[12.5px]", r.sure ? "text-muted-foreground" : "text-foreground")}>{HOW[r.how](r)}</span>
       <span className="text-[12.5px]">{res ? (res.ok ? <span className="text-muted-foreground">{moving ? "Redirects" : "Loads"}</span> : <span className="text-destructive" title={res.final ? `Ends at ${res.final} (HTTP ${res.finalStatus})` : undefined}>{PROBLEM[res.problem!]}{res.problem === "wrong" ? `: ${res.final}` : res.problem === "temporary" ? ` (${res.status})` : ""}</span>) : <span className="text-muted-foreground/60">Not tested</span>}</span>
       {!r.sure ? <Button variant="ghost" size="icon-xs" onClick={() => change({ checked: { [r.from]: true } })} aria-label="This match looks right" title="Looks right"><Check /></Button> : <span />}
     </div>
@@ -343,7 +343,7 @@ function ExportDialog({ open, onClose, map }: { open: boolean; onClose: () => vo
         <div className="grid gap-4 px-6 py-5 text-[13.5px]">
           <div className="grid gap-1 rounded-lg bg-muted/60 px-3.5 py-3">
             <span><b className="font-medium tabular">{lines.length + on.length}</b> {lines.length + on.length === 1 ? "line" : "lines"} for {ours.length} {ours.length === 1 ? "redirect" : "redirects"}{on.length ? `, ${on.length} of them ${on.length === 1 ? "a folder rule" : "folder rules"}` : ""}{existing ? <>, plus <b className="font-medium tabular">{kept}</b> already on the site</> : ""}</span>
-            {review > 0 && <span className="text-[12.5px] text-brand-ink">{review} {review === 1 ? "match still needs" : "matches still need"} a look. They’re included as they are.</span>}
+            {review > 0 && <span className="text-[12.5px] text-foreground">{review} {review === 1 ? "match still needs" : "matches still need"} a look. They’re included as they are.</span>}
           </div>
           {rules.length > 0 && (
             <div className="grid gap-1.5">

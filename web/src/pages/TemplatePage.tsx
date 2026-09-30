@@ -72,7 +72,7 @@ function ChecklistEditor({ t, onChange }: { t: ChecklistTemplate; onChange: (t: 
   const add = (w: Omit<Where, "item">) => { const c = clone(); const it: TItem = { id: newId(), title: "New item", who: "us", done: "", part: null, tool: null, due: null }; list(c, w).push(it); onChange(c); setOpen(it.id) }
   const setPhase = (patch: Partial<ChecklistTemplate["phases"][number]>) => { const c = clone(); c.phases[pi] = { ...c.phases[pi]!, ...patch }; onChange(c) }
   const itemsOf = (ph2: typeof ph) => [...ph2.groups.flatMap((g) => g.items), ...ph2.handoff.items]
-  const running = projects.length
+  const running = projects.filter((p) => p.kind !== "audit" && p.templateId === t.id).length
 
   // A plain function, not a component, so the open editor keeps focus while you type.
   const rows = (items: TItem[], w: Omit<Where, "item">) => (
@@ -99,7 +99,7 @@ function ChecklistEditor({ t, onChange }: { t: ChecklistTemplate; onChange: (t: 
           <span className="px-2 pb-1.5 text-[12.5px] text-muted-foreground">Phases</span>
           {t.phases.map((x, i) => (
             <button key={x.id} onClick={() => { setPi(i); setOpen(null) }} className={cn("grid h-8 grid-cols-[20px_minmax(0,1fr)_auto] items-center gap-2 rounded-lg px-2 text-left text-[13.5px] hover:bg-muted/60", i === pi && "bg-muted font-medium")}>
-              <span className="text-xs font-normal text-muted-foreground tabular">{String(i).padStart(2, "0")}</span><span className="truncate">{x.name}</span><span className="text-xs font-normal text-muted-foreground tabular">{itemsOf(x).length}</span>
+              <span className="text-xs font-normal text-muted-foreground tabular">{String(i + 1).padStart(2, "0")}</span><span className="truncate">{x.name}</span><span className="text-xs font-normal text-muted-foreground tabular">{itemsOf(x).length}</span>
             </button>
           ))}
           <button onClick={() => { const c = clone(); c.phases.push({ id: "p" + Date.now().toString(36), name: "New phase", due: null, groups: [{ id: "g" + Date.now().toString(36), name: "Our process", items: [] }], handoff: { title: "Sign-off", needs: "client", items: [] } }); onChange(c); setPi(c.phases.length - 1) }} className="flex h-8 items-center gap-2 rounded-lg px-2 text-[13px] text-muted-foreground hover:bg-muted/60"><Plus className="size-3.5" />Add phase</button>
@@ -111,10 +111,10 @@ function ChecklistEditor({ t, onChange }: { t: ChecklistTemplate; onChange: (t: 
         </nav>
         <div className="scrollbar-thin min-w-0 overflow-auto px-8 py-5">
           <div className="mb-3.5 flex items-center gap-2.5">
-            <span className="text-[13px] text-muted-foreground tabular">{String(pi).padStart(2, "0")}</span>
+            <span className="text-[13px] text-muted-foreground tabular">{String(pi + 1).padStart(2, "0")}</span>
             <input value={ph.name} onChange={(e) => setPhase({ name: e.target.value })} className="min-w-0 flex-1 bg-transparent text-[22px] font-medium outline-none" aria-label="Phase name" />
             <label className="flex items-center gap-2 text-[12.5px] text-muted-foreground">Due<DueRuleInput value={ph.due} onChange={(due) => setPhase({ due })} allowNone={false} /></label>
-            {t.phases.length > 1 && <Button variant="ghost" size="icon-sm" aria-label="Delete phase" onClick={() => { if (confirm(`Delete the ${ph.name} phase and its items from this template?`)) { const c = clone(); c.phases.splice(pi, 1); onChange(c); setPi(0) } }}><Trash2 /></Button>}
+            {t.phases.length > 1 && <Button variant="ghost" size="icon-sm" aria-label="Delete phase" onClick={() => { const before = t, name = ph.name; const c = clone(); c.phases.splice(pi, 1); onChange(c); setPi(0); toast(`Deleted the ${name} phase`, { action: { label: "Undo", onClick: () => onChange(before) } }) }}><Trash2 /></Button>}
           </div>
           <div className="grid h-7 grid-cols-[minmax(0,1fr)_150px_150px_120px] items-center gap-3 border-b text-[12.5px] text-muted-foreground"><span>Item</span><span>Only when</span><span>Groundwork tool</span><span className="text-right">Due</span></div>
           {ph.groups.map((g, gi) => (
@@ -174,9 +174,9 @@ function ItemEditor({ it, t, onChange, onDelete, onDone }: { it: TItem; t: Check
           <select value={it.tool || ""} onChange={(e) => onChange({ tool: (e.target.value || null) as ToolId | null, check: null })} className="h-8 rounded-lg border border-input bg-card px-2 text-[13px] text-foreground"><option value="">None</option>{(Object.keys(TOOL_NAMES) as ToolId[]).map((k) => <option key={k} value={k}>{TOOL_NAMES[k].name}{TOOL_NAMES[k].ready ? "" : " (soon)"}</option>)}</select>
         </label>
       </div>
-      {(it.tool === "launch" || it.tool === "seo" || it.tool === "redirects") && (
-        <label className="grid grid-cols-[minmax(0,0.8fr)_minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1.1fr)] items-center gap-2.5 text-[12.5px] text-muted-foreground"><span className="col-span-2">{it.tool === "seo" ? "What the SEO plan does for it" : it.tool === "redirects" ? "What ticks it" : "Which part of the launch check ticks it"}</span>
-          <select value={it.check || ""} onChange={(e) => onChange({ check: (e.target.value || null) as TItem["check"] })} className="col-span-2 h-8 rounded-lg border border-input bg-card px-2 text-[13px] text-foreground"><option value="">Guess from the item’s name</option>{it.tool === "seo" ? <><option value="plan">Ticks it when the plan is ready</option><option value="live">Shows how many changes are done</option></> : it.tool === "redirects" ? <><option value="map">Every old URL has a match</option><option value="live">A test of the live domain passes</option><option value="after">A test after launch day passes</option></> : (Object.keys(LAUNCH_CHECKS) as LaunchCheckId[]).map((k) => <option key={k} value={k}>{LAUNCH_CHECKS[k]}</option>)}</select>
+      {(it.tool === "launch" || it.tool === "seo" || it.tool === "redirects" || it.tool === "scan") && (
+        <label className="grid grid-cols-[minmax(0,0.8fr)_minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1.1fr)] items-center gap-2.5 text-[12.5px] text-muted-foreground"><span className="col-span-2">{it.tool === "seo" ? "What the SEO plan does for it" : it.tool === "redirects" || it.tool === "scan" ? "What ticks it" : "Which part of the launch check ticks it"}</span>
+          <select value={it.check || ""} onChange={(e) => onChange({ check: (e.target.value || null) as TItem["check"] })} className="col-span-2 h-8 rounded-lg border border-input bg-card px-2 text-[13px] text-foreground"><option value="">{it.tool === "scan" ? "Any scan of the old site" : "Guess from the item’s name"}</option>{it.tool === "scan" ? <option value="recrawl">A scan of the old site in the 10 days before launch</option> : it.tool === "seo" ? <><option value="plan">Ticks it when the plan covers every page</option><option value="live">Shows how many changes are done</option></> : it.tool === "redirects" ? <><option value="map">Every old URL has a match</option><option value="live">A test of the live domain passes</option><option value="after">A test after launch day passes</option></> : (Object.keys(LAUNCH_CHECKS) as LaunchCheckId[]).map((k) => <option key={k} value={k}>{LAUNCH_CHECKS[k]}</option>)}</select>
         </label>
       )}
       <div className="flex items-center gap-2"><Button variant="ghost" size="sm" className="text-destructive" onClick={onDelete}>Delete item</Button><span className="flex-1" /><Button size="sm" onClick={onDone}>Done</Button></div>
@@ -187,12 +187,14 @@ function ItemEditor({ it, t, onChange, onDelete, onDone }: { it: TItem; t: Check
 // ---------- messages and emails ----------
 function MessageEditor({ t, onChange }: { t: MessageTemplate; onChange: (t: MessageTemplate) => void }) {
   const { projects, prefs } = useApp()
-  const [pid, setPid] = React.useState(projects[0]?.id || "")
+  // Audits have no client or checklist, so they'd preview as "Hi there, [Project]".
+  const work = projects.filter((p) => p.kind !== "audit")
+  const [pid, setPid] = React.useState(work[0]?.id || "")
   const [proj, setProj] = React.useState<Project | null>(null)
   const body = React.useRef<HTMLTextAreaElement>(null)
   const subject = React.useRef<HTMLInputElement>(null)
   const lastField = React.useRef<"body" | "subject">("body")
-  React.useEffect(() => { if (!pid && projects[0]) setPid(projects[0].id) }, [projects, pid])
+  React.useEffect(() => { if (!pid && work[0]) setPid(work[0].id) }, [work, pid])
   React.useEffect(() => { if (pid) api.project(pid).then(setProj).catch(() => setProj(null)) }, [pid])
   const insert = (v: string) => {
     const tok = `{${v}}`
@@ -224,11 +226,11 @@ function MessageEditor({ t, onChange }: { t: MessageTemplate; onChange: (t: Mess
         </div>
         <section className="flex flex-col gap-3.5 self-start rounded-xl border bg-card p-[18px]">
           <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2.5"><h2 className="text-sm font-medium">Preview</h2>
-            {projects.length > 0 && <select value={pid} onChange={(e) => setPid(e.target.value)} className="h-8 max-w-52 rounded-lg border border-input bg-card px-2 text-[13px]">{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>}
+            {work.length > 0 && <select value={pid} onChange={(e) => setPid(e.target.value)} className="h-8 max-w-52 rounded-lg border border-input bg-card px-2 text-[13px]">{work.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>}
           </div>
           {t.kind === "email" && <div className="text-[13px]"><span className="text-muted-foreground">Subject:</span> {out.subject}</div>}
           <div className="rounded-[10px] border bg-background px-4 py-3.5 text-[13.5px] leading-relaxed whitespace-pre-line">{out.body}</div>
-          <p className="text-[12.5px] leading-relaxed text-muted-foreground">{projects.length ? "Filled in with this project’s details. Each item gets its due date, and late items say when they were due." : "Start a project to see this filled in."}{!prefs.appliedBy && " Set your name in Engines & settings to sign it."}</p>
+          <p className="text-[12.5px] leading-relaxed text-muted-foreground">{work.length ? "Filled in with this project’s details. Each item gets its due date, and late items say when they were due." : "Start a project to see this filled in."}{!prefs.appliedBy && " Add your name in Settings to sign it."}</p>
         </section>
       </div>
     </div>

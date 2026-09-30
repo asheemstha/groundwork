@@ -136,7 +136,7 @@ export function ReviewPage({ view }: { view: string }) {
 }
 
 function Scroll({ children }: { children: React.ReactNode }) {
-  return <div className="scrollbar-thin h-full overflow-auto"><div className="mx-auto max-w-5xl px-8 py-8">{children}</div></div>
+  return <div className="scrollbar-thin h-full overflow-auto"><div className="max-w-5xl px-12 pt-8 pb-10">{children}</div></div>
 }
 
 /** Client approval for the rewrites. Shared by the page view and the sign-off view. */
@@ -232,8 +232,8 @@ function PageView({ page, setDone, setApproved, planned }: { page: ResultPage; s
         <div className="px-7 pt-7 pb-24">
           <div className="flex items-start gap-3">
             <div className="min-w-0 flex-1">
-              <Tag tone="muted">Page {idx + 1} of {planned.length}{page.group ? ` · ${page.group}` : ""}</Tag>
-              <h1 className="mt-2 text-[28px] leading-tight font-medium">{page.name}</h1>
+              <div className="text-[13px] text-muted-foreground">Page {idx + 1} of {planned.length}{page.group ? ` · ${page.group}` : ""}</div>
+              <h1 className="mt-2 text-[24px] leading-tight font-medium">{page.name}</h1>
               <a href={result!.site.url.replace(/\/$/, "") + page.path} target="_blank" rel="noreferrer" className="mt-1 inline-flex items-center gap-1 tabular text-xs text-muted-foreground hover:text-foreground">{page.path}<ExternalLink className="size-3" /></a>
             </div>
             <div className="flex gap-1">
@@ -245,7 +245,7 @@ function PageView({ page, setDone, setApproved, planned }: { page: ResultPage; s
           <div className="mt-3 flex flex-wrap items-center gap-1.5">
             {page.keywords ? (
               <>
-                <span className="inline-flex items-center gap-1 rounded-md bg-brand/10 px-2 py-0.5 text-xs font-medium text-brand-ink"><KeyRound className="size-3" />{page.keywords.primary[0]}</span>
+                <span className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-foreground"><KeyRound className="size-3" />{page.keywords.primary[0]}</span>
                 {page.keywords.secondary.map((k) => <span key={k[0]} className="rounded-md border px-2 py-0.5 text-xs">{k[0]}</span>)}
                 <Tooltip><TooltipTrigger render={<span />}><Tag tone="muted">Unverified</Tag></TooltipTrigger><TooltipContent>No keyword tool is connected, so there are no search volumes.</TooltipContent></Tooltip>
               </>
@@ -253,12 +253,12 @@ function PageView({ page, setDone, setApproved, planned }: { page: ResultPage; s
           </div>
           <HoverCard>
             <HoverCardTrigger render={<button className="mt-3 inline-flex items-center gap-2 text-xs" />}>
-              {fails.length ? <span className="inline-flex items-center gap-1 font-medium text-brand-ink"><X className="size-3.5" />{plural(fails.length, "check")} to fix</span> : <span className="inline-flex items-center gap-1 font-medium"><Check className="size-3.5" />All {checks.length} checks pass</span>}
+              {fails.length ? <span className="inline-flex items-center gap-1 font-medium text-destructive"><X className="size-3.5" />{plural(fails.length, "check")} to fix</span> : <span className="inline-flex items-center gap-1 font-medium"><Check className="size-3.5" />All {checks.length} checks pass</span>}
               {notes.length > 0 && <span className="inline-flex items-center gap-1 text-muted-foreground"><Info className="size-3.5" />{plural(notes.length, "note")}</span>}
             </HoverCardTrigger>
             <HoverCardContent className="w-96" align="start">
               <p className="mb-2 text-xs text-muted-foreground">Checked against the page as it will be once {combined ? "every change, rewrites included, is" : "the changes are"} made.</p>
-              <div className="grid gap-2 text-sm">{checks.map((c, i) => <div key={i} className="flex gap-2">{c.info ? <Info className="mt-0.5 size-4 shrink-0 text-muted-foreground" /> : c.ok ? <Check className="mt-0.5 size-4 shrink-0" /> : <X className="mt-0.5 size-4 shrink-0 text-brand" />}<span className={cn(c.info && "text-muted-foreground")}>{c.text}</span></div>)}</div>
+              <div className="grid gap-2 text-sm">{checks.map((c, i) => <div key={i} className="flex gap-2">{c.info ? <Info className="mt-0.5 size-4 shrink-0 text-muted-foreground" /> : c.ok ? <Check className="mt-0.5 size-4 shrink-0" /> : <X className="mt-0.5 size-4 shrink-0 text-destructive" />}<span className={cn(c.info && "text-muted-foreground")}>{c.text}</span></div>)}</div>
             </HoverCardContent>
           </HoverCard>
 
@@ -348,12 +348,12 @@ function TaskRow({ rowKey, r, n, done, locked, verified, active, focused, onTogg
             {verified === "todo" && !locked && <Tag tone="brand">Not on the live site yet</Tag>}
             {r.hidden && <Tag tone="muted">Hidden on the page</Tag>}
             {r.zone && <Tag tone="muted">{r.zone === "footer" ? "Footer" : "Header"} · fix once, applies everywhere</Tag>}
-            {r.auto && <Tag tone="brand">Skipped by the AI · please review</Tag>}
+            {r.auto && <Tag tone="bad">Skipped by the AI · please review</Tag>}
             {task && !r.rect && r.act !== "add" && !r.hidden && <Tag tone="muted">Not in the screenshot · closed tab, slider or menu</Tag>}
           </div>
         )}
       </div>
-      {copy && <Button variant="ghost" size="icon-xs" className="absolute top-2 right-2 opacity-0 group-hover:opacity-100" onClick={() => { navigator.clipboard.writeText(copy); toast("Copied", { duration: 1200 }) }} aria-label="Copy text"><Copy /></Button>}
+      {copy && <Button variant="ghost" size="icon-xs" className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 group-focus-within:opacity-100" onClick={() => { navigator.clipboard.writeText(copy); toast("Copied", { duration: 1200 }) }} aria-label="Copy text"><Copy /></Button>}
     </div>
   )
 }
@@ -382,12 +382,12 @@ function Overview() {
     : [[tot.tasks, "changes to make", true], [`${tot.tasks ? pct(tot.done / tot.tasks) : 0}%`, "done"], [planned.length, "pages planned"], [planned.filter((p) => p.modes.live?.h1.proposed).length, "H1 ideas for later"]]
   return (
     <div>
-      <Tag tone="muted">{combined ? "Tags + rewrites" : R.site.modes[0] === "live" ? "Tags only" : "Rewrites"}</Tag>
-      <h1 className="mt-2 text-3xl font-medium">{R.site.name}</h1>
+      <div className="text-[13px] text-muted-foreground">Heading plan · {combined ? "tags and rewrites" : R.site.modes[0] === "live" ? "tags only" : "rewrites"}</div>
+      <h1 className="mt-2 text-[24px] leading-tight font-medium">{R.site.name}</h1>
       {s && <p className="mt-2 text-sm text-muted-foreground">Planned {ago(j?.ended || r.updated)} with {status?.catalog[s.engine].name} · {modelName(status, s.engine, s.model)} · {status?.effort[s.effort]?.name || s.effort} effort · keywords are unverified (no keyword tool connected)</p>}
-      {R.warnings.length > 0 && <div className="mt-4 rounded-xl border border-brand/40 p-3 text-sm">{R.warnings.join(" ")}</div>}
+      {R.warnings.length > 0 && <div className="mt-4 rounded-xl border border-destructive/40 p-3 text-sm">{R.warnings.join(" ")}</div>}
       <div className="mt-6 grid grid-cols-2 gap-px overflow-hidden rounded-2xl border bg-border sm:grid-cols-4">
-        {stats.map(([v, l, b]) => <div key={l} className="bg-card p-4"><div className={cn("text-3xl font-medium tracking-tight tabular", b && "text-brand")}>{v}</div><div className="text-xs text-muted-foreground">{l}</div></div>)}
+        {stats.map(([v, l]) => <div key={l} className="bg-card p-4"><div className="text-3xl font-medium tracking-tight tabular">{v}</div><div className="text-xs text-muted-foreground">{l}</div></div>)}
       </div>
       <h2 className="mt-10 mb-3 text-lg font-medium">Pages</h2>
       <div className="overflow-hidden rounded-2xl border bg-card">
@@ -395,8 +395,8 @@ function Overview() {
           const c = pageCounts(p, cstate.done), f = pageChecks(p, finalMode(p)).filter((x) => !x.ok).length
           return (
             <button key={p.id} onClick={() => go(routes.review(r.id, "p:" + p.id))} className="grid w-full grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(110px,24%)] items-center gap-5 border-b px-4 py-3 text-left last:border-b-0 hover:bg-muted/50">
-              <span className="min-w-0"><span className="block truncate font-medium">{p.name}{f ? <span className="ml-2 align-middle"><Tag tone="brand">{f} to fix</Tag></span> : null}</span><span className="block truncate tabular text-xs text-muted-foreground">{p.path}</span></span>
-              <span className="min-w-0 truncate text-sm">{p.keywords ? <><span className="text-brand-ink">{p.keywords.primary[0]}</span>{p.keywords.secondary.length ? <span className="text-muted-foreground"> +{p.keywords.secondary.length}</span> : null}</> : <span className="text-muted-foreground">Brand page</span>}</span>
+              <span className="min-w-0"><span className="block truncate font-medium">{p.name}{f ? <span className="ml-2 align-middle"><Tag tone="bad">{f} to fix</Tag></span> : null}</span><span className="block truncate tabular text-xs text-muted-foreground">{p.path}</span></span>
+              <span className="min-w-0 truncate text-sm">{p.keywords ? <><span className="text-foreground">{p.keywords.primary[0]}</span>{p.keywords.secondary.length ? <span className="text-muted-foreground"> +{p.keywords.secondary.length}</span> : null}</> : <span className="text-muted-foreground">Brand page</span>}</span>
               <span className="flex items-center gap-2"><Bar value={c.tasks ? (100 * c.done) / c.tasks : 100} /><span className="w-9 text-right text-xs text-muted-foreground tabular">{c.tasks ? `${c.done}/${c.tasks}` : "–"}</span></span>
             </button>
           )
@@ -435,9 +435,9 @@ function SignOff({ setApproved }: { setApproved: (v: boolean) => void }) {
   const withNotes = pages.filter((p) => p.modes[mode]!.notes.length)
   return (
     <div>
-      <Tag tone="muted">{hasRewrites ? "Needs approval" : "Not part of the tag fixes"}</Tag>
+      <div className="text-[13px] text-muted-foreground">{hasRewrites ? "Needs approval" : "Not part of the tag fixes"}</div>
       <div className="mt-2 flex flex-wrap items-center gap-3">
-        <h1 className="text-3xl font-medium">{hasRewrites ? "Client sign-off" : "Suggestions for later"}</h1>
+        <h1 className="text-[24px] leading-tight font-medium">{hasRewrites ? "Client sign-off" : "Suggestions for later"}</h1>
         <span className="flex-1" />
         {combined && <ApprovalBar approved={!!cstate.approved} onChange={setApproved} />}
       </div>
