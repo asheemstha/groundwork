@@ -9,6 +9,7 @@ import { Bar, Dot, Tag, TopBar } from "@/components/common/bits"
 import { useApp } from "@/hooks/useApp"
 import { api, type EngineId } from "@/lib/api"
 import { ago, cap, clock, pct } from "@/lib/format"
+import { SkillsSection } from "@/components/settings/Skills"
 
 export function SettingsPage({ focus }: { focus?: EngineId }) {
   const { status } = useApp()
@@ -26,6 +27,9 @@ export function SettingsPage({ focus }: { focus?: EngineId }) {
             <EngineCard k="claude" highlight={focus === "claude"} />
             <EngineCard k="codex" highlight={focus === "codex"} />
           </div>
+          <h2 id="skills" className="mt-10 mb-1 text-lg font-medium">Skills</h2>
+          <p className="mb-3 max-w-2xl text-sm text-muted-foreground">The rulebook the AI follows for heading plans. The built-in one is always here. Add your own to change the rules, and pick which one to use.</p>
+          <SkillsSection />
           <h2 className="mt-10 mb-3 text-lg font-medium">You</h2>
           <Preferences />
           <h2 className="mt-10 mb-3 text-lg font-medium">Updates</h2>

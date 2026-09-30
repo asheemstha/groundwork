@@ -36,6 +36,8 @@ export interface AppStatus {
   effort: Record<string, EffortInfo>
   limits: Limits | null
 }
+export interface Skill { id: string; builtin: boolean; name: string; slug: string; description: string; files: number; missing: { file: string; what: string }[]; added?: number }
+export interface Skills { active: string; skills: Skill[]; added?: string }
 export interface Settings {
   output: Output
   market: string
@@ -45,6 +47,9 @@ export interface Settings {
   model: string
   effort: string
   notes?: string
+  /** The skill a heading plan used (set by the server). */
+  skill?: string
+  skillName?: string
 }
 export interface Counts { tasks: number; done: number }
 /** `all` is the merged to-do list; `live`/`optimize` come from runs made before it existed. */
@@ -317,6 +322,12 @@ export const api = {
   estimate: (settings: Partial<Settings>, pages: number, tool: "headings" | "seo" = "headings") => req<Estimate>("POST", "/api/estimate", { settings, pages, tool }),
   refreshLimits: () => req<Limits | null>("POST", "/api/limits/refresh"),
   crawl: (id: string, pid: string) => req<CrawlData>("GET", `/api/runs/${id}/crawl/${pid}`),
+  skills: () => req<Skills>("GET", "/api/skills"),
+  addSkill: (b: { files?: { path: string; data: string }[]; zip?: string }) => req<Skills>("POST", "/api/skills", b),
+  useSkill: (id: string) => req<Skills>("POST", "/api/skills/active", { id }),
+  removeSkill: (id: string) => req<Skills>("DELETE", `/api/skills/${id}`),
+  copySkill: (id: string) => req<Skills>("POST", `/api/skills/${id}/copy`),
+  openSkill: (id: string) => req<{ ok: boolean }>("POST", `/api/skills/${id}/open`),
   seoStart: (id: string, settings: SeoSettings, selected: string[]) => req<{ ok: boolean }>("POST", `/api/runs/${id}/seo/start`, { settings, selected }),
   seoResult: (id: string) => req<{ result: SeoResult | null; state: SeoState }>("GET", `/api/runs/${id}/seo/result`),
   seoState: (id: string, b: { set?: Record<string, boolean>; edits?: Record<string, string | null> }) => req<{ state: SeoState; progress: Counts }>("POST", `/api/runs/${id}/seo/state`, b),

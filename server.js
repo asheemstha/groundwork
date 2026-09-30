@@ -33,6 +33,7 @@ const siteName = host => (readJson(sitesFile, {})[host] || {}).name || null;
 const setSiteName = (host, name) => { const all = readJson(sitesFile, {}); name = String(name || '').trim().slice(0, 60); if (name) all[host] = { ...(all[host] || {}), name }; else if (all[host]) delete all[host].name; writeJson(sitesFile, all); };
 // Projects and templates (lib/projects.js). A project links to a site's scans and plans by its host.
 const runsFor = host => fs.readdirSync(RUNS).map(id => loadRun(id)).filter(r => r && hostOf(r.origin || r.url) === host).sort((a, b) => b.created - a.created);
+const SK = require('./lib/skills')({ DATA, BUILTIN: H.SKILL_DIR, readJson, writeJson });
 const P = require('./lib/projects')({ DATA, readJson, writeJson, runsFor, hostOf: u => hostOf(/^https?:\/\//i.test(u) ? u : 'https://' + u) });
 const ICON_EXT = { 'image/svg+xml': 'svg', 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif' };
 function saveFavicon(run, fav) {
@@ -244,6 +245,9 @@ async function startJob(run, settings, selected) {
     model: String(settings.model || 'default'), effort: String(settings.effort || 'medium'),
     notes: String(settings.notes || '').trim().slice(0, 2000)
   };
+  // The skill in use: the one picked in the composer, else the one remembered, else the built-in.
+  const sk = SK.get(settings.skill || (getSettings().prefs || {}).skill);
+  Object.assign(S, { skill: sk.id, skillName: sk.name, skillSlug: sk.slug });
   const ids = new Set(run.pages.map(p => p.id));
   run.selected = selected.filter(id => ids.has(id));
   if (!run.selected.length) throw new Error('Pick at least one page.');
@@ -279,7 +283,7 @@ async function job(run) {
   if (l.cancelled) return finish(run, 'cancelled');
   // Inputs for the AI: the skill, readable crawl files, a clean plan folder.
   fs.rmSync(path.join(dir, 'skill'), { recursive: true, force: true });
-  fs.cpSync(H.SKILL_DIR, path.join(dir, 'skill'), { recursive: true });
+  fs.cpSync(SK.dirOf(run.settings.skill), path.join(dir, 'skill'), { recursive: true });
   fs.rmSync(path.join(dir, 'plan'), { recursive: true, force: true });
   fs.mkdirSync(path.join(dir, 'plan'));
   for (const p of sel) {
@@ -288,7 +292,7 @@ async function job(run) {
   }
   j.stage = 'ai'; j.aiStarted = Date.now(); saveRun(run); push(run);
   logLine(run.id, 'step', `Started ${engines.CATALOG[run.settings.engine].name}`);
-  const r1 = await agent(run, H.planPrompt(run));
+  const r1 = await agent(run, H.planPrompt(run, run.settings.skill && run.settings.skill !== SK.BUILTIN_ID ? SK.reading(path.join(dir, 'skill')) : null));
   pollPlan(run);
   if (l.cancelled) return finish(run, 'cancelled');
   const planned = planFiles(run).filter(f => f !== '_site.json').length;
@@ -309,7 +313,7 @@ async function job(run) {
   writeJson(path.join(dir, 'result.json'), result);
   fs.rmSync(stateFile(run), { force: true });
   run.progress = progressCounts(run, result);
-  for (const m of result.site.modes) fs.writeFileSync(path.join(dir, `guide-${m}.html`), H.exportHtml(result, m));
+  for (const m of result.site.modes) fs.writeFileSync(path.join(dir, `guide-${m}.html`), H.exportHtml(result, m, path.join(dir, 'skill', 'assets', 'heading-map-template.html')));
   run.summary = r1.text || '';
   run.warnings = result.warnings;
   finish(run, planned < run.selected.length ? 'partial' : 'done');
@@ -554,6 +558,28 @@ const server = http.createServer(async (req, res) => {
       if (lim) setSettings({ limits: { windows: lim.unifiedWindows || {}, status: lim.status, at: Date.now() } });
       statusCache = null;
       return json(res, getSettings().limits || null);
+    }
+    // ---- skills ----
+    const skillsOut = () => ({ active: SK.get((getSettings().prefs || {}).skill).id, skills: SK.list() });
+    if (p === '/api/skills' && M === 'GET') return json(res, skillsOut());
+    if (p === '/api/skills' && M === 'POST') {
+      const b = await body(req);
+      try { const id = SK.add(b); setSettings({ prefs: { ...(getSettings().prefs || {}), skill: id } }); return json(res, { ...skillsOut(), added: id }); }
+      catch (e) { return json(res, { error: e.message }, 400); }
+    }
+    if (p === '/api/skills/active' && M === 'POST') { const b = await body(req); setSettings({ prefs: { ...(getSettings().prefs || {}), skill: SK.get(b.id).id } }); return json(res, skillsOut()); }
+    let sm = p.match(/^\/api\/skills\/([a-z0-9-]+)\/(copy|open)$/);
+    if (sm && M === 'POST' && sm[2] === 'copy') { try { const id = SK.duplicate(sm[1]); return json(res, { ...skillsOut(), added: id }); } catch (e) { return json(res, { error: e.message }, 400); } }
+    if (sm && M === 'POST' && sm[2] === 'open') {
+      // Opens an added skill's folder in Finder so its files can be edited. The built-in one lives inside the app.
+      const dir = SK.folderOf(sm[1]); if (!dir) return json(res, { error: 'Only added skills can be opened.' }, 400);
+      execFile(process.platform === 'win32' ? 'explorer' : process.platform === 'darwin' ? 'open' : 'xdg-open', [dir], () => {});
+      return json(res, { ok: true });
+    }
+    sm = p.match(/^\/api\/skills\/([a-z0-9-]+)$/);
+    if (sm && M === 'DELETE') {
+      try { SK.remove(sm[1]); const pr = getSettings().prefs || {}; if (pr.skill === sm[1]) setSettings({ prefs: { ...pr, skill: SK.BUILTIN_ID } }); return json(res, skillsOut()); }
+      catch (e) { return json(res, { error: e.message }, 400); }
     }
     if (p === '/api/sites' && M === 'POST') { const b = await body(req); if (!b.host) return json(res, { error: 'Missing site' }, 400); setSiteName(String(b.host), b.name); return json(res, { ok: true, name: siteName(String(b.host)) }); }
     if (p === '/api/estimate' && M === 'POST') { const b = await body(req); return json(res, estimate(b.settings || {}, +b.pages || 1, b.tool === 'seo' ? 'seo' : 'headings')); }

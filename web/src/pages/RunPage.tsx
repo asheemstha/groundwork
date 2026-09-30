@@ -7,6 +7,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Composer, useUsageConfirm } from "@/components/composer/Composer"
 import { CountryPicker, EnginePicker, ModelPicker, OutputPicker, ToolPicker, type PlanTool } from "@/components/composer/pickers"
 import { FailedBlock, PagesBlock, PlanBlock, ScanBlock, SeoBlock } from "@/components/run/blocks"
+import { SkillPicker } from "@/components/settings/Skills"
 import { SiteMenu, VersionMenu } from "@/components/shell/AppShell"
 import { SiteIcon, Spinner, TopBar } from "@/components/common/bits"
 import { useApp } from "@/hooks/useApp"
@@ -137,7 +138,7 @@ function PlanComposer() {
   return (
     <>
       <Composer
-        context={<><ToolPicker value={tool} onChange={setTool} /><CountryPicker value={d.s.market} onChange={(market) => d.set({ market })} />{!isSeo && <OutputPicker value={d.s.output} onChange={(output) => d.set({ output })} />}</>}
+        context={<><ToolPicker value={tool} onChange={setTool} /><CountryPicker value={d.s.market} onChange={(market) => d.set({ market })} />{!isSeo && <OutputPicker value={d.s.output} onChange={(output) => d.set({ output })} />}{!isSeo && <SkillPicker />}</>}
         left={<EnginePicker value={d.s.engine} onChange={d.setEngine} />}
         right={<ModelPicker engine={d.s.engine} model={d.s.model} effort={d.s.effort} custom={d.custom} onChange={d.setModel} />}
         submit={

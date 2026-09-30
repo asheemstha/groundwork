@@ -275,19 +275,56 @@ function parseCsv(text: string) {
 }
 const q = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v)
 
+// ---------- folder rules ----------
+// When a whole folder moved and kept its slugs (/blog/x to /articles/x), one Webflow rule covers it:
+// /blog/(.*) to /articles/%1. Only offered when every old URL in the folder follows it, and nothing on the
+// new site lives under the old folder (the rule would catch it).
+export interface FolderRule { from: string; to: string; oldPrefix: string; newPrefix: string; rows: string[] }
+const parent = (p: string) => p.split("/").slice(0, -1).join("/")
+const last = (p: string) => p.split("/").pop() || ""
+export function folderRules(map: RedirectMap): FolderRule[] {
+  const groups = new Map<string, { oldPrefix: string; newPrefix: string; rows: string[] }>()
+  for (const r of map.rows) {
+    if (!moves(r)) continue
+    const op = parent(r.from), np = parent(r.to)
+    if (!op || !np || key(op) === key(np) || key(last(r.from)) !== key(last(r.to))) continue
+    const k = key(op) + "→" + key(np)
+    if (!groups.has(k)) groups.set(k, { oldPrefix: op, newPrefix: np, rows: [] })
+    groups.get(k)!.rows.push(r.from)
+  }
+  const out: FolderRule[] = []
+  for (const g of groups.values()) {
+    if (g.rows.length < 3) continue
+    const pre = key(g.oldPrefix) + "/"
+    const inside = map.rows.filter((r) => key(r.from).startsWith(pre))
+    const follows = (r: RedirectRow) => key(r.to) === key(g.newPrefix + r.from.slice(g.oldPrefix.length))
+    if (!inside.every(follows)) continue
+    if (map.newPages.some((x) => key(x.path).startsWith(pre))) continue
+    out.push({ ...g, from: g.oldPrefix + "/(.*)", to: g.newPrefix + "/%1", rows: inside.map((r) => r.from) })
+  }
+  return out.sort((a, b) => b.rows.length - a.rows.length)
+}
+
 function ExportDialog({ open, onClose, map }: { open: boolean; onClose: () => void; map: RedirectMap }) {
   const [existing, setExisting] = React.useState<{ name: string; header: string | null; rows: [string, string][] } | null>(null)
-  React.useEffect(() => { if (open) setExisting(null) }, [open])
+  const rules = React.useMemo(() => folderRules(map), [map])
+  const [useRules, setUseRules] = React.useState<Record<string, boolean>>({})
+  React.useEffect(() => { if (open) { setExisting(null); setUseRules(Object.fromEntries(rules.map((r) => [r.from, true]))) } }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
   const ours = map.rows.filter(moves)
   const review = ours.filter((r) => !r.sure).length
+  const on = rules.filter((r) => useRules[r.from])
+  const covered = new Set(on.flatMap((r) => r.rows.map(key)))
+  const lines = ours.filter((r) => !covered.has(key(r.from)))
   const merged = () => {
     const out = new Map<string, [string, string]>()
     for (const [a, b] of existing?.rows || []) out.set(key(a), [a, b])
-    for (const r of ours) out.set(key(r.from), [r.from, r.to])
+    for (const r of lines) out.set(key(r.from), [r.from, r.to])
+    // Folder rules go last, after every single redirect.
+    for (const r of on) out.set(key(r.from), [r.from, r.to])
     return [...out.values()]
   }
   const csv = () => [...(existing?.header ? [existing.header] : []), ...merged().map(([a, b]) => `${q(a)},${q(b)}`)].join("\r\n") + "\r\n"
-  const kept = existing ? existing.rows.filter(([a]) => !ours.some((r) => key(r.from) === key(a))).length : 0
+  const kept = existing ? existing.rows.filter(([a]) => !lines.some((r) => key(r.from) === key(a)) && !on.some((r) => key(r.from) === key(a))).length : 0
   const download = () => {
     const a = document.createElement("a")
     a.href = URL.createObjectURL(new Blob([csv()], { type: "text/csv" }))
@@ -301,9 +338,24 @@ function ExportDialog({ open, onClose, map }: { open: boolean; onClose: () => vo
         <DialogHeader className="px-6 pt-6"><DialogTitle>Export for Webflow</DialogTitle><DialogDescription>A CSV of old and new paths for Webflow’s 301 redirect import.</DialogDescription></DialogHeader>
         <div className="grid gap-4 px-6 py-5 text-[13.5px]">
           <div className="grid gap-1 rounded-lg bg-muted/60 px-3.5 py-3">
-            <span><b className="font-medium tabular">{ours.length}</b> {ours.length === 1 ? "redirect" : "redirects"} from this map{existing ? <>, plus <b className="font-medium tabular">{kept}</b> already on the site</> : ""}</span>
+            <span><b className="font-medium tabular">{lines.length + on.length}</b> {lines.length + on.length === 1 ? "line" : "lines"} for {ours.length} {ours.length === 1 ? "redirect" : "redirects"}{on.length ? `, ${on.length} of them ${on.length === 1 ? "a folder rule" : "folder rules"}` : ""}{existing ? <>, plus <b className="font-medium tabular">{kept}</b> already on the site</> : ""}</span>
             {review > 0 && <span className="text-[12.5px] text-brand-ink">{review} {review === 1 ? "match still needs" : "matches still need"} a look. They’re included as they are.</span>}
           </div>
+          {rules.length > 0 && (
+            <div className="grid gap-1.5">
+              <span className="font-medium">Folder rules</span>
+              <p className="text-[12.5px] leading-relaxed text-muted-foreground">These folders moved with every page keeping its slug, so one rule replaces a line per page. It also catches old URLs the scan didn’t find.</p>
+              <div className="overflow-hidden rounded-[10px] border bg-card">
+                {rules.map((r) => (
+                  <label key={r.from} className="grid cursor-pointer grid-cols-[16px_minmax(0,1fr)_auto] items-center gap-3 border-b px-3 py-2.5 last:border-b-0">
+                    <input type="checkbox" checked={!!useRules[r.from]} onChange={(e) => setUseRules((x) => ({ ...x, [r.from]: e.target.checked }))} className="size-[15px] accent-foreground" />
+                    <span className="min-w-0 truncate text-[13px]">{r.from} <ArrowRight className="inline size-3 text-muted-foreground" /> {r.to}</span>
+                    <span className="text-xs text-muted-foreground tabular">replaces {r.rows.length}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="grid gap-1.5">
             <span className="font-medium">Redirects already on the site</span>
             <p className="text-[12.5px] leading-relaxed text-muted-foreground">Webflow’s import replaces every redirect on the site. If it already has some, export them in Webflow first (Site settings, Publishing, 301 redirects, Export) and add that file here, so they’re kept.</p>
