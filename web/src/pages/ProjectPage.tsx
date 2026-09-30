@@ -23,10 +23,11 @@ import { ago } from "@/lib/format"
 import { go, routes } from "@/lib/router"
 import { LaunchCard, LaunchItemPanel, LaunchReportPage, useLaunchRefresh } from "@/components/project/LaunchCheck"
 import { RedirectCard, RedirectsPage } from "@/components/project/Redirects"
+import { InventoryCard, InventoryPage } from "@/components/project/Inventory"
 import { ShiftDialog, shiftPlan } from "@/components/project/ShiftDialog"
 import { TemplateUpdateDialog, updateFromTemplate } from "@/components/project/TemplateUpdate"
 
-type Tab = "checklist" | "client" | "tools" | "launch" | "redirects"
+type Tab = "checklist" | "client" | "tools" | "launch" | "redirects" | "inventory"
 type SetItem = (itemId: string, b: Parameters<typeof api.setItem>[2]) => Promise<void>
 
 export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Tab; sub?: string; item?: string }) {
@@ -111,6 +112,7 @@ export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Ta
         {tab === "tools" && <ToolsTab p={p} reload={load} onEdit={() => setEditing(true)} />}
         {tab === "launch" && <LaunchReportPage key={sub || ""} p={p} sub={sub} reload={load} />}
         {tab === "redirects" && <RedirectsPage p={p} reload={load} />}
+        {tab === "inventory" && <InventoryPage p={p} reload={load} />}
       </div>
       <EditDialog p={p} open={editing} onClose={() => setEditing(false)} onSaved={(x) => { setP(x); refreshProjects() }} />
       <ShiftDialog p={p} onDone={(x) => { setP(x); refreshProjects() }} />
@@ -131,7 +133,7 @@ export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Ta
   )
 }
 
-const sub_label = (tab: Tab) => (tab === "launch" ? "Launch check" : tab === "redirects" ? "Redirect map" : "")
+const sub_label = (tab: Tab) => (tab === "launch" ? "Launch check" : tab === "redirects" ? "Redirect map" : tab === "inventory" ? "Content inventory" : "")
 
 function TabLink({ on, onClick, children }: { on: boolean; onClick: () => void; children: React.ReactNode }) {
   return <button onClick={onClick} aria-current={on ? "page" : undefined} className={cn("inline-flex h-7 items-center gap-1.5 rounded-md px-2.5 text-[14px]", on ? "bg-muted font-medium text-foreground" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground")}>{children}</button>
@@ -481,11 +483,12 @@ function ItemSheet({ p, it, onClose, setItem, reload, order, onMove }: { p: Proj
                     {t.progress && t.progress.total > 0 && <><div className="flex items-baseline gap-1.5"><span className="text-xl font-medium tabular">{t.progress.done}</span><span className="text-muted-foreground">of {t.progress.total} {x.tool === "seo" ? "SEO changes" : "tag fixes"} done</span></div><div className="h-[5px] overflow-hidden rounded-full bg-muted"><span className="block h-full bg-brand" style={{ width: `${(100 * t.progress.done) / t.progress.total}%` }} /></div></>}
                     {x.tool === "launch" ? <LaunchItemPanel p={p} it={x} reload={reload} /> : t.ready && (t.runId
                       ? <div className="flex gap-2"><Button size="sm" onClick={() => go(x.tool === "headings" ? routes.review(t.runId!) : x.tool === "seo" ? routes.seo(t.runId!) : routes.run(t.runId!))}>{x.tool === "headings" ? "Open the to-do list" : x.tool === "seo" ? "Open the SEO plan" : "Open the scan"}</Button></div>
+                      : x.tool === "inventory" ? <div className="flex gap-2"><Button size="sm" variant={p.tools.inventory ? "default" : "outline"} onClick={() => go(routes.project(p.id, "inventory"))}>{p.tools.inventory ? "Open the inventory" : "Make the inventory"}</Button></div>
                       : x.tool === "redirects" ? <div className="flex gap-2"><Button size="sm" variant={p.tools.redirects ? "default" : "outline"} onClick={() => go(p.tools.redirects ? routes.project(p.id, "redirects") : routes.project(p.id, "tools"))}>{p.tools.redirects ? "Open the redirect map" : "Go to Tools"}</Button></div>
                       : x.tool === "seo" && p.tools.seoRunning ? <div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => go(routes.run(p.tools.seoRunning!, "seo"))}><Loader2 className="animate-spin" />Planning now</Button></div>
                       : x.tool === "seo" && p.tools.scan ? <div className="flex gap-2"><Button size="sm" onClick={() => go(routes.run(p.tools.plan?.runId || p.tools.scan!.runId, "seo"))}>Plan SEO</Button></div>
                       : <div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => go(routes.project(p.id, "tools"))}>Go to Tools</Button></div>)}
-                    <p className="text-[12.5px] leading-relaxed text-muted-foreground">{!t.ready ? "When this tool is ready, it will do or check this item for you." : x.tool === "headings" ? "This item ticks itself once every tag fix in the plan is done. You can also tick it yourself." : x.tool === "launch" ? (x.check === "indexing" || x.check === "https" ? "This item ticks itself when a check of the live domain passes. A staging check shows the issues but doesn’t tick it." : "This item ticks itself when the check passes. You can also tick it yourself.") : x.tool === "redirects" ? (x.check === "map" ? "This item ticks itself when every old URL has a match you’re happy with." : x.check === "after" ? "This item ticks itself when a test of the live domain after launch day passes." : "This item ticks itself when a test of the live domain passes: every redirect is one 301 to the right page.") : x.tool === "seo" ? (x.check === "plan" ? "This item ticks itself once an SEO plan covers every page the scan read. Plan staging, so it describes the new site." : "Counts the plan’s titles, descriptions and URLs as they go live. This item also covers OG images, alt text, schema and the 404 page, so you tick it yourself. The launch check covers several of those.") : (x.check === "recrawl" ? "This item ticks itself when the old site is scanned in the 10 days before launch day. Rebuild the redirect map afterwards, so new pages get redirects too." : "This item ticks itself when the scan finishes.")}</p>
+                    <p className="text-[12.5px] leading-relaxed text-muted-foreground">{!t.ready ? "When this tool is ready, it will do or check this item for you." : x.tool === "headings" ? "This item ticks itself once every tag fix in the plan is done. You can also tick it yourself." : x.tool === "inventory" ? "This item ticks itself once every old page has a keep, rewrite, merge or remove call you’re happy with." : x.tool === "launch" ? (x.check === "indexing" || x.check === "https" ? "This item ticks itself when a check of the live domain passes. A staging check shows the issues but doesn’t tick it." : "This item ticks itself when the check passes. You can also tick it yourself.") : x.tool === "redirects" ? (x.check === "map" ? "This item ticks itself when every old URL has a match you’re happy with." : x.check === "after" ? "This item ticks itself when a test of the live domain after launch day passes." : "This item ticks itself when a test of the live domain passes: every redirect is one 301 to the right page.") : x.tool === "seo" ? (x.check === "plan" ? "This item ticks itself once an SEO plan covers every page the scan read. Plan staging, so it describes the new site." : "Counts the plan’s titles, descriptions and URLs as they go live. This item also covers OG images, alt text, schema and the 404 page, so you tick it yourself. The launch check covers several of those.") : (x.check === "recrawl" ? "This item ticks itself when the old site is scanned in the 10 days before launch day. Rebuild the redirect map afterwards, so new pages get redirects too." : "This item ticks itself when the scan finishes.")}</p>
                   </section>
                 )}
                 <Textarea value={note} onChange={(e) => setNote(e.target.value)} onBlur={() => note !== x.note && setItem(x.id, { note })} rows={3} placeholder="Add notes…" className="mt-6 min-h-0 resize-none border-0 bg-transparent px-0 text-[14.5px] leading-relaxed shadow-none [field-sizing:content] focus-visible:ring-0 dark:bg-transparent" />
@@ -785,6 +788,7 @@ function ToolsTab({ p, reload, onEdit }: { p: Project; reload: () => void; onEdi
       <h2 className="mt-4 text-[13px] font-medium text-muted-foreground">Checks</h2>
       <LaunchCard p={p} reload={reload} />
       {!audit && <RedirectCard p={p} onEdit={onEdit} />}
+      {!audit && <InventoryCard p={p} />}
       {p.tools.runs.length > 0 && (
         <section className="mt-4">
           <h2 className="mb-2 text-[13px] font-medium text-muted-foreground">History</h2>

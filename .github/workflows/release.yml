@@ -51,6 +51,7 @@ jobs:
           cp -R server.js package.json lib shared tools codepkg/
           cp -R web/dist codepkg/web/
           cp -R node_modules/playwright-core codepkg/node_modules/
+          mkdir -p codepkg/node_modules/axe-core && cp node_modules/axe-core/{package.json,axe.min.js,LICENSE} codepkg/node_modules/axe-core/
           (cd codepkg && zip -qry "../release/Groundwork-$v-code-shell$s.zip" .)
 
       - name: Release notes

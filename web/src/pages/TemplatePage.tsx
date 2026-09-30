@@ -21,6 +21,7 @@ const TOOL_NAMES: Record<ToolId, { name: string; ready: boolean }> = {
   seo: { name: "SEO plan", ready: true },
   launch: { name: "Launch check", ready: true },
   redirects: { name: "Redirect map", ready: true },
+  inventory: { name: "Content inventory", ready: true },
 }
 const newId = () => "i" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5)
 

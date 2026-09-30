@@ -26,7 +26,9 @@ How updates install:
 - **Heading plan**: runs `claude -p` or `codex exec` in the run's folder with the heading skill (`tools/h-tag-planner/` is the built-in one). The AI can only read files and write JSON: no shell, web or connectors. When the installed Claude Code has `--restricted` (checked once with `claude --help`), plans run with it, which confines the file tools to the run's folder; everything a plan needs (page text, screenshots, the skill) is copied there first. It writes `plan/_site.json`, then one file per page, which drives the progress bar. The app then runs the skill's automatic checks, gives the AI one pass to fix failures, and builds the to-do list and the HTML guide.
 - **SEO plan**: reads each page's current title and description, then the AI writes a title, description and slug per page into `seo/plan/`, using the heading plan's keywords when there is one. Checks: titles up to 60 characters, descriptions up to 155, the keyword in the title, unique titles and URLs, clean slugs.
 - **Skills**: each AI tool follows a skill. Added skills live in `data/skills/<id>/`; the one in use is remembered in the app's prefs. The SEO plan's built-in rules are `RULES` in `lib/seo.js`.
-- **Launch check** (`lib/launch.js`) and **redirect map** (`lib/redirects.js`) use no AI.
+- **Launch check** (`lib/launch.js`) and **redirect map** (`lib/redirects.js`) use no AI. The launch check runs axe-core (`node_modules/axe-core/axe.min.js`, evaluated in each page) and the speed test in `lib/speed.js` (CDP throttling like Lighthouse's mobile preset, measured with PerformanceObserver). axe-core ships in the code-only update zip too, so the release workflow copies it next to playwright-core.
+- **After-launch watch**: `watchTick()` in `lib/projects.js`, called by server.js two minutes after start and every 30 minutes. It runs the launch check (and the redirect test when there's a map) on the live domain at days 3, 7 and 30, once each, within two weeks of the day.
+- **Content inventory** (`lib/inventory.js`): rule suggestions from the old-site scan, optional AI suggestions through `assist.ask`, stored in `projects/<id>/inventory.json`.
 
 ## Code
 

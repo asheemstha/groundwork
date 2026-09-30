@@ -66,6 +66,8 @@ export const LAUNCH_CHECKS: Record<LaunchCheckId, string> = {
   placeholders: "No placeholder text or dummy links",
   links: "Links work",
   seo: "Titles, descriptions, H1s, alt text, OG images, favicon",
+  a11y: "Accessibility basics (WCAG 2.2 AA)",
+  speed: "Speed on a phone (Core Web Vitals)",
   canonicals: "Canonicals point to the live domain",
   legal: "Legal pages linked",
   https: "SSL and redirects",

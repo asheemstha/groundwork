@@ -7,18 +7,29 @@ import { Input } from "@/components/ui/input"
 import { Spinner } from "@/components/common/bits"
 import { ToolCard } from "@/components/project/ToolCard"
 import { useApp } from "@/hooks/useApp"
-import { api, type LaunchCheck, type LaunchCheckId, type LaunchIssue, type LaunchReport, type LaunchSummary, type PItem, type Project } from "@/lib/api"
+import { Checkbox } from "@/components/ui/checkbox"
+import { api, type LaunchCheck, type LaunchCheckId, type LaunchIssue, type LaunchReport, type LaunchSummary, type PItem, type Project, type Rating, type SpeedResult } from "@/lib/api"
+import { store } from "@/lib/store"
 import { go, routes } from "@/lib/router"
 import { hostOfUrl, today } from "@/lib/project"
 import { stagingExample } from "@/lib/platforms"
 import { CloudflareHelp, isCloudflare } from "@/components/common/CloudflareHelp"
 
-const ORDER: LaunchCheckId[] = ["indexing", "placeholders", "links", "seo", "canonicals", "legal", "https"]
+const ORDER: LaunchCheckId[] = ["indexing", "placeholders", "links", "seo", "a11y", "speed", "canonicals", "legal", "https"]
 const STEPS = [
   { id: "site", label: "robots.txt, sitemap and redirects" },
-  { id: "pages", label: "Opening pages" },
+  { id: "pages", label: "Opening pages and checking accessibility" },
   { id: "links", label: "Testing links" },
+  { id: "speed", label: "Speed test of three key pages on a phone" },
 ] as const
+/** Whether the next check runs the speed test. It adds a minute or two, so quick re-runs can skip it. */
+const useSpeedOption = () => {
+  const [speed, set] = React.useState(() => store.get("launchSpeed", true))
+  return [speed, (v: boolean) => { store.set("launchSpeed", v); set(v) }] as const
+}
+function SpeedOption({ speed, setSpeed }: { speed: boolean; setSpeed: (v: boolean) => void }) {
+  return <label className="flex items-center gap-2 text-[12.5px] text-muted-foreground"><Checkbox checked={speed} onCheckedChange={(v) => setSpeed(!!v)} />Include the speed test (adds a minute or two; without it, the last result is kept)</label>
+}
 
 const when = (at: number) => new Date(at).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
 const day = (at: number) => new Date(at).toLocaleDateString([], { month: "short", day: "numeric" })
@@ -39,7 +50,7 @@ const defaultUrl = (p: Project) => {
   const live = liveIsOld ? null : p.sites.live
   return (launched ? live || p.sites.staging : p.sites.staging || live) || p.tools.launchHistory.find((h) => !h.oldSite)?.url || ""
 }
-const where = (h: { staging?: boolean; oldSite?: boolean }) => (h.oldSite ? ", old site" : h.staging ? ", staging" : "")
+const where = (h: { staging?: boolean; oldSite?: boolean; watch?: number | null }) => (h.oldSite ? ", old site" : h.staging ? ", staging" : h.watch ? `, day ${h.watch} after launch` : "")
 
 /** Follows a running check until it finishes, then reloads the project so the checklist picks it up. */
 export function useLaunch(p: Project, checkId: string | undefined, reload: () => void) {
@@ -64,9 +75,9 @@ export function useLaunch(p: Project, checkId: string | undefined, reload: () =>
   return { r, missing }
 }
 
-export async function startLaunch(p: Project, url: string, reload: () => void) {
+export async function startLaunch(p: Project, url: string, reload: () => void, speed = store.get("launchSpeed", true)) {
   try {
-    const { checkId } = await api.startLaunch(p.id, url.trim() || undefined)
+    const { checkId } = await api.startLaunch(p.id, url.trim() || undefined, speed)
     reload()
     go(routes.launch(p.id, checkId))
   } catch (e) { toast.error((e as Error).message) }
@@ -80,14 +91,15 @@ function CheckMark({ ok, size = 18 }: { ok: boolean; size?: number }) {
 
 const clock = (ms: number) => { const s = Math.max(0, Math.round(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}` }
 function Progress({ r }: { r: LaunchReport }) {
-  const at = STEPS.findIndex((s) => s.id === r.progress.step)
+  const steps = STEPS.filter((s) => s.id !== "speed" || r.speed !== false)
+  const at = steps.findIndex((s) => s.id === r.progress.step)
   const { done, total: all, times = {}, stepAt } = r.progress
   // Re-render every second so the running step's timer moves.
   const [, tick] = React.useState(0)
   React.useEffect(() => { const t = setInterval(() => tick((n) => n + 1), 1000); return () => clearInterval(t) }, [])
   return (
     <div className="grid gap-2.5">
-      {STEPS.map((s, i) => (
+      {steps.map((s, i) => (
         <div key={s.id} className="grid grid-cols-[18px_minmax(0,1fr)_110px_44px] items-center gap-3 text-[13.5px]">
           {i < at ? <CheckMark ok size={16} /> : i === at ? <Loader2 className="size-4 animate-spin text-muted-foreground" /> : <span className="size-4 rounded-full border border-dashed border-input" />}
           <span className={cn(i > at && "text-muted-foreground")}>{s.label}</span>
@@ -103,6 +115,7 @@ function Progress({ r }: { r: LaunchReport }) {
 // ---------- Tools tab card ----------
 export function LaunchCard({ p, reload }: { p: Project; reload: () => void }) {
   const [url, setUrl] = React.useState(defaultUrl(p))
+  const [speed, setSpeed] = useSpeedOption()
   const [busy, setBusy] = React.useState(false)
   const running = p.tools.launchRunning
   const { r } = useLaunch(p, running?.id, reload)
@@ -112,13 +125,13 @@ export function LaunchCard({ p, reload }: { p: Project; reload: () => void }) {
   return (
     <ToolCard
       title="Launch check" cost="runs on your Mac, no AI"
-      status={running ? "Checking now." : last ? <>Last check {day(last.at)}{last.staging ? " on staging" : ""}: {fails ? `${fails} ${fails === 1 ? "check needs" : "checks need"} fixing` : "ready"}. <button onClick={() => go(routes.launch(p.id, last.id))} className="text-foreground/80 underline underline-offset-2 hover:text-foreground">Open the report</button></> : "Reads the site the way Google and a visitor would: noindex, placeholder text, broken links, titles, canonicals, legal pages and redirects. Use staging before launch and the live domain after."}
-      action={running ? <Button size="sm" variant="outline" onClick={() => api.cancelLaunch(p.id, running.id).catch(() => {})}>Stop</Button> : <Button size="sm" variant="outline" onClick={async () => { setBusy(true); await startLaunch(p, url, reload); setBusy(false) }} disabled={busy || !url.trim()}>{busy && <Loader2 className="animate-spin" />}{last ? "Run again" : "Run the check"}</Button>}
+      status={running ? "Checking now." : last ? <>Last check {day(last.at)}{last.staging ? " on staging" : ""}: {fails ? `${fails} ${fails === 1 ? "check needs" : "checks need"} fixing` : "ready"}. <button onClick={() => go(routes.launch(p.id, last.id))} className="text-foreground/80 underline underline-offset-2 hover:text-foreground">Open the report</button></> : "Reads the site the way Google and a visitor would: noindex, placeholder text, broken links, titles, accessibility, speed on a phone, canonicals, legal pages and redirects. Use staging before launch and the live domain after. After launch, Groundwork checks the live site again on days 3, 7 and 30 while the app is open."}
+      action={running ? <Button size="sm" variant="outline" onClick={() => api.cancelLaunch(p.id, running.id).catch(() => {})}>Stop</Button> : <Button size="sm" variant="outline" onClick={async () => { setBusy(true); await startLaunch(p, url, reload, speed); setBusy(false) }} disabled={busy || !url.trim()}>{busy && <Loader2 className="animate-spin" />}{last ? "Run again" : "Run the check"}</Button>}
     >
       {running && r?.status === "running" ? (
         <button onClick={() => go(routes.launch(p.id, running.id))} className="rounded-lg bg-muted/50 px-3.5 py-3 text-left"><Progress r={r} /></button>
       ) : (
-        <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder={stagingExample(p.platform)} className="h-8" />
+        <div className="grid gap-2"><Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder={stagingExample(p.platform)} className="h-8" /><SpeedOption speed={speed} setSpeed={setSpeed} /></div>
       )}
       {history.length > 1 && (
         <div className="grid">
@@ -143,7 +156,8 @@ export function LaunchReportPage({ p, sub, reload }: { p: Project; sub?: string;
   const { r, missing } = useLaunch(p, checkId, reload)
   const [url, setUrl] = React.useState(defaultUrl(p))
   const [busy, setBusy] = React.useState(false)
-  const run = async (u: string) => { setBusy(true); await startLaunch(p, u, reload); setBusy(false) }
+  const [speed, setSpeed] = useSpeedOption()
+  const run = async (u: string) => { setBusy(true); await startLaunch(p, u, reload, speed); setBusy(false) }
   const head = null
 
   if (!checkId || missing) return (
@@ -151,6 +165,7 @@ export function LaunchReportPage({ p, sub, reload }: { p: Project; sub?: string;
       {head}
       <div><h1 className="text-[24px] leading-tight font-medium">Launch check</h1><p className="mt-1.5 text-sm text-muted-foreground">{missing ? "That report isn’t on this Mac any more." : `Not run for ${p.name} yet.`} Use the staging address before launch and the live one after.</p></div>
       <div className="flex gap-2"><Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder={stagingExample(p.platform)} /><Button onClick={() => run(url)} disabled={busy || !url.trim()}>{busy ? <Loader2 className="animate-spin" /> : <Play />}Run the check</Button></div>
+      <SpeedOption speed={speed} setSpeed={setSpeed} />
     </div>
   )
   if (!r) return <div className="grid h-full place-items-center py-24"><Spinner /></div>
@@ -159,7 +174,7 @@ export function LaunchReportPage({ p, sub, reload }: { p: Project; sub?: string;
     <div className="grid max-w-4xl gap-5 px-12 pt-8 pb-10">
       {head}
       <div className="flex items-start gap-3">
-        <div className="flex-1"><h1 className="text-[24px] leading-tight font-medium">Checking {hostOf(r.url)}</h1><p className="mt-1.5 text-sm text-muted-foreground">Up to 60 pages, then every link on them. It usually takes a minute or two. You can leave this page, the check keeps going.</p></div>
+        <div className="flex-1"><h1 className="text-[24px] leading-tight font-medium">Checking {hostOf(r.url)}</h1><p className="mt-1.5 text-sm text-muted-foreground">Up to 60 pages, then every link on them{r.speed !== false ? ", then a speed test of three key pages" : ""}. It usually takes {r.speed !== false ? "three to five minutes" : "a minute or two"}. You can leave this page, the check keeps going.</p></div>
         <Button variant="outline" size="sm" onClick={() => api.cancelLaunch(p.id, r.id).then(() => toast("Stopping the check…")).catch(() => {})}>Stop</Button>
       </div>
       <section className="rounded-xl border bg-card p-4"><Progress r={r} /></section>
@@ -174,10 +189,10 @@ export function LaunchReportPage({ p, sub, reload }: { p: Project; sub?: string;
     </div>
   )
 
-  return <Report p={p} r={r} focus={focus} busy={busy} onRun={() => run(r.url)} head={head} />
+  return <Report p={p} r={r} focus={focus} busy={busy} onRun={() => run(r.url)} head={head} speed={speed} setSpeed={setSpeed} />
 }
 
-function Report({ p, r, focus, busy, onRun, head }: { p: Project; r: LaunchReport; focus?: LaunchCheckId; busy: boolean; onRun: () => void; head: React.ReactNode }) {
+function Report({ p, r, focus, busy, onRun, head, speed, setSpeed }: { p: Project; r: LaunchReport; focus?: LaunchCheckId; busy: boolean; onRun: () => void; head: React.ReactNode; speed: boolean; setSpeed: (v: boolean) => void }) {
   const checks = ORDER.map((id) => r.checks!.find((c) => c.id === id)).filter(Boolean) as LaunchCheck[]
   const later = (c: LaunchCheck) => !!r.staging && LATER.includes(c.id)
   const now = checks.filter((c) => !later(c)), ok = now.filter((c) => c.ok).length
@@ -201,10 +216,12 @@ function Report({ p, r, focus, busy, onRun, head }: { p: Project; r: LaunchRepor
         {ok < now.length && <Button variant="outline" size="sm" onClick={copy}><Copy />Copy issues</Button>}
         <Button size="sm" onClick={onRun} disabled={busy || !!p.tools.launchRunning}>{busy ? <Loader2 className="animate-spin" /> : <RotateCw />}Run again</Button>
       </div>
+      <div className="-mt-3 flex justify-end"><SpeedOption speed={speed} setSpeed={setSpeed} /></div>
       <div>
         <h1 className="text-[24px] leading-tight font-medium">{r.oldSite ? "The old site" : failing.length ? `${failing.length} ${failing.length === 1 ? "check needs" : "checks need"} fixing` : r.staging ? "Staging is ready" : "Ready to launch"}</h1>
         <p className="mt-1.5 text-sm text-muted-foreground">
           <a href={r.url} target="_blank" rel="noreferrer" className="text-foreground/80 underline-offset-2 hover:underline">{r.host}</a>{where(r)}. {r.pagesChecked} pages and {r.linksChecked?.toLocaleString()} links, {when(r.started)}.
+          {r.watch ? <> The day {r.watch} check after launch.</> : null}
           {r.previous && <> Since the {day(r.previous.at)} check: {newCount} new {newCount === 1 ? "issue" : "issues"}, {(r.fixed || []).length} fixed.</>}
         </p>
       </div>
@@ -223,6 +240,7 @@ function Report({ p, r, focus, busy, onRun, head }: { p: Project; r: LaunchRepor
         </section>
       ))}
       {(r.fixed || []).length > 0 && <Fixed r={r} />}
+      {!!info.speed?.length && <Speed r={r} list={info.speed} carried={r.checks!.find((c) => c.id === "speed")?.carried} />}
 
       <section className="grid gap-1">
         <h2 className="mb-1 text-sm font-medium">Also found</h2>
@@ -258,6 +276,7 @@ function CheckRow({ r, c, later, items, open: initial }: { r: LaunchReport; c: L
       </button>
       {open && (
         <div className="border-t border-border/60 bg-muted/20 px-4 pt-1 pb-3 pl-[46px]">
+          {c.carried && <p className="pt-2 text-[12.5px] text-muted-foreground">From the {day(c.carried)} check. This check skipped the speed test.</p>}
           {c.note && <p className="py-2 text-[12.5px] text-muted-foreground">{c.note}</p>}
           {c.issues.map((i) => <IssueRow key={i.text} i={i} base={r.url} />)}
         </div>
@@ -274,6 +293,16 @@ function IssueRow({ i, base }: { i: LaunchIssue; base: string }) {
       <span className="grid gap-0.5">
         <span className={cn(i.soft && "text-muted-foreground")}>{i.text}{i.isNew && <span className="ml-2 rounded-full border border-input px-1.5 py-px text-[11px] text-foreground">New</span>}{i.soft && <span className="ml-2 text-xs">worth a look</span>}</span>
         {i.fix && <span className="text-[12.5px] text-muted-foreground">{i.fix}</span>}
+        {!!i.examples?.length && (
+          <span className="mt-1 grid gap-1">
+            {i.examples.map((x, n) => (
+              <span key={n} className="grid gap-0.5 rounded-md bg-muted/60 px-2 py-1.5 text-[12px] text-muted-foreground">
+                <span><PageLink base={base} path={x.page} /> · {x.text}</span>
+                {x.html && <span className="line-clamp-2 break-all text-foreground/70">{x.html}</span>}
+              </span>
+            ))}
+          </span>
+        )}
       </span>
       <span className="text-right text-[12.5px] leading-relaxed text-muted-foreground">
         {i.pages.length === 0 ? "Whole site" : <>
@@ -303,7 +332,36 @@ function Fixed({ r }: { r: LaunchReport }) {
     </section>
   )
 }
-const CHECK_NAMES: Record<LaunchCheckId, string> = { indexing: "Google can index the site", placeholders: "No placeholder text or dummy links", links: "Links work", seo: "Titles, descriptions, H1s, alt text, OG images, favicon", canonicals: "Canonicals point to the live domain", legal: "Legal pages linked", https: "SSL and redirects" }
+const CHECK_NAMES: Record<LaunchCheckId, string> = { indexing: "Google can index the site", placeholders: "No placeholder text or dummy links", links: "Links work", seo: "Titles, descriptions, H1s, alt text, OG images, favicon", a11y: "Accessibility basics (WCAG 2.2 AA)", speed: "Speed on a phone (Core Web Vitals)", canonicals: "Canonicals point to the live domain", legal: "Legal pages linked", https: "SSL and redirects" }
+
+// ---------- speed ----------
+const TONE: Record<string, string> = { good: "text-muted-foreground", fix: "text-foreground", poor: "text-destructive" }
+const Val = ({ v, rating }: { v: string; rating: Rating }) => <span className={cn("text-right tabular", rating ? TONE[rating] : "text-muted-foreground")}>{v}</span>
+/** The speed test's numbers, page by page, against Google's targets. */
+function Speed({ r, list, carried }: { r: LaunchReport; list: SpeedResult[]; carried?: number }) {
+  const cols = "grid-cols-[minmax(0,1fr)_88px_88px_96px_72px]"
+  const psi = `https://pagespeed.web.dev/analysis?url=${encodeURIComponent(r.url)}&form_factor=mobile`
+  return (
+    <section className="grid gap-1">
+      <h2 className="mb-1 flex items-baseline gap-2 text-sm font-medium">Speed on a phone<span className="text-[12.5px] font-normal text-muted-foreground">{carried ? `from the ${day(carried)} check. ` : ""}Targets: main content in 2.5 s, layout shift under 0.1, blocked under 200 ms</span></h2>
+      <div className="overflow-hidden rounded-xl border bg-card text-[13px]">
+        <div className={cn("grid h-9 items-center gap-3 border-b px-4 text-[12.5px] text-muted-foreground", cols)}><span>Page</span><span className="text-right">Main content</span><span className="text-right">Layout shift</span><span className="text-right">Blocked by scripts</span><span className="text-right">Size</span></div>
+        {list.map((m) => (
+          <div key={m.path} className={cn("grid min-h-10 items-center gap-3 border-t px-4 py-2 first:border-t-0", cols)}>
+            <span className="grid min-w-0"><PageLink base={r.url} path={m.path} />{m.lcpEl && <span className="truncate text-[12px] text-muted-foreground">{m.lcpEl}</span>}{m.error && <span className="truncate text-[12px] text-destructive">{m.error}</span>}</span>
+            {m.error ? <><span /><span /><span /><span /></> : <>
+              <Val v={m.lcp != null ? `${(m.lcp / 1000).toFixed(1)} s` : "None"} rating={m.rating.lcp} />
+              <Val v={m.cls.toFixed(2)} rating={m.rating.cls} />
+              <Val v={`${m.tbt.toLocaleString()} ms`} rating={m.rating.tbt} />
+              <span className="text-right text-muted-foreground tabular">{(m.bytes / 1048576).toFixed(1)} MB</span>
+            </>}
+          </div>
+        ))}
+      </div>
+      <p className="text-[12.5px] text-muted-foreground">A lab test on this Mac, set up like a mid-range phone on slow 4G, as in Lighthouse’s mobile test. Red is in Google’s “poor” range. For a live site with enough visitors, <a href={psi} target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-foreground">PageSpeed Insights</a> shows what real visitors get.</p>
+    </section>
+  )
+}
 
 const PageLink = ({ base, path }: { base: string; path: string }) => <a href={new URL(path, base).href} target="_blank" rel="noreferrer" className="break-all hover:text-foreground hover:underline underline-offset-2">{path === "/" ? "Home" : path}</a>
 const Out = ({ href }: { href: string }) => <a href={href} target="_blank" rel="noreferrer" aria-label="Open" className="ml-1 inline-flex align-[-2px] text-muted-foreground hover:text-foreground"><ExternalLink className="size-3.5" /></a>

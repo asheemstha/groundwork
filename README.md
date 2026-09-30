@@ -13,7 +13,10 @@ It works with sites built on Webflow, WordPress, Shopify, Framer, Squarespace, W
 - **Payments.** Add the payment that falls due with each sign-off, then mark it invoiced and paid.
 - **Reminders and calendar.** An optional Mac notification each morning with what's due, and a calendar feed of launches, sign-offs and due dates to subscribe to in Calendar.
 - **Launch check.** Reads up to 60 pages of the staging or live site and every link on them: noindex and robots.txt, placeholder text and dummy "#" links, broken links, titles and descriptions, H1s, canonicals, legal pages, https and www redirects. Each issue comes with a one-line fix, and items it passes tick themselves on the checklist.
-- **Redirect map.** For redesigns: matches every URL on the old site to its page on the new one, exports the 301 redirects in your platform's format (Webflow, Shopify, WordPress, Squarespace, Framer, Wix, Netlify, Vercel, Apache or nginx), and tests them after launch.
+- **Accessibility and speed.** The launch check also runs axe (the engine Lighthouse uses) against WCAG 2.2 A and AA on every page, and a speed test of three key pages set up like Lighthouse's mobile test, against Google's Core Web Vitals targets. Both run on your Mac.
+- **After launch.** While the app is open, Groundwork checks the live site again 3, 7 and 30 days after launch, with the redirect test when there's a map, and Home lists anything new it finds.
+- **Redirect map.** For redesigns: matches every URL on the old site to its page on the new one, exports the 301 redirects in your platform's format (Webflow, Shopify, WordPress, Squarespace, Framer, Wix, Netlify, Vercel, Apache or nginx), and tests them after launch. Paste a list of old URLs from Search Console or analytics to see where each one ends up, and compare the old site's titles, descriptions and H1s with the new site's.
+- **Content inventory.** Every page on the old site with a keep, rewrite, merge or remove call, suggested by rules (or by AI, optionally) and decided by you. Merged pages can go straight into the redirect map.
 - **Same-domain redesigns.** When the new site launches on the old site's address, checks and tests of that address before launch day count as the old site and never tick anything.
 - **Heading plan and SEO plan** (optional, use AI). A plan for each page's H1 to H6, and a title, meta description and URL for each page, turned into a to-do list a developer can tick off.
 - **Audits.** Scan one site and run the tools on it without a checklist. Start a project for it later and the scans move in.
@@ -21,15 +24,15 @@ It works with sites built on Webflow, WordPress, Shopify, Framer, Squarespace, W
 ## What it costs
 
 - The app is free.
-- Checklists, scans, the launch check and the redirect map don't use AI and cost nothing to run.
-- The heading plan and the SEO plan, and two small optional helpers (filling in a new project from a brief, and rewriting a client message in your voice), run through **Claude Code** or **Codex**, signed in to your own paid Claude or ChatGPT subscription. They count toward that subscription's usage limits. Groundwork shows the time and the expected usage before every plan. If you sign in with an API key instead, the provider bills per token.
+- Checklists, scans, the launch check (with its accessibility and speed tests), the redirect map and the content inventory don't use AI and cost nothing to run.
+- The heading plan and the SEO plan, and a few small optional helpers (filling in a new project from a brief, rewriting a client message in your voice, and suggesting the content inventory's calls), run through **Claude Code** or **Codex**, signed in to your own paid Claude or ChatGPT subscription. They count toward that subscription's usage limits. Groundwork shows the time and the expected usage before every plan. If you sign in with an API key instead, the provider bills per token.
 - You don't need AI to use Groundwork. Skip the engine setup and everything else works.
 
 ## Your data
 
 - Everything is saved on your Mac, in `~/Library/Application Support/Groundwork/data` (Settings, Data and privacy, Show in Finder). There's no Groundwork account and no Groundwork server.
 - The heading plan and the SEO plan send the pages you chose from a scan (their public text, headings, current titles and descriptions, and a screenshot when a layout is unclear), your notes and the rules the plan follows, to Anthropic (Claude Code) or OpenAI (Codex) through your own account. That provider's privacy terms apply.
-- The two optional helpers send only the text they work on: the brief you paste in, or the message being rewritten. They run in an empty folder. Without AI, a pasted brief is read on your Mac for web addresses and dates only.
+- The optional helpers send only the text they work on: the brief you paste in, the message being rewritten, or the old site's page list (addresses, titles, H1s, word counts and each page's first lines) for the inventory. They run in an empty folder. Without AI, a pasted brief is read on your Mac for web addresses and dates only.
 - The AI plans run in that scan's folder only. Claude Code is confined to it, so it can't open your projects, client details, messages, sign-off files or other scans. Codex (Beta) is pointed at the folder but not confined to it.
 - Scans and checks run in a browser on your Mac and only visit the addresses you give them.
 - Groundwork connects to GitHub to check for updates.
@@ -54,7 +57,7 @@ It downloads the latest version into Applications and opens it. [install.sh](ins
 1. **New project** (⌘N). Pick what you're starting, then add the client's name, up to three websites (the old site being replaced, the new site on staging, the live domain) and the dates, or paste the brief and let Groundwork fill them in. If the project is already underway, start it at a later phase. Not ready for a real project? **Explore a sample project** on the Home page.
 2. **Checklist.** Work through the current phase. Click an item to open it on the side, with notes, a link and its history. J and K step through items.
 3. **Client.** Tick what you need from the client and copy the message. Groundwork records when you asked, picks a reminder once everything ticked was asked before, and shows what's late. Switch to **Weekly update** for a status email written from the checklist. Home lists the messages to send today, then what's late and due this week, for every project.
-4. **Tools.** Scan the old site at the start of a redesign, build the redirect map once staging has pages, and run the launch check before launch day and again on the live domain.
+4. **Tools.** Scan the old site at the start of a redesign and make the content inventory, build the redirect map once staging has pages, and run the launch check before launch day and again on the live domain. After launch, Groundwork re-checks the live site on its own.
 5. **AI plans** (optional). Sign in to Claude Code or Codex in Settings, then plan headings or SEO from any scan in the Tools tab.
 
 Templates holds your checklists, client messages and emails. Change any of them, duplicate them, or make your own; a template can mark an item as only for one platform.

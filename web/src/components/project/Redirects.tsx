@@ -1,6 +1,6 @@
 import * as React from "react"
 import { cn } from "cn"
-import { ArrowRight, Check, Copy, Download, Loader2, Play, RotateCw, Search } from "lucide-react"
+import { ArrowRight, Check, ChevronRight, Copy, Download, ListPlus, Loader2, Play, RotateCw, Search } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,7 +9,8 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Spinner } from "@/components/common/bits"
 import { ToolCard } from "@/components/project/ToolCard"
-import { api, type Project, type RedirectMap, type RedirectProblem, type RedirectResult, type RedirectRow, type RedirectState } from "@/lib/api"
+import { Textarea } from "@/components/ui/textarea"
+import { api, type Compare, type CompareChange, type ListProblem, type Project, type RedirectMap, type RedirectProblem, type RedirectResult, type RedirectRow, type RedirectState } from "@/lib/api"
 import { go, routes } from "@/lib/router"
 import { hostOfUrl, today } from "@/lib/project"
 import { FORMATS, formatsFor, platformOf, renderRedirects, stagingExample, type RedirectFormat } from "@/lib/platforms"
@@ -81,7 +82,7 @@ export function RedirectCard({ p, onEdit }: { p: Project; onEdit: () => void }) 
   return (
     <ToolCard
       title="Redirect map" cost="runs on your Mac, no AI"
-      status={p.tools.redirectsRunning ? (p.tools.redirectsRunning === "test" ? "Testing the redirects now." : "Building the map now.")
+      status={p.tools.redirectsRunning ? (p.tools.redirectsRunning === "build" ? "Building the map now." : "Testing the redirects now.")
         : r ? <>{r.total} old URLs: {r.redirects} {r.redirects === 1 ? "redirect" : "redirects"}, {r.same} kept{r.review ? <>, <span className="text-foreground">{r.review} to look at</span></> : ""}. {r.test ? `Last test: ${r.test.ok} of ${r.test.total} worked${r.test.live ? "" : r.test.oldSite ? " on the old site" : " on staging"}.` : "Not tested yet."}</>
         : !old ? `Matches every URL on the old site to its page on the new one, exports the redirects for your platform, and tests them after launch. Scan ${oldHost(p)} first; it starts from that list of URLs.`
         : `Matches the ${old.urls} URLs the scan found on ${oldHost(p)} to the new site’s pages. Enter the new site’s address, usually staging.`}
@@ -134,6 +135,7 @@ export function RedirectsPage({ p, reload }: { p: Project; reload: () => void })
       {head}
       <div><h1 className="text-[24px] leading-tight font-medium">Redirect map</h1><p className="mt-1.5 text-sm text-muted-foreground">{st.error ? st.error : p.tools.oldScan ? `Matches the ${p.tools.oldScan.urls} URLs the scan found on ${oldHost(p)} to the new site’s pages. Enter the new site’s address, usually its staging one.` : "Scan the current site first. The map starts from its list of URLs."}</p></div>
       {p.tools.oldScan && <div className="flex gap-2"><Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder={stagingExample(p.platform)} /><Button onClick={() => build(url)} disabled={busy || !url.trim()}>{busy ? <Loader2 className="animate-spin" /> : <Play />}Build the map</Button></div>}
+      <ListTest p={p} st={st} setSt={setSt} load={load} />
     </div>
   )
   return <MapView p={p} st={st} map={st.map} head={head} setSt={setSt} load={load} rebuild={() => build(st.map!.newUrl)} busy={busy} />
@@ -151,7 +153,7 @@ function MapView({ p, st, map, head, setSt, load, rebuild, busy }: { p: Project;
   const [exporting, setExporting] = React.useState(false)
   const launched = !!p.launch && today() >= p.launch
   const [testUrl, setTestUrl] = React.useState(launched && p.sites.live ? p.sites.live : map.newUrl)
-  const testing = st.job?.kind === "test"
+  const testing = st.job?.kind === "test" || st.job?.kind === "list"
   const list = rows.filter((r) => (filter === "all" || (filter === "review" ? !r.sure : filter === "moves" ? moves(r) : filter === "same" ? !moves(r) : !!results[r.from] && !results[r.from]!.ok)) && (!q || (r.from + " " + r.to + " " + r.title).toLowerCase().includes(q.toLowerCase())))
   // The folders most of the list sits in, so a whole section can be sent somewhere at once.
   const folders = Object.entries(list.reduce<Record<string, number>>((a, r) => { const f = "/" + (r.from.split("/")[1] || ""); if (r.from.split("/").length > 2) a[f] = (a[f] || 0) + 1; return a }, {})).sort((x, y) => y[1] - x[1]).slice(0, 5)
@@ -177,10 +179,10 @@ function MapView({ p, st, map, head, setSt, load, rebuild, busy }: { p: Project;
       </div>
       <section className="grid gap-2.5 rounded-xl border bg-card p-4">
         <div className="flex items-baseline gap-2"><h2 className="text-sm font-medium">Test the redirects</h2><span className="text-[12.5px] text-muted-foreground">once they’re imported and published</span></div>
-        {testing ? (
+        {st.job?.kind === "test" ? (
           <div className="grid gap-2"><div className="flex items-center gap-2 text-[13px]"><Loader2 className="size-4 animate-spin text-muted-foreground" />Testing {st.job!.progress.done} of {st.job!.progress.total}<span className="flex-1" /><Button variant="ghost" size="xs" onClick={() => api.cancelRedirects(p.id).catch(() => {})}>Stop</Button></div><div className="h-[5px] overflow-hidden rounded-full bg-muted"><span className="block h-full bg-brand transition-[width]" style={{ width: `${(100 * st.job!.progress.done) / Math.max(1, st.job!.progress.total)}%` }} /></div></div>
         ) : (
-          <div className="flex gap-2"><Input value={testUrl} onChange={(e) => setTestUrl(e.target.value)} placeholder={hostOfUrl(p.sites.live) || "client-site.com"} /><Button variant="outline" onClick={runTest} disabled={!testUrl.trim()}><Play />Test {rows.length} URLs</Button></div>
+          <div className="flex gap-2"><Input value={testUrl} onChange={(e) => setTestUrl(e.target.value)} placeholder={hostOfUrl(p.sites.live) || "client-site.com"} /><Button variant="outline" onClick={runTest} disabled={!testUrl.trim() || testing}><Play />Test {rows.length} URLs</Button></div>
         )}
         <p className="text-[12.5px] leading-relaxed text-muted-foreground">Opens every old URL on that address and follows it. Each redirect should be one 301 to the right page, and URLs kept as they are should still load. The checklist items tick when a test of {hostOfUrl(p.sites.live) || "the live domain"} passes{p.sites.live && hostOfUrl(p.sites.live) === oldHost(p) ? ", from launch day on (before that it still shows the old site)" : ""}.</p>
       </section>
@@ -208,8 +210,149 @@ function MapView({ p, st, map, head, setSt, load, rebuild, busy }: { p: Project;
         {!list.length && <p className="px-4 py-8 text-center text-sm text-muted-foreground">{filter === "review" ? "Every match looks right." : filter === "failed" ? "Nothing failed in the last test." : filter === "moves" ? `No redirects needed. All ${rows.length} URLs stay the same.` : "No URLs in this list."}</p>}
         {list.length > limit && <button onClick={() => setLimit(limit + 300)} className="w-full border-t py-2.5 text-[13px] text-muted-foreground hover:text-foreground">Show {Math.min(300, list.length - limit)} more of {list.length - limit}</button>}
       </section>
+      <ListTest p={p} st={st} setSt={setSt} load={load} site={testUrl} />
+      <BeforeAfter p={p} />
       <ExportDialog open={exporting} onClose={() => setExporting(false)} map={map} platform={p.platform} />
     </div>
+  )
+}
+
+// ---------- a pasted list of URLs ----------
+const LIST_PROBLEM: Record<ListProblem, string> = {
+  error: "No answer",
+  missing: "Page not found",
+  "dead-end": "Ends on a missing page",
+  loop: "Redirect loop",
+  offsite: "Ends on another site",
+  wrong: "Goes somewhere else",
+  home: "Sent to the home page",
+  temporary: "Temporary redirect",
+  chain: "Too many hops",
+}
+/**
+ * Old URLs the scan can't know about (pages other sites link to, old campaigns) pasted from Search Console, analytics
+ * or a backlink tool, and where each one ends up now. Missing ones can go into the map.
+ */
+function ListTest({ p, st, setSt, load, site }: { p: Project; st: RedirectState; setSt: (s: RedirectState) => void; load: () => Promise<RedirectState>; site?: string }) {
+  const launched = !!p.launch && today() >= p.launch
+  const [open, setOpen] = React.useState(false)
+  const [text, setText] = React.useState("")
+  const [url, setUrl] = React.useState(site || (launched ? p.sites.live : p.sites.staging) || p.sites.live || "")
+  const [showAll, setShowAll] = React.useState(false)
+  React.useEffect(() => { if (site) setUrl(site) }, [site])
+  const list = st.list, running = st.job?.kind === "list"
+  const bad = list ? list.results.filter((r) => !r.ok) : []
+  const shown = list ? (showAll ? list.results : bad) : []
+  // Paths the map doesn't have that don't land anywhere useful.
+  const inMap = new Set((st.map?.rows || []).map((r) => r.from.toLowerCase()))
+  const oldHosts = [hostOfUrl(p.sites.old), hostOfUrl(p.sites.live), hostOfUrl(url)].filter(Boolean)
+  const addable = bad.filter((r) => ["missing", "dead-end", "home"].includes(r.problem!) && !inMap.has(r.path.toLowerCase()) && oldHosts.includes(hostOfUrl(r.url)))
+  const run = async () => {
+    try { setSt(await api.testList(p.id, text, url)); setOpen(false); setText(""); load() } catch (e) { toast.error((e as Error).message) }
+  }
+  const add = async () => {
+    try { const r = await api.addToMap(p.id, addable.map((x) => x.path)); setSt(r); toast(`Added ${r.added} ${r.added === 1 ? "URL" : "URLs"} to the map`, { description: "They’re under To look at, each with a best guess." }) } catch (e) { toast.error((e as Error).message) }
+  }
+  const lines = text.split(/\r?\n/).filter((l) => /https?:\/\/|^\s*\//.test(l)).length
+  return (
+    <section className="grid gap-2.5 rounded-xl border bg-card p-4">
+      <div className="flex items-baseline gap-2"><h2 className="text-sm font-medium">Test a list of URLs</h2><span className="text-[12.5px] text-muted-foreground">from Search Console, analytics or a backlink tool</span><span className="flex-1" />{!open && !running && <Button size="sm" variant="outline" onClick={() => setOpen(true)}><ListPlus />{list ? "Test another list" : "Paste a list"}</Button>}</div>
+      {running ? (
+        <div className="grid gap-2"><div className="flex items-center gap-2 text-[13px]"><Loader2 className="size-4 animate-spin text-muted-foreground" />Testing {st.job!.progress.done} of {st.job!.progress.total}<span className="flex-1" /><Button variant="ghost" size="xs" onClick={() => api.cancelRedirects(p.id).catch(() => {})}>Stop</Button></div><div className="h-[5px] overflow-hidden rounded-full bg-muted"><span className="block h-full bg-brand transition-[width]" style={{ width: `${(100 * st.job!.progress.done) / Math.max(1, st.job!.progress.total)}%` }} /></div></div>
+      ) : open ? (
+        <div className="grid gap-2">
+          <Textarea autoFocus value={text} onChange={(e) => setText(e.target.value)} rows={6} placeholder={"https://old-site.com/services/web-design\n/blog/an-old-post\nor paste a CSV export, the URL column is found"} className="text-[13px]" />
+          <div className="flex gap-2">
+            <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder={hostOfUrl(p.sites.live) || "client-site.com"} aria-label="Site to test on" className="h-8" />
+            <Button size="sm" onClick={run} disabled={!text.trim() || !url.trim()}><Play />Test {lines || ""} {lines === 1 ? "URL" : "URLs"}</Button>
+            <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
+          </div>
+          <p className="text-[12.5px] text-muted-foreground">Paths like /about are opened on this site. Full URLs are opened as they are, so an old domain should redirect to the new one.</p>
+        </div>
+      ) : !list ? (
+        <p className="text-[12.5px] leading-relaxed text-muted-foreground">The scan finds the pages the old site links to. Search Console and analytics also know pages other sites link to and old campaign pages. Paste those URLs to see where each one ends up: it should load, or redirect once with a 301 to a real page.</p>
+      ) : null}
+      {list && !running && (
+        <div className="grid gap-2">
+          <div className="flex flex-wrap items-center gap-2 text-[13px]">
+            <span>{list.total} URLs tested on {hostOf(list.url)}, {when(list.at)}: <span className={cn(bad.length ? "text-destructive" : "text-muted-foreground")}>{bad.length ? `${bad.length} with a problem` : "all fine"}</span></span>
+            <span className="flex-1" />
+            {addable.length > 0 && st.map && <Button size="sm" variant="outline" onClick={add}>Add {addable.length} missing to the map</Button>}
+            {list.results.length > bad.length && <button onClick={() => setShowAll(!showAll)} className="text-[12.5px] text-muted-foreground hover:text-foreground">{showAll ? "Only problems" : "Show all"}</button>}
+          </div>
+          {shown.length > 0 && (
+            <div className="overflow-hidden rounded-lg border">
+              {shown.slice(0, 300).map((r) => (
+                <div key={r.url} className="grid min-h-10 grid-cols-[minmax(0,1fr)_14px_minmax(0,1fr)_170px] items-center gap-3 border-t px-3 py-1.5 text-[13px] first:border-t-0">
+                  <span className="truncate" title={r.url}>{hostOfUrl(r.url) === hostOfUrl(list.url) ? r.path : r.url}</span>
+                  <ArrowRight className="size-3.5 text-muted-foreground" />
+                  <span className="truncate text-muted-foreground" title={r.final}>{r.final}{r.hops ? ` (${r.hops} ${r.hops === 1 ? "hop" : "hops"})` : ""}</span>
+                  <span className={cn("text-[12.5px]", r.ok ? "text-muted-foreground" : "text-destructive")}>{r.ok ? (r.hops ? "Redirects" : "Loads") : `${LIST_PROBLEM[r.problem!]}${r.problem === "wrong" && r.mapped ? `, map says ${r.mapped}` : r.problem === "temporary" ? ` (${r.status})` : ""}`}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  )
+}
+
+// ---------- before and after ----------
+const FIELD: Record<CompareChange["what"], string> = { page: "Page", title: "Title", description: "Description", h1: "H1", canonical: "Canonical" }
+const changeLabel = (c: CompareChange) => c.what === "page" ? "Not in the new scan" : c.kind === "gone" ? `${FIELD[c.what]} gone` : c.kind === "changed" ? `${FIELD[c.what]} changed` : c.kind === "added" ? `${FIELD[c.what]} added` : "Canonical points elsewhere"
+/**
+ * Each page the old site's scan read, next to where it goes on the new site: what search engines will notice. Uses the
+ * scans already made, so it costs nothing to open.
+ */
+function BeforeAfter({ p }: { p: Project }) {
+  const [open, setOpen] = React.useState(false)
+  const [run, setRun] = React.useState<string | undefined>()
+  const [c, setC] = React.useState<Compare | null>(null)
+  const [all, setAll] = React.useState(false)
+  const [expanded, setExpanded] = React.useState<string | null>(null)
+  React.useEffect(() => { if (open) api.compare(p.id, run).then(setC).catch((e) => toast.error(e.message)) }, [open, run, p.id])
+  // Added fields aren't a problem; the rest are worth a look.
+  const worth = (r: Compare["rows"][number]) => r.changes.some((x) => x.kind !== "added")
+  const rows = c ? (all ? c.rows : c.rows.filter(worth)) : []
+  return (
+    <section className="grid gap-2">
+      <button onClick={() => setOpen(!open)} className="flex h-8 items-center gap-2 text-sm font-medium"><ChevronRight className={cn("size-3.5 text-muted-foreground transition-transform", open && "rotate-90")} />Before and after<span className="text-[12.5px] font-normal text-muted-foreground">titles, descriptions and H1s, old site against new</span></button>
+      {open && !c && <div className="py-6"><Spinner /></div>}
+      {open && c && (!c.new ? (
+        <p className="text-[13px] text-muted-foreground">Scan the new site (staging before launch, the live domain after) in the Tools tab, then compare it here with the {c.old.host} scan.</p>
+      ) : (
+        <div className="grid gap-2.5">
+          <div className="flex flex-wrap items-center gap-2 text-[13px]">
+            <span className="text-muted-foreground">{c.old.host}, {when(c.old.at)}</span><ArrowRight className="size-3.5 text-muted-foreground" />
+            <select value={c.new.runId} onChange={(e) => setRun(e.target.value)} aria-label="Scan of the new site" className="h-8 rounded-lg border border-input bg-card px-2 text-[13px]">
+              {c.choices.map((x) => <option key={x.runId} value={x.runId}>{x.host}{x.site === "staging" ? " (staging)" : ""}, {when(x.at)}</option>)}
+            </select>
+            <span className="flex-1" />
+            <button onClick={() => setAll(!all)} className="text-[12.5px] text-muted-foreground hover:text-foreground">{all ? "Only changes" : "Show all"}</button>
+          </div>
+          {c.counts && <p className="text-[13px] text-muted-foreground">{c.counts.pages} pages compared: {c.counts.same} unchanged, {c.counts.changed} with a changed title, description or H1, <span className={cn(c.counts.gone && "text-destructive")}>{c.counts.gone} that lost one</span>, and {c.counts.missing} the new scan didn’t read. A scan reads up to 60 pages, so pages past that show as not read.</p>}
+          <div className="overflow-hidden rounded-xl border bg-card">
+            {rows.map((r) => (
+              <div key={r.from} className="border-t first:border-t-0">
+                <button onClick={() => setExpanded(expanded === r.from ? null : r.from)} className="grid min-h-10 w-full grid-cols-[minmax(0,1fr)_14px_minmax(0,1fr)_minmax(0,260px)] items-center gap-3 px-4 py-1.5 text-left text-[13px] hover:bg-muted/30">
+                  <span className="truncate">{r.from}</span><ArrowRight className={cn("size-3.5", r.moved ? "text-muted-foreground" : "text-muted-foreground/30")} /><span className="truncate text-muted-foreground">{r.to}</span>
+                  <span className="truncate text-right text-[12.5px]">{r.changes.length ? r.changes.map((x, i) => <span key={i} className={cn(x.kind === "gone" || x.what === "page" || x.kind === "elsewhere" ? "text-destructive" : "text-muted-foreground")}>{i ? ", " : ""}{changeLabel(x)}</span>) : <span className="text-muted-foreground">Same</span>}</span>
+                </button>
+                {expanded === r.from && r.changes.some((x) => x.before || x.after) && (
+                  <div className="grid gap-1.5 border-t border-border/60 bg-muted/20 px-4 py-2.5 text-[12.5px]">
+                    {r.changes.filter((x) => x.before || x.after).map((x, i) => (
+                      <div key={i} className="grid grid-cols-[90px_minmax(0,1fr)_minmax(0,1fr)] gap-3"><span className="text-muted-foreground">{FIELD[x.what]}</span><span className="text-muted-foreground">{x.before || "None"}</span><span>{x.after || "None"}</span></div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+            {!rows.length && <p className="px-4 py-6 text-center text-sm text-muted-foreground">Every compared page kept its title, description and H1.</p>}
+          </div>
+        </div>
+      ))}
+    </section>
   )
 }
 

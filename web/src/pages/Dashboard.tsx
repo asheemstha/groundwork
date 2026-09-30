@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Bell, CalendarClock, Mail, Plus, Receipt, User, Stamp } from "lucide-react"
+import { Bell, CalendarClock, Mail, Plus, Radar, Receipt, User, Stamp } from "lucide-react"
 import { cn } from "cn"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
@@ -172,12 +172,13 @@ const KIND: Record<NextUp["kind"], (n: NextUp) => React.ReactNode> = {
   client: (n) => <span className="inline-flex items-center gap-1"><User className="size-3" />{n.asked ? "From the client" : "From the client, not asked yet"}</span>,
   ask: () => <span className="inline-flex items-center gap-1"><Mail className="size-3" />Time to ask the client</span>,
   signoff: (n) => <span className="inline-flex items-center gap-1"><Stamp className="size-3" />{n.ready ? "Everything’s done" : `${n.phaseName} phase`}</span>,
+  watch: () => <span className="inline-flex items-center gap-1"><Radar className="size-3" />Groundwork checked the live site again</span>,
 }
 
 // Two lines, so the title gets the full width: what to do, then what kind of work it is.
 function NextRow({ n }: { n: NextUp }) {
-  const open = () => go(n.kind === "client" || n.kind === "ask" ? routes.project(n.projectId, "client") : n.itemId ? routes.item(n.projectId, n.itemId) : routes.project(n.projectId))
-  const due = n.kind === "signoff" && n.ready ? "Ready" : n.kind === "ask" ? (n.due ? `due ${fmtDay(n.due)}` : "") : dueLabel({ due: n.due, late: n.late, status: "todo" })
+  const open = () => go(n.kind === "watch" && n.checkId ? routes.launch(n.projectId, n.checkId) : n.kind === "client" || n.kind === "ask" ? routes.project(n.projectId, "client") : n.itemId ? routes.item(n.projectId, n.itemId) : routes.project(n.projectId))
+  const due = n.kind === "watch" ? fmtDay(n.due) : n.kind === "signoff" && n.ready ? "Ready" : n.kind === "ask" ? (n.due ? `due ${fmtDay(n.due)}` : "") : dueLabel({ due: n.due, late: n.late, status: "todo" })
   return (
     <button onClick={open} className="grid min-h-[46px] w-full grid-cols-[minmax(0,1fr)_96px] items-center gap-3.5 rounded-md px-2 py-1.5 text-left hover:bg-muted/50">
       <span className="grid min-w-0 gap-0.5">

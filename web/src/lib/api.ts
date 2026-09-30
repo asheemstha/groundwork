@@ -248,9 +248,13 @@ export interface CrawlItem { ref?: string; kind: string; text: string; hidden?: 
 export interface CrawlData { status: number; title: string; items: CrawlItem[]; height: number; counts: Record<string, number> }
 
 // ---------- projects and templates ----------
-export type ToolId = "scan" | "headings" | "seo" | "launch" | "redirects"
+export type ToolId = "scan" | "headings" | "seo" | "launch" | "redirects" | "inventory"
+export type Decision = "keep" | "rewrite" | "merge" | "remove"
+export interface InventoryRow { path: string; name: string; title: string; words: number | null; status: number | null; nav: boolean; collection: string | null; decision: Decision; reason: string; into: string | null; by: "rule" | "ai" | "you"; sure: boolean }
+export interface Inventory { at: number; runId: string; host: string; ai: boolean; rows: InventoryRow[] }
+export interface InventorySummary { at: number; total: number; review: number; keep: number; rewrite: number; merge: number; remove: number; ai: boolean }
 export interface DueRule { from: "kickoff" | "launch"; days: number }
-export type LaunchCheckId = "indexing" | "placeholders" | "links" | "seo" | "canonicals" | "legal" | "https"
+export type LaunchCheckId = "indexing" | "placeholders" | "links" | "seo" | "canonicals" | "legal" | "https" | "a11y" | "speed"
 export interface TItem { id: string; title: string; who: "us" | "client"; done: string; part: string | null; platforms?: PlatformId[] | null; tool: ToolId | null; check?: LaunchCheckId | "plan" | "live" | "map" | "after" | "recrawl" | null; due: DueRule | null }
 export interface TGroup { id: string; name: string; items: TItem[] }
 export interface TPhase { id: string; name: string; due: DueRule | null; groups: TGroup[]; handoff: { title: string; needs: "us" | "client"; items: TItem[] } }
@@ -286,7 +290,7 @@ export interface Project {
     runs: ProjectRun[]; scan: { runId: string; urls: number; at: number } | null; plan: { runId: string; done: number; total: number; at: number; output: Output | null } | null; iconRun: string | null
     launch: LaunchSummary | null; launchRunning: { id: string } | null; launchHistory: LaunchSummary[]
     seo: { runId: string; done: number; total: number; pages: number; at: number } | null; seoRunning: string | null
-    redirects: RedirectSummary | null; redirectsRunning: "build" | "test" | null; oldScan: { runId: string; urls: number; at: number } | null
+    redirects: RedirectSummary | null; inventory: InventorySummary | null; redirectsRunning: "build" | "test" | "list" | null; oldScan: { runId: string; urls: number; at: number } | null
   }
 }
 // ---------- redirect map ----------
@@ -296,19 +300,34 @@ export type RedirectProblem = "error" | "missing" | "moved" | "none" | "loop" | 
 export interface RedirectResult { ok: boolean; problem: RedirectProblem | null; status: number; final: string; finalStatus: number; hops: number }
 export interface RedirectTest { at: number; url: string; live: boolean; oldSite?: boolean; total: number; ok: number }
 export interface RedirectMap { built: number; oldHost: string; oldRunId: string; oldLive: boolean; newUrl: string; newPages: { path: string; title: string }[]; rows: RedirectRow[]; test: (RedirectTest & { results: Record<string, RedirectResult> }) | null; tests: RedirectTest[] }
-export interface RedirectState { map: RedirectMap | null; job: { kind: "build" | "test"; progress: { step: string; done: number; total: number }; started: number } | null; error: string | null }
+export type ListProblem = "error" | "missing" | "dead-end" | "loop" | "offsite" | "wrong" | "home" | "temporary" | "chain"
+export interface ListResult { input: string; url: string; path: string; ok: boolean; problem: ListProblem | null; status: number; final: string; finalStatus: number; hops: number; mapped: string | null }
+export interface RedirectList { at: number; url: string; total: number; ok: number; results: ListResult[] }
+export interface RedirectState { map: RedirectMap | null; list: RedirectList | null; job: { kind: "build" | "test" | "list"; progress: { step: string; done: number; total: number }; started: number } | null; error: string | null }
+export interface CompareChange { what: "page" | "title" | "description" | "h1" | "canonical"; kind: "missing" | "gone" | "changed" | "added" | "elsewhere"; before?: string; after?: string }
+export interface Compare {
+  old: { runId: string; host: string; at: number }; new: { runId: string; host: string; site: SiteKey; at: number } | null
+  choices: { runId: string; site: SiteKey; host: string; at: number; pages: number }[]
+  rows: { from: string; to: string; moved: boolean; scanned: boolean; changes: CompareChange[] }[]
+  counts?: { pages: number; same: number; missing: number; gone: number; changed: number }
+}
 export interface RedirectSummary { built: number; total: number; redirects: number; same: number; review: number; test: RedirectTest | null }
-export interface LaunchSummary { id: string; at: number; url: string; status: "done" | "failed" | "cancelled"; staging: boolean; oldSite?: boolean; pages: number; checks: Partial<Record<LaunchCheckId, { ok: boolean; count: number }>> }
-export interface LaunchIssue { text: string; pages: string[]; soft: boolean; fix?: string; isNew?: boolean }
-export interface LaunchCheck { id: LaunchCheckId; name: string; ok: boolean; issues: LaunchIssue[]; note?: string }
+export interface LaunchSummary { id: string; at: number; url: string; status: "done" | "failed" | "cancelled"; staging: boolean; oldSite?: boolean; watch?: number | null; newIssues?: number; pages: number; checks: Partial<Record<LaunchCheckId, { ok: boolean; count: number }>> }
+export interface LaunchIssue { text: string; pages: string[]; soft: boolean; fix?: string; isNew?: boolean; examples?: { page: string; text: string; html?: string }[] }
+export interface LaunchCheck { id: LaunchCheckId; name: string; ok: boolean; issues: LaunchIssue[]; note?: string; carried?: number }
+export type Rating = "good" | "fix" | "poor" | null
+export interface SpeedResult { path: string; error?: string; status?: number; lcp: number | null; cls: number; tbt: number; fcp: number | null; lcpEl: string; bytes: number; requests: number; heavy: { name: string; type: string; bytes: number }[]; rating: { lcp: Rating; cls: Rating; tbt: Rating } }
 export interface LaunchReport {
   id: string; projectId: string; url: string; started: number; ended?: number; status: "running" | "done" | "failed" | "cancelled"; error?: string
-  progress: { step: "site" | "pages" | "links"; done: number; total: number; started?: number; stepAt?: number; times?: Record<string, number> }
+  progress: { step: "site" | "pages" | "links" | "speed"; done: number; total: number; started?: number; stepAt?: number; times?: Record<string, number> }
+  /** Whether this check runs the speed test, and the day after launch it re-checked (3, 7 or 30), if any. */
+  speed?: boolean; watch?: number | null
   host?: string; liveHost?: string; staging?: boolean; oldSite?: boolean; pagesChecked?: number; linksChecked?: number; checks?: LaunchCheck[]
   info?: {
     sitemap: { found: boolean; url?: string; urls?: number } | null; robots: { found: boolean; blocksAll: boolean } | null; copyright: number | null
     phones: { page: string; number: string }[]; forms: { page: string; count: number }[]; mixed: { page: string; count: number }[]
     external: { checked: number; broken: { url: string; status: number; page: string }[]; social: number }
+    speed?: SpeedResult[] | null; a11yPages?: number
   }
   pages?: { path: string; status: number; title: string; error: string | null }[]
   /** The last check of the same site, and what was fixed since. */
@@ -332,13 +351,13 @@ export interface ShiftPreview {
   days: number; launch: { from: string | null; to: string | null }; late: { before: number; after: number }
   next: { title: string; due: string } | null; phases: { name: string; from: string | null; to: string; clash: boolean }[]
 }
-export interface NextUp { key: string; kind: "item" | "client" | "ask" | "signoff"; projectId: string; itemId?: string; title: string; phaseId: string; phaseName: string; due: string | null; late: boolean; asked?: boolean; ready?: boolean; leftover?: boolean }
+export interface NextUp { key: string; kind: "item" | "client" | "ask" | "signoff" | "watch"; projectId: string; itemId?: string; checkId?: string; title: string; phaseId?: string; phaseName?: string; due: string | null; late: boolean; asked?: boolean; ready?: boolean; leftover?: boolean }
 /** Home: this week's work for one project, most urgent first. */
 export interface HomeGroup { projectId: string; projectName: string; iconRun: string | null; rows: NextUp[]; more: number; late: number }
 /** Messages to send today for one project: items to ask for, reminders, the weekly update and invoices. */
 export interface BriefResult { name: string | null; clientName: string | null; sites: Sites; platform: PlatformId | null; kickoff: string | null; launch: string | null; parts: string[] | null; items: { title: string; who: "us" | "client"; phase: string; done: string }[]; ai: boolean }
 export interface HomeMessages { projectId: string; projectName: string; iconRun: string | null; clientName: string; ask: number; remind: number; update: boolean; lastUpdate: number | null; invoices: { phaseId: string; label: string; amount: string }[]; unpaid: { phaseId: string; label: string; amount: string; invoiced: number }[] }
-export interface HomeData { groups: HomeGroup[]; messages: HomeMessages[]; stats: { dueThisWeek: number; dueToday: number; overdue: number; toAsk: number; waiting: number; late: number; signoffs: number; nextLaunch: { name: string; date: string } | null }; projects: ProjectSummary[] }
+export interface HomeData { groups: HomeGroup[]; messages: HomeMessages[]; stats: { dueThisWeek: number; dueToday: number; watchIssues: number; overdue: number; toAsk: number; waiting: number; late: number; signoffs: number; nextLaunch: { name: string; date: string } | null }; projects: ProjectSummary[] }
 export interface NewProject { kind?: "project" | "audit"; platform?: PlatformId | null; extraItems?: BriefResult["items"]; name: string; sites?: Partial<Sites>; templateId?: string; kickoff?: string; launch?: string; parts?: string[]; clientName?: string; startAt?: string }
 export interface SignoffInput { by: string; date: string; note?: string; link?: string; file?: { name: string; data: string } | null; carry?: string[]; skip?: string[] }
 
@@ -415,13 +434,21 @@ export const api = {
   signoff: (id: string, phaseId: string, b: SignoffInput) => req<Project>("POST", `/api/projects/${id}/signoff/${phaseId}`, b),
   unsign: (id: string, phaseId: string) => req<Project>("DELETE", `/api/projects/${id}/signoff/${phaseId}`),
   scanProject: (id: string, site?: SiteKey, url?: string) => req<{ runId: string }>("POST", `/api/projects/${id}/scan`, { site, url }),
-  startLaunch: (id: string, url?: string) => req<{ checkId: string }>("POST", `/api/projects/${id}/launch`, { url }),
+  startLaunch: (id: string, url?: string, speed = true) => req<{ checkId: string }>("POST", `/api/projects/${id}/launch`, { url, speed }),
   launch: (id: string, checkId: string) => req<LaunchReport>("GET", `/api/projects/${id}/launch/${checkId}`),
   cancelLaunch: (id: string, checkId: string) => req<{ ok: boolean }>("POST", `/api/projects/${id}/launch/${checkId}/cancel`),
   cancelRedirects: (id: string) => req<{ ok: boolean }>("POST", `/api/projects/${id}/redirects/cancel`),
   redirects: (id: string) => req<RedirectState>("GET", `/api/projects/${id}/redirects`),
   buildRedirects: (id: string, url: string) => req<RedirectState>("POST", `/api/projects/${id}/redirects/build`, { url }),
   testRedirects: (id: string, url: string) => req<RedirectState>("POST", `/api/projects/${id}/redirects/test`, { url }),
+  /** Where each pasted URL ends up on `url`'s site. */
+  testList: (id: string, text: string, url: string) => req<RedirectState>("POST", `/api/projects/${id}/redirects/list`, { text, url }),
+  addToMap: (id: string, paths: string[]) => req<RedirectState & { added: number }>("POST", `/api/projects/${id}/redirects/add`, { paths }),
+  inventory: (id: string) => req<Inventory | null>("GET", `/api/projects/${id}/inventory`),
+  buildInventory: (id: string, ai: boolean) => req<Inventory>("POST", `/api/projects/${id}/inventory/build`, { ai }),
+  setInventory: (id: string, b: { set?: Record<string, { decision: Decision; into?: string | null }>; accept?: string[] }) => req<Inventory>("POST", `/api/projects/${id}/inventory/rows`, b),
+  applyInventory: (id: string) => req<{ changed: number }>("POST", `/api/projects/${id}/inventory/apply`),
+  compare: (id: string, run?: string) => req<Compare>("GET", `/api/projects/${id}/compare${run ? "?run=" + run : ""}`),
   setRedirects: (id: string, b: { to?: Record<string, string>; checked?: Record<string, boolean> }) => req<RedirectState>("POST", `/api/projects/${id}/redirects/rows`, b),
   templates: () => req<TemplateSummary[]>("GET", "/api/templates"),
   template: (id: string) => req<Template>("GET", `/api/templates/${id}`),

@@ -15,6 +15,7 @@ export function morningLine(d: HomeData) {
     s.overdue ? n(s.overdue, "of your items is late", "of your items are late") : "",
     s.dueToday ? n(s.dueToday, "item is due today", "items are due today") : "",
     s.late ? n(s.late, "client item is late", "client items are late") : "",
+    s.watchIssues ? n(s.watchIssues, "after-launch check needs a look", "after-launch checks need a look") : "",
     msgs ? n(msgs, "message to send", "messages to send") : "",
     s.signoffs ? n(s.signoffs, "sign-off to record", "sign-offs to record") : "",
   ].filter(Boolean)

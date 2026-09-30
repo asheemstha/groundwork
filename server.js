@@ -768,7 +768,7 @@ const server = http.createServer(async (req, res) => {
         mm = sub.match(/^\/signoff\/([\w-]+)$/);
         if (mm && M === 'POST') { P.signoff(id, mm[1], await body(req)); return json(res, P.get(id)); }
         if (mm && M === 'DELETE') { P.unsign(id, mm[1]); return json(res, P.get(id)); }
-        if (sub === '/launch' && M === 'POST') { const b = await body(req); return json(res, { checkId: P.startLaunch(id, b.url) }); }
+        if (sub === '/launch' && M === 'POST') { const b = await body(req); return json(res, { checkId: P.startLaunch(id, b.url, { speed: b.speed !== false }) }); }
         const lc = sub.match(/^\/launch\/([a-z0-9]+)\/cancel$/);
         if (lc && M === 'POST') { P.cancelLaunch(id, lc[1]); return json(res, { ok: true }); }
         if (sub === '/redirects/cancel' && M === 'POST') { P.cancelRedirects(id); return json(res, { ok: true }); }
@@ -778,6 +778,18 @@ const server = http.createServer(async (req, res) => {
         if (sub === '/redirects/build' && M === 'POST') { const b = await body(req); P.startRedirectBuild(id, b.url); return json(res, P.redirectState(id)); }
         if (sub === '/redirects/test' && M === 'POST') { const b = await body(req); P.startRedirectTest(id, b.url); return json(res, P.redirectState(id)); }
         if (sub === '/redirects/rows' && M === 'POST') { P.setRedirects(id, await body(req)); return json(res, P.redirectState(id)); }
+        if (sub === '/redirects/list' && M === 'POST') { P.startRedirectList(id, await body(req)); return json(res, P.redirectState(id)); }
+        if (sub === '/redirects/add' && M === 'POST') { const b = await body(req); const n = P.addToMap(id, b.paths); return json(res, { ...P.redirectState(id), added: n }); }
+        if (sub === '/compare' && M === 'GET') return json(res, P.compare(id, u.searchParams.get('run')));
+        // Content inventory: rules by default; with AI, the calls come from Claude or ChatGPT (page list only).
+        if (sub === '/inventory' && M === 'GET') return json(res, P.getInventory(id));
+        if (sub === '/inventory/build' && M === 'POST') {
+          const b = await body(req), eng = b.ai ? aiEngine(true) : null;
+          if (b.ai && !eng) return json(res, { error: 'Sign in to Claude Code or Codex in Settings to use AI, or make the inventory without it.' }, 400);
+          try { return json(res, await P.buildInventory(id, eng ? prompt => assist.ask({ engine: eng, prompt, timeoutMs: 300000 }) : null)); } catch (e) { return json(res, { error: friendly(e) }, 400); }
+        }
+        if (sub === '/inventory/rows' && M === 'POST') return json(res, P.setInventory(id, await body(req)));
+        if (sub === '/inventory/apply' && M === 'POST') return json(res, { changed: P.applyInventory(id) });
         if (sub === '/scan' && M === 'POST') {
           // Scan one of the project's sites: the old one, staging or live.
           const b = await body(req), raw = P.readRaw(id), sites = P.sitesOf(raw);
@@ -970,5 +982,9 @@ Promise.all([import('./shared/checks.mjs'), import('./shared/seo.mjs')]).then(([
     status(true).catch(() => {});
     setTimeout(checkOnce, 4000);
     setInterval(checkOnce, 6 * 3600e3);
+    // After-launch checks: a look two minutes after opening, then every half hour.
+    const watch = () => { try { const w = P.watchTick(); if (w) console.log('after-launch check', w.projectId, 'day', w.day); } catch (e) { console.log('after-launch check failed', e.message); } };
+    setTimeout(watch, 2 * 60e3).unref?.();
+    setInterval(watch, 30 * 60e3).unref?.();
   });
 });
