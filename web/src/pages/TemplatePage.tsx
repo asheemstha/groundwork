@@ -19,7 +19,7 @@ const TOOL_NAMES: Record<ToolId, { name: string; ready: boolean }> = {
   headings: { name: "Heading plan", ready: true },
   seo: { name: "SEO plan", ready: true },
   launch: { name: "Launch check", ready: true },
-  redirects: { name: "Redirect check", ready: false },
+  redirects: { name: "Redirect map", ready: true },
 }
 const newId = () => "i" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5)
 
@@ -174,9 +174,9 @@ function ItemEditor({ it, t, onChange, onDelete, onDone }: { it: TItem; t: Check
           <select value={it.tool || ""} onChange={(e) => onChange({ tool: (e.target.value || null) as ToolId | null, check: null })} className="h-8 rounded-lg border border-input bg-card px-2 text-[13px] text-foreground"><option value="">None</option>{(Object.keys(TOOL_NAMES) as ToolId[]).map((k) => <option key={k} value={k}>{TOOL_NAMES[k].name}{TOOL_NAMES[k].ready ? "" : " (soon)"}</option>)}</select>
         </label>
       </div>
-      {(it.tool === "launch" || it.tool === "seo") && (
-        <label className="grid grid-cols-[minmax(0,0.8fr)_minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1.1fr)] items-center gap-2.5 text-[12.5px] text-muted-foreground"><span className="col-span-2">{it.tool === "seo" ? "What the SEO plan does for it" : "Which part of the launch check ticks it"}</span>
-          <select value={it.check || ""} onChange={(e) => onChange({ check: (e.target.value || null) as TItem["check"] })} className="col-span-2 h-8 rounded-lg border border-input bg-card px-2 text-[13px] text-foreground"><option value="">Guess from the item’s name</option>{it.tool === "seo" ? <><option value="plan">Ticks it when the plan is ready</option><option value="live">Shows how many changes are done</option></> : (Object.keys(LAUNCH_CHECKS) as LaunchCheckId[]).map((k) => <option key={k} value={k}>{LAUNCH_CHECKS[k]}</option>)}</select>
+      {(it.tool === "launch" || it.tool === "seo" || it.tool === "redirects") && (
+        <label className="grid grid-cols-[minmax(0,0.8fr)_minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1.1fr)] items-center gap-2.5 text-[12.5px] text-muted-foreground"><span className="col-span-2">{it.tool === "seo" ? "What the SEO plan does for it" : it.tool === "redirects" ? "What ticks it" : "Which part of the launch check ticks it"}</span>
+          <select value={it.check || ""} onChange={(e) => onChange({ check: (e.target.value || null) as TItem["check"] })} className="col-span-2 h-8 rounded-lg border border-input bg-card px-2 text-[13px] text-foreground"><option value="">Guess from the item’s name</option>{it.tool === "seo" ? <><option value="plan">Ticks it when the plan is ready</option><option value="live">Shows how many changes are done</option></> : it.tool === "redirects" ? <><option value="map">Every old URL has a match</option><option value="live">A test of the live domain passes</option><option value="after">A test after launch day passes</option></> : (Object.keys(LAUNCH_CHECKS) as LaunchCheckId[]).map((k) => <option key={k} value={k}>{LAUNCH_CHECKS[k]}</option>)}</select>
         </label>
       )}
       <div className="flex items-center gap-2"><Button variant="ghost" size="sm" className="text-destructive" onClick={onDelete}>Delete item</Button><span className="flex-1" /><Button size="sm" onClick={onDone}>Done</Button></div>

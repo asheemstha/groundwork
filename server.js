@@ -607,6 +607,10 @@ const server = http.createServer(async (req, res) => {
         if (sub === '/launch' && M === 'POST') { const b = await body(req); return json(res, { checkId: P.startLaunch(id, b.url) }); }
         mm = sub.match(/^\/launch\/([a-z0-9]+)$/);
         if (mm && M === 'GET') { const r = P.getLaunch(id, mm[1]); return r ? json(res, r) : json(res, { error: 'Not found' }, 404); }
+        if (sub === '/redirects' && M === 'GET') return json(res, P.redirectState(id));
+        if (sub === '/redirects/build' && M === 'POST') { const b = await body(req); P.startRedirectBuild(id, b.url); return json(res, P.redirectState(id)); }
+        if (sub === '/redirects/test' && M === 'POST') { const b = await body(req); P.startRedirectTest(id, b.url); return json(res, P.redirectState(id)); }
+        if (sub === '/redirects/rows' && M === 'POST') { P.setRedirects(id, await body(req)); return json(res, P.redirectState(id)); }
         if (sub === '/scan' && M === 'POST') {
           const b = await body(req), raw = P.readRaw(id);
           const run = await startScan(b.url || raw.url, raw.name);
@@ -758,7 +762,7 @@ for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(sig, async () => {
 server.on('error', e => { if (e.code === 'EADDRINUSE' && !process.env.GW_RESTARTED && !process.env.GW_APP) { console.log(`${APP_NAME} is already running: http://localhost:${PORT}`); process.exit(0); } if (e.code !== 'EADDRINUSE') throw e; });
 let SC = null, SEOS = null; // shared/checks.mjs and shared/seo.mjs, loaded at boot
 let markReady;
-module.exports = { ready: new Promise(r => { markReady = r; }), busy: () => busyRuns().length + P.launchRunning() };
+module.exports = { ready: new Promise(r => { markReady = r; }), busy: () => busyRuns().length + P.launchRunning() + P.redirectsRunning() };
 Promise.all([import('./shared/checks.mjs'), import('./shared/seo.mjs')]).then(([mod, seo]) => {
   SC = mod; H.init(mod); SEOS = seo; SEO.init(seo);
   // After an update the old process may still be letting go of the port for a moment.

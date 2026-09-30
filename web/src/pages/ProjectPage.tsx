@@ -17,8 +17,9 @@ import { dueLabel, fmtDay, renderMessage, today } from "@/lib/project"
 import { ago } from "@/lib/format"
 import { go, routes } from "@/lib/router"
 import { LaunchCard, LaunchItemPanel, LaunchReportPage, useLaunchRefresh } from "@/components/project/LaunchCheck"
+import { RedirectCard, RedirectsPage } from "@/components/project/Redirects"
 
-type Tab = "checklist" | "client" | "tools" | "launch"
+type Tab = "checklist" | "client" | "tools" | "launch" | "redirects"
 type SetItem = (itemId: string, b: Parameters<typeof api.setItem>[2]) => Promise<void>
 
 export function ProjectPage({ id, tab, sub }: { id: string; tab: Tab; sub?: string }) {
@@ -50,7 +51,7 @@ export function ProjectPage({ id, tab, sub }: { id: string; tab: Tab; sub?: stri
         <nav aria-label="Project" className="ml-3 flex gap-0.5">
           <TabLink on={tab === "checklist"} onClick={() => go(routes.project(id))}>Checklist</TabLink>
           <TabLink on={tab === "client"} onClick={() => go(routes.project(id, "client"))}>Client <span className="text-xs text-muted-foreground tabular">{open}</span>{p.client.late.length > 0 && <span className="size-1.5 rounded-full bg-destructive" aria-label={`${p.client.late.length} late`} />}</TabLink>
-          <TabLink on={tab === "tools" || tab === "launch"} onClick={() => go(routes.project(id, "tools"))}>Tools <span className="text-xs text-muted-foreground tabular">{p.tools.runs.length}</span></TabLink>
+          <TabLink on={tab === "tools" || tab === "launch" || tab === "redirects"} onClick={() => go(routes.project(id, "tools"))}>Tools <span className="text-xs text-muted-foreground tabular">{p.tools.runs.length}</span></TabLink>
         </nav>
         <span className="flex-1" />
         <button onClick={() => setEditing(true)} className="inline-flex h-[26px] items-center gap-1.5 rounded-full border px-2.5 text-[12.5px] text-muted-foreground hover:text-foreground"><CalendarDays className="size-3.5" />{p.launch ? `Launch ${fmtDay(p.launch)}` : "Set dates"}</button>
@@ -68,6 +69,7 @@ export function ProjectPage({ id, tab, sub }: { id: string; tab: Tab; sub?: stri
         {tab === "client" && <ClientTab p={p} setItem={setItem} setP={setP} />}
         {tab === "tools" && <ToolsTab p={p} reload={load} />}
         {tab === "launch" && <LaunchReportPage key={sub || ""} p={p} sub={sub} reload={load} />}
+        {tab === "redirects" && <RedirectsPage p={p} reload={load} />}
       </div>
       <EditDialog p={p} open={editing} onClose={() => setEditing(false)} onSaved={(x) => { setP(x); refreshProjects() }} />
       <AlertDialog open={removing} onOpenChange={setRemoving}>
@@ -272,10 +274,11 @@ function ItemSheet({ p, it, onClose, setItem, reload }: { p: Project; it: PItem 
                   {t.progress && t.progress.total > 0 && <><div className="flex items-baseline gap-1.5"><span className="text-xl font-medium tabular">{t.progress.done}</span><span className="text-muted-foreground">of {t.progress.total} {x.tool === "seo" ? "SEO changes" : "tag fixes"} done</span></div><div className="h-[5px] overflow-hidden rounded-full bg-muted"><span className="block h-full bg-brand" style={{ width: `${(100 * t.progress.done) / t.progress.total}%` }} /></div></>}
                   {x.tool === "launch" ? <LaunchItemPanel p={p} it={x} reload={reload} /> : t.ready && (t.runId
                     ? <div className="flex gap-2"><Button size="sm" onClick={() => go(x.tool === "headings" ? routes.review(t.runId!) : x.tool === "seo" ? routes.seo(t.runId!) : routes.run(t.runId!))}>{x.tool === "headings" ? "Open the to-do list" : x.tool === "seo" ? "Open the SEO plan" : "Open the scan"}</Button></div>
+                    : x.tool === "redirects" ? <div className="flex gap-2"><Button size="sm" variant={p.tools.redirects ? "default" : "outline"} onClick={() => go(p.tools.redirects ? routes.project(p.id, "redirects") : routes.project(p.id, "tools"))}>{p.tools.redirects ? "Open the redirect map" : "Go to Tools"}</Button></div>
                     : x.tool === "seo" && p.tools.seoRunning ? <div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => go(routes.run(p.tools.seoRunning!))}><Loader2 className="animate-spin" />Planning now</Button></div>
                     : x.tool === "seo" && p.tools.scan ? <div className="flex gap-2"><Button size="sm" onClick={() => go(routes.run(p.tools.scan!.runId, "seo"))}>Plan SEO</Button></div>
                     : <div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => go(routes.project(p.id, "tools"))}>Go to Tools</Button></div>)}
-                  <p className="text-[12.5px] leading-relaxed text-muted-foreground">{!t.ready ? "When this tool is ready, it will do or check this item for you." : x.tool === "headings" ? "This item ticks itself once every tag fix in the plan is done. You can also tick it yourself." : x.tool === "launch" ? (x.check === "indexing" || x.check === "https" ? "This item ticks itself when a check of the live domain passes. A staging check shows the issues but doesn’t tick it." : "This item ticks itself when the check passes. You can also tick it yourself.") : x.tool === "seo" ? (x.check === "plan" ? "This item ticks itself when the SEO plan is ready. Its H1s come from the heading plan." : "Counts the plan’s titles, descriptions and URLs as they go live. This item also covers OG images, alt text, schema and the 404 page, so you tick it yourself. The launch check covers several of those.") : "This item ticks itself when the scan finishes."}</p>
+                  <p className="text-[12.5px] leading-relaxed text-muted-foreground">{!t.ready ? "When this tool is ready, it will do or check this item for you." : x.tool === "headings" ? "This item ticks itself once every tag fix in the plan is done. You can also tick it yourself." : x.tool === "launch" ? (x.check === "indexing" || x.check === "https" ? "This item ticks itself when a check of the live domain passes. A staging check shows the issues but doesn’t tick it." : "This item ticks itself when the check passes. You can also tick it yourself.") : x.tool === "redirects" ? (x.check === "map" ? "This item ticks itself when every old URL has a match you’re happy with." : x.check === "after" ? "This item ticks itself when a test of the live domain after launch day passes." : "This item ticks itself when a test of the live domain passes: every redirect is one 301 to the right page.") : x.tool === "seo" ? (x.check === "plan" ? "This item ticks itself when the SEO plan is ready. Its H1s come from the heading plan." : "Counts the plan’s titles, descriptions and URLs as they go live. This item also covers OG images, alt text, schema and the 404 page, so you tick it yourself. The launch check covers several of those.") : "This item ticks itself when the scan finishes."}</p>
                 </section>
               )}
               <dl className="grid grid-cols-[92px_minmax(0,1fr)] items-center gap-3">
@@ -485,6 +488,7 @@ function ToolsTab({ p, reload }: { p: Project; reload: () => void }) {
             </div>
             <p className="text-[13px] text-muted-foreground">{p.tools.seo ? `${p.tools.seo.done} of ${p.tools.seo.total} changes done across ${p.tools.seo.pages} pages. Ticks “SEO per page” in Design.` : latestScan ? "A title, meta description and URL for each page, using the heading plan’s keywords when there is one." : "Scan the site first."}</p>
           </section>
+          <RedirectCard p={p} />
           {p.tools.runs.length > 0 && (
             <section className="overflow-hidden rounded-xl border bg-card">
               <div className="flex h-11 items-center px-4 text-sm font-medium">All scans and plans</div>
@@ -497,10 +501,6 @@ function ToolsTab({ p, reload }: { p: Project; reload: () => void }) {
               ))}
             </section>
           )}
-          <section className="grid gap-2 rounded-xl border border-dashed p-4 text-[13px] text-muted-foreground">
-            <span className="font-medium text-foreground">Coming soon</span>
-            <span>Redirect check: old URLs to new ones, before and after launch.</span>
-          </section>
         </>
       )}
     </div>

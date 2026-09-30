@@ -227,7 +227,7 @@ export interface CrawlData { status: number; title: string; items: CrawlItem[]; 
 export type ToolId = "scan" | "headings" | "seo" | "launch" | "redirects"
 export interface DueRule { from: "kickoff" | "launch"; days: number }
 export type LaunchCheckId = "indexing" | "placeholders" | "links" | "seo" | "canonicals" | "legal" | "https"
-export interface TItem { id: string; title: string; who: "us" | "client"; done: string; part: string | null; tool: ToolId | null; check?: LaunchCheckId | "plan" | "live" | null; due: DueRule | null }
+export interface TItem { id: string; title: string; who: "us" | "client"; done: string; part: string | null; tool: ToolId | null; check?: LaunchCheckId | "plan" | "live" | "map" | "after" | null; due: DueRule | null }
 export interface TGroup { id: string; name: string; items: TItem[] }
 export interface TPhase { id: string; name: string; due: DueRule | null; groups: TGroup[]; handoff: { title: string; needs: "us" | "client"; items: TItem[] } }
 export interface TPart { id: string; name: string; desc: string }
@@ -235,8 +235,8 @@ export interface ChecklistTemplate { id: string; kind: "checklist"; name: string
 export interface MessageTemplate { id: string; kind: "message" | "email"; name: string; subject: string; body: string; use: string[]; updated: number }
 export type Template = ChecklistTemplate | MessageTemplate
 export interface TemplateSummary { id: string; kind: Template["kind"]; name: string; updated: number; used: number; items?: number; phases?: number; subject?: string; preview?: string; use?: string[] }
-export interface ToolInfo { id: ToolId; name: string; ready: boolean; text?: string; runId?: string; progress?: { done: number; total: number }; check?: LaunchCheckId | "plan" | "live"; checkName?: string; issues?: number }
-export interface PItem { id: string; title: string; check: LaunchCheckId | "plan" | "live" | null; doneMeans: string; who: "us" | "client"; part: string | null; tool: ToolId | null; toolInfo: ToolInfo | null; due: string | null; status: "todo" | "done" | "na"; auto: boolean; at: number | null; note: string; link: string; asked: number | null; phaseId: string; phaseName: string; late: boolean; carriedFrom?: string; askBy?: string | null }
+export interface ToolInfo { id: ToolId; name: string; ready: boolean; text?: string; runId?: string; progress?: { done: number; total: number }; check?: LaunchCheckId | "plan" | "live" | "map" | "after"; checkName?: string; issues?: number }
+export interface PItem { id: string; title: string; check: LaunchCheckId | "plan" | "live" | "map" | "after" | null; doneMeans: string; who: "us" | "client"; part: string | null; tool: ToolId | null; toolInfo: ToolInfo | null; due: string | null; status: "todo" | "done" | "na"; auto: boolean; at: number | null; note: string; link: string; asked: number | null; phaseId: string; phaseName: string; late: boolean; carriedFrom?: string; askBy?: string | null }
 export interface Signoff { by: string; date: string; note: string; link: string; file: { name: string; stored: string } | null; at: number }
 export interface PPhase { id: string; name: string; index: number; due: string | null; groups: { id: string; name: string; items: PItem[] }[]; handoff: { title: string; needs: "us" | "client"; items: PItem[] }; signoff: Signoff | null; state: "signed" | "current" | "upcoming"; done: number; total: number; ready: boolean }
 export interface ProjectRun { id: string; status: RunStatus; created: number; pages: number; output: Output | null; progress: RunProgress | null; hasIcon: boolean; seo: { status: SeoStatus; progress: Counts | null } | null }
@@ -249,8 +249,18 @@ export interface Project {
     runs: ProjectRun[]; scan: { runId: string; urls: number; at: number } | null; plan: { runId: string; done: number; total: number; at: number; output: Output | null } | null; iconRun: string | null
     launch: LaunchSummary | null; launchRunning: { id: string } | null; launchHistory: LaunchSummary[]
     seo: { runId: string; done: number; total: number; pages: number; at: number } | null; seoRunning: string | null
+    redirects: RedirectSummary | null; redirectsRunning: "build" | "test" | null; oldScan: { runId: string; urls: number; at: number } | null
   }
 }
+// ---------- redirect map ----------
+export type RedirectHow = "same" | "seo" | "slug" | "similar" | "parent" | "home" | "manual"
+export interface RedirectRow { from: string; title: string; to: string; how: RedirectHow; score: number; sure: boolean; checked?: boolean }
+export type RedirectProblem = "error" | "missing" | "moved" | "none" | "loop" | "dead-end" | "wrong" | "temporary" | "chain"
+export interface RedirectResult { ok: boolean; problem: RedirectProblem | null; status: number; final: string; finalStatus: number; hops: number }
+export interface RedirectTest { at: number; url: string; live: boolean; total: number; ok: number }
+export interface RedirectMap { built: number; oldHost: string; oldRunId: string; oldLive: boolean; newUrl: string; newPages: { path: string; title: string }[]; rows: RedirectRow[]; test: (RedirectTest & { results: Record<string, RedirectResult> }) | null; tests: RedirectTest[] }
+export interface RedirectState { map: RedirectMap | null; job: { kind: "build" | "test"; progress: { step: string; done: number; total: number }; started: number } | null; error: string | null }
+export interface RedirectSummary { built: number; total: number; redirects: number; same: number; review: number; test: RedirectTest | null }
 export interface LaunchSummary { id: string; at: number; url: string; status: "done" | "failed"; staging: boolean; pages: number; checks: Partial<Record<LaunchCheckId, { ok: boolean; count: number }>> }
 export interface LaunchIssue { text: string; pages: string[]; soft: boolean }
 export interface LaunchCheck { id: LaunchCheckId; name: string; ok: boolean; issues: LaunchIssue[]; note?: string }
@@ -325,6 +335,10 @@ export const api = {
   scanProject: (id: string, url?: string) => req<{ runId: string }>("POST", `/api/projects/${id}/scan`, { url }),
   startLaunch: (id: string, url?: string) => req<{ checkId: string }>("POST", `/api/projects/${id}/launch`, { url }),
   launch: (id: string, checkId: string) => req<LaunchReport>("GET", `/api/projects/${id}/launch/${checkId}`),
+  redirects: (id: string) => req<RedirectState>("GET", `/api/projects/${id}/redirects`),
+  buildRedirects: (id: string, url: string) => req<RedirectState>("POST", `/api/projects/${id}/redirects/build`, { url }),
+  testRedirects: (id: string, url: string) => req<RedirectState>("POST", `/api/projects/${id}/redirects/test`, { url }),
+  setRedirects: (id: string, b: { to?: Record<string, string>; checked?: Record<string, boolean> }) => req<RedirectState>("POST", `/api/projects/${id}/redirects/rows`, b),
   templates: () => req<TemplateSummary[]>("GET", "/api/templates"),
   template: (id: string) => req<Template>("GET", `/api/templates/${id}`),
   saveTemplate: (id: string, doc: Partial<Template>) => req<Template>("PUT", `/api/templates/${id}`, doc),

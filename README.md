@@ -38,6 +38,7 @@ Needs Node.js (LTS). `git clone https://github.com/asheemstha/groundwork.git`, t
 - The **Client** tab lists everything the client owes you and writes a request message from a message template. Groundwork never sends anything.
 - Items linked to a Groundwork tool tick themselves: the site scan ticks “Crawl the current site”, the heading plan ticks “Heading structure” when its tag fixes are done, and the launch check ticks the QA items it passes.
 - The **launch check** (Tools tab, runs on your Mac, no AI) reads up to 60 pages of the staging or live site and every link on them. It checks noindex and robots.txt, placeholder text and “#” links, broken links, titles, descriptions, H1s, alt text and OG images, canonicals, legal links, and the https and www redirects. It also lists the sitemap, copyright year, phone numbers without tap-to-call, forms to test and broken links to other sites. **Copy issues** gives a Markdown checklist for Slack. On a staging (.webflow.io) check, indexing and redirects wait for a check of the live domain.
+- The **redirect map** (Tools tab, runs on your Mac, no AI) starts from the current site's URLs: the scan's list plus its sitemap. It reads the new site (usually staging) from its sitemap and links, then matches each old URL: same URL, a URL change from the SEO plan, the same slug in another folder, or a similar slug or title. What it can't match goes to the page's section or the home page and is marked to look at. Folder shortcuts and "Send all to" handle a whole blog at once. **Export for Webflow** writes the CSV for Site settings, Publishing, 301 redirects, Import. That import replaces every existing redirect, so you can add Webflow's own export and it's merged in. **Test** opens every old URL on the live site and checks for one 301 to the right page. It ticks the redirect map item when every match looks right, and the launch and after-launch redirect items when a test of the live domain passes.
 - **Templates** holds project checklists, messages and emails. Changing a template only affects new projects.
 
 Projects live in `data/projects/<id>/` (launch check reports in its `launch/` folder), and templates in `data/templates.json`.
@@ -75,7 +76,7 @@ Pick **SEO plan** in the composer's first chip. It uses the same scan and page p
 - `lib/crawl.js`: browser scan, preloader handling, screenshots and live checks.
 - `lib/headings.js`: prompts, turning the AI's plan into to-dos, export and verification.
 - `lib/seo.js`: the SEO plan's prompt, assembly, live check and CSV. `shared/seo.mjs`: its checks and to-dos, used by both server and app.
-- `lib/launch.js`: the launch check (no AI).
+- `lib/launch.js`: the launch check (no AI). `lib/redirects.js`: the redirect map's matching and test (no AI).
 - `shared/checks.mjs`: automatic heading checks used by both server and app.
 - `web/`: the app. React + Vite + Tailwind v4, shadcn/ui on **Base UI**, Lucide icons, the Geist font. Warm neutral palette with one orange accent (`web/src/index.css`), no gradients.
   - Develop: `node server.js`, then `cd web && npx vite` (it proxies `/api` to the server).
