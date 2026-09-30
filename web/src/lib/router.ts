@@ -45,6 +45,8 @@ export const go = (path: string) => {
 export const routes = {
   home: "/",
   project: (id: string, tab?: "client" | "tools" | "redirects") => `/project/${id}${tab ? "/" + tab : ""}`,
+  /** The Client tab set up for a reminder: the late items already asked for, with the reminder template. */
+  remind: (id: string) => `/project/${id}/client/remind`,
   launch: (id: string, checkId?: string, check?: string) => `/project/${id}/launch${checkId ? "/" + checkId + (check ? "?" + check : "") : ""}`,
   templates: "/templates",
   template: (id: string) => `/templates/${id}`,

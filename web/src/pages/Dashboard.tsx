@@ -1,11 +1,11 @@
 import * as React from "react"
-import { Plus, User, Stamp } from "lucide-react"
+import { Mail, Plus, User, Stamp } from "lucide-react"
 import { cn } from "cn"
 import { Button } from "@/components/ui/button"
 import { SiteIcon, TopBar } from "@/components/common/bits"
 import { newProject } from "@/components/project/NewProjectDialog"
 import { useApp } from "@/hooks/useApp"
-import { api, type HomeData, type NextUp, type ProjectSummary } from "@/lib/api"
+import { api, type HomeData, type HomeGroup, type NextUp, type ProjectSummary } from "@/lib/api"
 import { dueLabel, fmtDay } from "@/lib/project"
 import { store } from "@/lib/store"
 import { go, routes } from "@/lib/router"
@@ -38,14 +38,14 @@ export function Dashboard() {
           ) : (
             <>
               <div className="grid grid-cols-2 gap-x-8 gap-y-4 sm:grid-cols-4">
-                {s?.overdue ? <Stat n={s.overdue} label="overdue" tone="bad" sub={`${s.dueThisWeek} more due this week`} /> : <Stat n={s?.dueThisWeek ?? 0} label="due this week" />}
+                {s?.overdue ? <Stat n={s.overdue} label="of yours late" tone="bad" sub={`${s.dueThisWeek} more due this week`} /> : <Stat n={s?.dueThisWeek ?? 0} label="due this week" sub={s?.toAsk ? `${s.toAsk} to ask the client for` : undefined} />}
                 <Stat n={s?.waiting ?? 0} label="waiting on clients" tone={s?.late ? "bad" : undefined} sub={s?.late ? `${s.late} client ${s.late === 1 ? "item" : "items"} late` : "none late"} />
                 <Stat n={s?.signoffs ?? 0} label={s?.signoffs === 1 ? "sign-off to record" : "sign-offs to record"} />
                 <Stat n={s?.nextLaunch ? fmtDay(s.nextLaunch.date) : "None"} label="next launch" sub={s?.nextLaunch?.name || "no launch date set"} />
               </div>
               <section>
-                <h2 className="mb-1.5 flex items-baseline gap-2 text-[14px] font-medium">Next up<span className="text-[13px] font-normal text-muted-foreground">across all projects, soonest first</span></h2>
-                {data?.next.length ? <div className="-mx-2">{data.next.map((n) => <NextRow key={n.key} n={n} />)}</div> : <p className="py-3 text-[14px] text-muted-foreground">Nothing due. Nice.</p>}
+                <h2 className="mb-1.5 flex items-baseline gap-2 text-[14px] font-medium">This week<span className="text-[13px] font-normal text-muted-foreground">late, due in the next 7 days, and time to ask</span></h2>
+                {data?.groups.length ? <div className="grid gap-4">{data.groups.map((g) => <WeekGroup key={g.projectId} g={g} />)}</div> : <p className="py-3 text-[14px] text-muted-foreground">Nothing due this week.</p>}
               </section>
               <section>
                 <h2 className="mb-1.5 flex items-baseline gap-2 text-[14px] font-medium">Projects<span className="text-[13px] font-normal text-muted-foreground">by launch date</span></h2>
@@ -103,9 +103,10 @@ function summaryLine(d: HomeData) {
   const bits = []
   if (d.stats.signoffs) bits.push(d.stats.signoffs === 1 ? "One sign-off is ready to record" : `${d.stats.signoffs} sign-offs are ready to record`)
   if (d.stats.late) bits.push(d.stats.late === 1 ? "one client item is late" : `${d.stats.late} client items are late`)
-  if (d.stats.overdue) bits.push(d.stats.overdue === 1 ? "one of your items is overdue" : `${d.stats.overdue} of your items are overdue`)
+  if (d.stats.overdue) bits.push(d.stats.overdue === 1 ? "one of your items is late" : `${d.stats.overdue} of your items are late`)
+  if (d.stats.toAsk) bits.push(d.stats.toAsk === 1 ? "it’s time to ask a client for one item" : `it’s time to ask clients for ${d.stats.toAsk} items`)
   if (!bits.length) return d.stats.dueThisWeek ? `${d.stats.dueThisWeek} ${d.stats.dueThisWeek === 1 ? "item is" : "items are"} due this week.` : "Nothing is late."
-  const t = bits.join(", and ")
+  const t = bits.length > 1 ? bits.slice(0, -1).join(", ") + " and " + bits[bits.length - 1] : bits[0]!
   return t[0]!.toUpperCase() + t.slice(1) + "."
 }
 
@@ -120,22 +121,38 @@ function Stat({ n, label, sub, tone }: { n: React.ReactNode; label: string; sub?
   )
 }
 
-// Two lines, so the title gets the full width: what to do, then where it belongs.
-function NextRow({ n }: { n: NextUp }) {
-  const open = () => go(n.kind === "client" ? routes.project(n.projectId, "client") : routes.project(n.projectId))
-  const due = n.kind === "signoff" ? "Ready" : dueLabel({ due: n.due, late: n.late, status: "todo" })
+/** One project's week: a header with the project, then its most urgent rows. */
+function WeekGroup({ g }: { g: HomeGroup }) {
   return (
-    <button onClick={open} className="grid min-h-[50px] w-full grid-cols-[18px_minmax(0,1fr)_84px] items-center gap-3.5 rounded-md px-2 py-1.5 text-left hover:bg-muted/50">
-      <span className="size-[17px] rounded-full border-[1.5px] border-input" />
+    <div>
+      <button onClick={() => go(routes.project(g.projectId))} className="-mx-2 flex h-8 items-center gap-2 rounded-md px-2 text-left hover:bg-muted/50">
+        <SiteIcon runId={g.iconRun || undefined} name={g.projectName} className="size-[18px] rounded text-[9px]" /><span className="text-[13.5px] font-medium">{g.projectName}</span>
+        {g.late > 0 && <span className="text-[12.5px] text-destructive">{g.late} late</span>}
+      </button>
+      <div className="-mx-2">{g.rows.map((n) => <NextRow key={n.key} n={n} />)}</div>
+      {g.more > 0 && <button onClick={() => go(routes.project(g.projectId))} className="-mx-2 h-8 rounded-md px-2 text-[12.5px] text-muted-foreground hover:bg-muted/50 hover:text-foreground">{g.more} more in {g.projectName}</button>}
+    </div>
+  )
+}
+
+const KIND: Record<NextUp["kind"], (n: NextUp) => React.ReactNode> = {
+  item: (n) => <span>{n.phaseName}{n.leftover ? ", left open when it was signed off" : ""}</span>,
+  client: (n) => <span className="inline-flex items-center gap-1"><User className="size-3" />{n.asked ? "From the client" : "From the client, not asked yet"}</span>,
+  ask: () => <span className="inline-flex items-center gap-1"><Mail className="size-3" />Time to ask the client</span>,
+  signoff: (n) => <span className="inline-flex items-center gap-1"><Stamp className="size-3" />{n.ready ? "Everything’s done" : `${n.phaseName} phase`}</span>,
+}
+
+// Two lines, so the title gets the full width: what to do, then what kind of work it is.
+function NextRow({ n }: { n: NextUp }) {
+  const open = () => go(n.kind === "client" || n.kind === "ask" ? routes.project(n.projectId, "client") : routes.project(n.projectId))
+  const due = n.kind === "signoff" && n.ready ? "Ready" : n.kind === "ask" ? (n.due ? `due ${fmtDay(n.due)}` : "") : dueLabel({ due: n.due, late: n.late, status: "todo" })
+  return (
+    <button onClick={open} className="grid min-h-[46px] w-full grid-cols-[minmax(0,1fr)_96px] items-center gap-3.5 rounded-md px-2 py-1.5 text-left hover:bg-muted/50">
       <span className="grid min-w-0 gap-0.5">
         <span className="truncate text-[13.5px]">{n.title}</span>
-        <span className="flex min-w-0 items-center gap-1.5 text-[12px] text-muted-foreground">
-          <SiteIcon runId={n.iconRun || undefined} name={n.projectName} className="size-3.5 rounded-[3px] text-[8px]" /><span className="truncate">{n.projectName}</span>
-          <span className="text-muted-foreground/50">·</span>
-          {n.kind === "client" ? <span className="inline-flex items-center gap-1"><User className="size-3" />From the client</span> : n.kind === "signoff" ? <span className="inline-flex items-center gap-1"><Stamp className="size-3" />Sign-off</span> : <span>{n.phaseName}</span>}
-        </span>
+        <span className="flex min-w-0 items-center gap-1.5 text-[12px] text-muted-foreground">{KIND[n.kind](n)}</span>
       </span>
-      <span className={cn("text-right text-[12.5px] whitespace-nowrap", n.late ? "text-destructive" : n.kind === "signoff" ? "text-foreground" : "text-muted-foreground")}>{due}</span>
+      <span className={cn("text-right text-[12.5px] whitespace-nowrap", n.late ? "text-destructive" : n.kind === "signoff" && n.ready ? "text-foreground" : "text-muted-foreground")}>{due}</span>
     </button>
   )
 }

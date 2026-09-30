@@ -1,6 +1,6 @@
 import * as React from "react"
 import { cn } from "cn"
-import { Check, ChevronDown, Copy, Download, ExternalLink, KeyRound, Loader2, MessageSquareText, Pencil, RefreshCw, RotateCcw, X } from "lucide-react"
+import { Check, ChevronDown, Copy, Download, ExternalLink, KeyRound, Loader2, MessageSquareText, MoreHorizontal, Pencil, RefreshCw, RotateCcw, X } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -15,7 +15,8 @@ import { api, seoCsvUrl, type SeoFieldId, type SeoPage as SPage, type SeoState }
 import * as SEO from "@/lib/seo"
 import { ago, plural } from "@/lib/format"
 import { go, routes } from "@/lib/router"
-import { Empty } from "./RunPage"
+import { Empty, useRemoveScan } from "./RunPage"
+import { SiteMenu, VersionMenu } from "@/components/shell/AppShell"
 
 type Filter = "all" | "todo" | "done"
 const LABEL: Record<SeoFieldId | "redirect", string> = { title: "Title", description: "Description", slug: "URL", redirect: "Redirect" }
@@ -26,6 +27,7 @@ export function SeoPage({ view }: { view: string }) {
   const { run, seo, seoState, setSeoState, notFound, seoProgress } = useRun()
   const app = useApp()
   const [checking, setChecking] = React.useState(false)
+  const removeScan = useRemoveScan(run)
   if (notFound) return <Empty title="This plan doesn’t exist any more." />
   if (!run) return <div className="grid h-full place-items-center"><Spinner className="size-5" /></div>
   if (!run.seo) return (
@@ -80,7 +82,10 @@ export function SeoPage({ view }: { view: string }) {
   return (
     <div className="flex h-full min-h-0 flex-col">
       <TopBar className="gap-3">
-        <Crumbs projectId={run.projectId || null} label={<button onClick={() => go(routes.run(run.id, "seo"))} className="hover:underline">SEO plan</button>} />
+        <Crumbs projectId={run.projectId || null} label="SEO plan">
+          <span className="text-muted-foreground/60">/</span>
+          <VersionMenu runId={run.id} tool="seo" />
+        </Crumbs>
         <span className="flex-1" />
         {running && <button onClick={() => go(routes.run(run.id, "seo"))} className="flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs"><Spinner className="size-3" />Planning {seoProgress?.percent || 0}%</button>}
         <div className="hidden items-center gap-2 lg:flex" title="SEO changes done across all pages">
@@ -95,7 +100,9 @@ export function SeoPage({ view }: { view: string }) {
         </Tooltip>
         <Button variant="outline" size="sm" onClick={copyForClient} disabled={!tot.tasks}><MessageSquareText /> Copy for the client</Button>
         <Button variant="outline" size="sm" nativeButton={false} render={<a href={seoCsvUrl(run.id)} download />}><Download /> Export</Button>
+        <SiteMenu onPlanAgain={() => go(routes.run(run.id, "seo"))} onRescan={async () => { const { id } = await api.rescan(run.id); await app.refreshRuns(); go(routes.run(id, "seo")) }} onDelete={removeScan.ask}><Button variant="ghost" size="icon-sm" aria-label="Plan options"><MoreHorizontal /></Button></SiteMenu>
       </TopBar>
+      {removeScan.dialog}
       <div className="scrollbar-thin min-h-0 flex-1 overflow-auto">
         <div className="mx-auto max-w-5xl px-8 py-8">
           <Header />

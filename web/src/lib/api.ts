@@ -12,6 +12,8 @@ export interface EngineStatus {
   account?: string | null
   plan?: string | null
   billing?: "subscription" | "api"
+  /** Claude Code can run confined to the scan's folder (its --restricted mode). */
+  restricted?: boolean
 }
 export interface ModelInfo { id: string; name: string; desc: string; usage: number; speed: number; rec?: boolean }
 export interface EngineCatalog {
@@ -258,7 +260,7 @@ export interface Signoff { by: string; date: string; note: string; link: string;
 export interface PPhase { id: string; name: string; index: number; due: string | null; groups: { id: string; name: string; items: PItem[] }[]; handoff: { title: string; needs: "us" | "client"; items: PItem[] }; signoff: Signoff | null; state: "signed" | "current" | "upcoming"; done: number; total: number; ready: boolean }
 export type SiteKey = "old" | "staging" | "live"
 export type Sites = Record<SiteKey, string | null>
-export interface ProjectRun { id: string; site: SiteKey | null; status: RunStatus; created: number; pages: number; output: Output | null; progress: RunProgress | null; hasIcon: boolean; seo: { status: SeoStatus; progress: Counts | null } | null; error: string | null; url: string }
+export interface ProjectRun { id: string; site: SiteKey | null; status: RunStatus; created: number; pages: number; scanned: number; output: Output | null; progress: RunProgress | null; hasIcon: boolean; seo: { status: SeoStatus; progress: Counts | null } | null; error: string | null; url: string }
 export interface Project {
   id: string; kind: "project" | "audit"; name: string; url: string | null; host: string | null; sites: Sites; created: number; updated: number; kickoff: string | null; launch: string | null
   clientName: string; templateId: string; templateName: string; parts: string[]
@@ -280,17 +282,17 @@ export type RedirectHow = "same" | "seo" | "slug" | "similar" | "parent" | "home
 export interface RedirectRow { from: string; title: string; to: string; how: RedirectHow; score: number; sure: boolean; checked?: boolean }
 export type RedirectProblem = "error" | "missing" | "moved" | "none" | "loop" | "dead-end" | "wrong" | "temporary" | "chain"
 export interface RedirectResult { ok: boolean; problem: RedirectProblem | null; status: number; final: string; finalStatus: number; hops: number }
-export interface RedirectTest { at: number; url: string; live: boolean; total: number; ok: number }
+export interface RedirectTest { at: number; url: string; live: boolean; oldSite?: boolean; total: number; ok: number }
 export interface RedirectMap { built: number; oldHost: string; oldRunId: string; oldLive: boolean; newUrl: string; newPages: { path: string; title: string }[]; rows: RedirectRow[]; test: (RedirectTest & { results: Record<string, RedirectResult> }) | null; tests: RedirectTest[] }
 export interface RedirectState { map: RedirectMap | null; job: { kind: "build" | "test"; progress: { step: string; done: number; total: number }; started: number } | null; error: string | null }
 export interface RedirectSummary { built: number; total: number; redirects: number; same: number; review: number; test: RedirectTest | null }
-export interface LaunchSummary { id: string; at: number; url: string; status: "done" | "failed" | "cancelled"; staging: boolean; pages: number; checks: Partial<Record<LaunchCheckId, { ok: boolean; count: number }>> }
+export interface LaunchSummary { id: string; at: number; url: string; status: "done" | "failed" | "cancelled"; staging: boolean; oldSite?: boolean; pages: number; checks: Partial<Record<LaunchCheckId, { ok: boolean; count: number }>> }
 export interface LaunchIssue { text: string; pages: string[]; soft: boolean; fix?: string; isNew?: boolean }
 export interface LaunchCheck { id: LaunchCheckId; name: string; ok: boolean; issues: LaunchIssue[]; note?: string }
 export interface LaunchReport {
   id: string; projectId: string; url: string; started: number; ended?: number; status: "running" | "done" | "failed" | "cancelled"; error?: string
   progress: { step: "site" | "pages" | "links"; done: number; total: number; started?: number; stepAt?: number; times?: Record<string, number> }
-  host?: string; liveHost?: string; staging?: boolean; pagesChecked?: number; linksChecked?: number; checks?: LaunchCheck[]
+  host?: string; liveHost?: string; staging?: boolean; oldSite?: boolean; pagesChecked?: number; linksChecked?: number; checks?: LaunchCheck[]
   info?: {
     sitemap: { found: boolean; url?: string; urls?: number } | null; robots: { found: boolean; blocksAll: boolean } | null; copyright: number | null
     phones: { page: string; number: string }[]; forms: { page: string; count: number }[]; mixed: { page: string; count: number }[]
@@ -308,7 +310,8 @@ export interface ProjectSummary {
   /** What's running for the project now ("Launch check", "SEO plan"…), or null. */
   running: string | null
 }
-export interface Behind { items: number; days: number }
+/** Late items across the project (ours and the client's), and how late the oldest one in the current phase is. */
+export interface Behind { items: number; ours: number; client: number; days: number }
 export interface TemplateUpdate {
   template: string; version: number; projectVersion: number
   added: { title: string; phase: string }[]; changed: { title: string; was: string; phase: string; fields: string[] }[]; removed: { id: string; title: string; phase: string; touched: boolean }[]
@@ -317,8 +320,10 @@ export interface ShiftPreview {
   days: number; launch: { from: string | null; to: string | null }; late: { before: number; after: number }
   next: { title: string; due: string } | null; phases: { name: string; from: string | null; to: string; clash: boolean }[]
 }
-export interface NextUp { key: string; kind: "item" | "client" | "signoff"; projectId: string; projectName: string; iconRun: string | null; itemId?: string; title: string; phaseId: string; phaseName: string; due: string | null; late: boolean }
-export interface HomeData { next: NextUp[]; stats: { dueThisWeek: number; overdue: number; waiting: number; late: number; signoffs: number; nextLaunch: { name: string; date: string } | null }; projects: ProjectSummary[] }
+export interface NextUp { key: string; kind: "item" | "client" | "ask" | "signoff"; projectId: string; itemId?: string; title: string; phaseId: string; phaseName: string; due: string | null; late: boolean; asked?: boolean; ready?: boolean; leftover?: boolean }
+/** Home: this week's work for one project, most urgent first. */
+export interface HomeGroup { projectId: string; projectName: string; iconRun: string | null; rows: NextUp[]; more: number; late: number }
+export interface HomeData { groups: HomeGroup[]; stats: { dueThisWeek: number; overdue: number; toAsk: number; waiting: number; late: number; signoffs: number; nextLaunch: { name: string; date: string } | null }; projects: ProjectSummary[] }
 export interface NewProject { kind?: "project" | "audit"; name: string; sites?: Partial<Sites>; templateId?: string; kickoff?: string; launch?: string; parts?: string[]; clientName?: string; startAt?: string }
 export interface SignoffInput { by: string; date: string; note?: string; link?: string; file?: { name: string; data: string } | null; carry?: string[]; skip?: string[] }
 

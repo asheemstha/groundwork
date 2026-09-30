@@ -11,7 +11,7 @@ import { Spinner } from "@/components/common/bits"
 import { ToolCard } from "@/components/project/ToolCard"
 import { api, type Project, type RedirectMap, type RedirectProblem, type RedirectResult, type RedirectRow, type RedirectState } from "@/lib/api"
 import { go, routes } from "@/lib/router"
-import { hostOfUrl } from "@/lib/project"
+import { hostOfUrl, today } from "@/lib/project"
 
 const when = (at: number) => new Date(at).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
 const hostOf = (u: string) => { try { return new URL(/^https?:/i.test(u) ? u : "https://" + u).hostname } catch { return u } }
@@ -63,7 +63,7 @@ const stagingGuess = (p: Project) => p.sites.staging || p.tools.launchHistory.fi
 const oldHost = (p: Project) => hostOfUrl(p.sites.old) || p.host
 
 // ---------- Tools tab card ----------
-export function RedirectCard({ p }: { p: Project }) {
+export function RedirectCard({ p, onEdit }: { p: Project; onEdit: () => void }) {
   const r = p.tools.redirects
   const old = p.tools.oldScan
   const [url, setUrl] = React.useState(stagingGuess(p))
@@ -72,12 +72,16 @@ export function RedirectCard({ p }: { p: Project }) {
     setBusy(true)
     try { await api.buildRedirects(p.id, url); go(routes.project(p.id, "redirects")) } catch (e) { toast.error((e as Error).message) } finally { setBusy(false) }
   }
+  // Redirects are only needed when the project replaces a site.
+  if (!p.sites.old) return (
+    <ToolCard title="Redirect map" cost="runs on your Mac, no AI" status="Only needed when this project replaces an old site: it matches the old site’s URLs to the new pages, exports the redirects for Webflow and tests them after launch." action={<Button size="sm" variant="outline" onClick={onEdit}>Add the old site</Button>} />
+  )
   return (
     <ToolCard
       title="Redirect map" cost="runs on your Mac, no AI"
       status={p.tools.redirectsRunning ? (p.tools.redirectsRunning === "test" ? "Testing the redirects now." : "Building the map now.")
-        : r ? <>{r.total} old URLs: {r.redirects} {r.redirects === 1 ? "redirect" : "redirects"}, {r.same} kept{r.review ? <>, <span className="text-brand-ink">{r.review} to look at</span></> : ""}. {r.test ? `Last test: ${r.test.ok} of ${r.test.total} worked${r.test.live ? "" : " on staging"}.` : "Not tested yet."}</>
-        : !old ? "Matches every URL on the current site to its page on the new one, exports the redirects for Webflow, and tests them after launch. It starts from the site scan."
+        : r ? <>{r.total} old URLs: {r.redirects} {r.redirects === 1 ? "redirect" : "redirects"}, {r.same} kept{r.review ? <>, <span className="text-brand-ink">{r.review} to look at</span></> : ""}. {r.test ? `Last test: ${r.test.ok} of ${r.test.total} worked${r.test.live ? "" : r.test.oldSite ? " on the old site" : " on staging"}.` : "Not tested yet."}</>
+        : !old ? `Matches every URL on the old site to its page on the new one, exports the redirects for Webflow, and tests them after launch. Scan ${oldHost(p)} first; it starts from that list of URLs.`
         : `Matches the ${old.urls} URLs the scan found on ${oldHost(p)} to the new site’s pages. Enter the new site’s address, usually staging.`}
       action={p.tools.redirectsRunning || r ? <Button size="sm" variant="outline" onClick={() => go(routes.project(p.id, "redirects"))}>{p.tools.redirectsRunning ? <Loader2 className="animate-spin" /> : null}Open the map</Button> : old ? <Button size="sm" variant="outline" onClick={build} disabled={busy || !url.trim()}>{busy && <Loader2 className="animate-spin" />}Build the map</Button> : undefined}
     >
@@ -117,6 +121,12 @@ export function RedirectsPage({ p, reload }: { p: Project; reload: () => void })
       </div>
     )
   }
+  if (!p.sites.old) return (
+    <div className="grid max-w-3xl gap-3 px-12 pt-8 pb-10">
+      <h1 className="text-[22px] font-medium">Redirect map</h1>
+      <p className="text-sm text-muted-foreground">Redirects are only needed when a project replaces an old site. Add the old site’s address in the project details (the ⋯ menu, Edit details), scan it, and the map starts from its URLs.</p>
+    </div>
+  )
   if (!st.map) return (
     <div className="grid max-w-3xl gap-5 px-12 pt-8 pb-10">
       {head}
@@ -137,7 +147,7 @@ function MapView({ p, st, map, head, setSt, load, rebuild, busy }: { p: Project;
   const [q, setQ] = React.useState("")
   const [limit, setLimit] = React.useState(200)
   const [exporting, setExporting] = React.useState(false)
-  const launched = !!p.launch && new Date().toISOString().slice(0, 10) >= p.launch
+  const launched = !!p.launch && today() >= p.launch
   const [testUrl, setTestUrl] = React.useState(launched && p.sites.live ? p.sites.live : map.newUrl)
   const testing = st.job?.kind === "test"
   const list = rows.filter((r) => (filter === "all" || (filter === "review" ? !r.sure : filter === "moves" ? moves(r) : filter === "same" ? !moves(r) : !!results[r.from] && !results[r.from]!.ok)) && (!q || (r.from + " " + r.to + " " + r.title).toLowerCase().includes(q.toLowerCase())))
@@ -170,7 +180,7 @@ function MapView({ p, st, map, head, setSt, load, rebuild, busy }: { p: Project;
         ) : (
           <div className="flex gap-2"><Input value={testUrl} onChange={(e) => setTestUrl(e.target.value)} placeholder={hostOfUrl(p.sites.live) || "client-site.com"} /><Button variant="outline" onClick={runTest} disabled={!testUrl.trim()}><Play />Test {rows.length} URLs</Button></div>
         )}
-        <p className="text-[12.5px] leading-relaxed text-muted-foreground">Opens every old URL on that address and follows it. Each redirect should be one 301 to the right page, and URLs kept as they are should still load. The checklist items tick when a test of {p.host || "the live domain"} passes.</p>
+        <p className="text-[12.5px] leading-relaxed text-muted-foreground">Opens every old URL on that address and follows it. Each redirect should be one 301 to the right page, and URLs kept as they are should still load. The checklist items tick when a test of {hostOfUrl(p.sites.live) || "the live domain"} passes{p.sites.live && hostOfUrl(p.sites.live) === oldHost(p) ? ", from launch day on (before that it still shows the old site)" : ""}.</p>
       </section>
       <div className="flex flex-wrap items-center gap-2.5">
         <div role="group" aria-label="Show" className="inline-flex gap-0.5 rounded-lg bg-muted p-0.5">

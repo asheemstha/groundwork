@@ -1,6 +1,6 @@
 import * as React from "react"
 import { cn } from "cn"
-import { ArrowLeft, ArrowRight, Camera, Check, ChevronDown, Download, House, LayoutTemplate, Loader2, PanelLeft, RefreshCw, Search, Settings, SquarePen, Trash2 } from "lucide-react"
+import { ArrowLeft, ArrowRight, Camera, Check, ChevronDown, Download, House, LayoutTemplate, Loader2, PanelLeft, RefreshCw, Search, Settings, Sparkles, SquarePen, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -10,8 +10,7 @@ import { api, type ProjectSummary, type RunSummary } from "@/lib/api"
 import { NewProjectDialog, newProject } from "@/components/project/NewProjectDialog"
 import { QuickFind, openQuickFind } from "@/components/shell/QuickFind"
 import { ago, pct, plural } from "@/lib/format"
-import { OUTPUTS } from "@/components/composer/pickers"
-import { Bar, Dot, Logo, Ring, SiteIcon, Spinner, runLabel } from "@/components/common/bits"
+import { Bar, Dot, Logo, Ring, SiteIcon, Spinner } from "@/components/common/bits"
 
 const MAC = /Mac/.test(navigator.platform)
 const DESKTOP = () => document.documentElement.classList.contains("desktop")
@@ -125,43 +124,43 @@ function WindowBar({ sidebar, onToggle, onHover }: { sidebar: boolean; onToggle:
   )
 }
 
-const openRun = (r: RunSummary) => go(
-  r.seo?.status === "running" ? routes.run(r.id, "seo")
-  : r.status === "running" ? routes.run(r.id, "headings")
-  : r.status === "done" || r.status === "partial" ? routes.review(r.id)
-  : r.seo?.status === "done" || r.seo?.status === "partial" ? routes.seo(r.id)
-  : routes.run(r.id))
-const SITE: Record<string, string> = { old: "old site", staging: "staging", live: "live site" }
 const when = (t: number) => new Date(t).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
-/** What a version is, in a few words: "Tags only · 5 pages", "Scan of the staging", "Planning…". */
-const versionLabel = (r: RunSummary) => {
-  const l = runLabel(r)
-  const seo = r.seo && (r.seo.status === "done" || r.seo.status === "partial") ? " + SEO" : ""
-  if (r.settings && (r.status === "done" || r.status === "partial")) return `${OUTPUTS[r.settings.output]?.short || "Plan"} · ${plural(r.pages, "page")}${seo}`
-  if (seo) return "SEO plan"
-  if (r.status === "scanned" && r.site) return `Scan of the ${SITE[r.site]}`
-  return l.title
-}
+const SITE: Record<string, string> = { old: "Old site", staging: "Staging", live: "Live site" }
+export type VersionTool = "scan" | "headings" | "seo"
+const done = (s?: string | null) => s === "done" || s === "partial"
+/** Where a version opens, staying in the same tool: the plan when it's ready, else its page with progress. */
+const openVersion = (r: RunSummary, tool: VersionTool) => go(
+  tool === "headings" ? (done(r.status) ? routes.review(r.id) : routes.run(r.id, "headings"))
+  : tool === "seo" ? (done(r.seo?.status) ? routes.seo(r.id) : routes.run(r.id, "seo"))
+  : routes.run(r.id))
 
-/** "Tags only · 5 pages · Sep 29, 1:35 PM" in the top bar, with a switcher when the project has other scans. */
-export function VersionMenu({ runId }: { runId: string }) {
-  const { runs } = useApp()
+/**
+ * The version switcher in a tool's top bar: "Old site · Sep 29, 1:35 PM". It lists only this tool's versions in the
+ * project (scans, heading plans or SEO plans) and switching keeps you in the same tool.
+ */
+export function VersionMenu({ runId, tool }: { runId: string; tool: VersionTool }) {
+  const { runs, projects } = useApp()
   const me = runs.find((r) => r.id === runId)
   if (!me) return null
-  const list = runs.filter((r) => (me.projectId ? r.projectId === me.projectId : r.host === me.host)).sort((a, b) => b.created - a.created)
-  const label = <>{versionLabel(me)} <span className="text-muted-foreground/70">· {when(me.created)}</span></>
+  const audit = projects.find((x) => x.id === me.projectId)?.kind === "audit"
+  const mine = runs.filter((r) => (me.projectId ? r.projectId === me.projectId : r.host === me.host))
+  const list = (tool === "headings" ? mine.filter((r) => r.settings || r.id === runId) : tool === "seo" ? mine.filter((r) => r.seo || r.id === runId) : mine).sort((a, b) => b.created - a.created)
+  const site = (r: RunSummary) => (audit || !r.site ? r.host : SITE[r.site])
+  const state = (r: RunSummary) => { const s = tool === "seo" ? r.seo?.status : tool === "headings" ? r.status : null; return s === "running" ? "planning" : s === "failed" ? "failed" : s === "cancelled" ? "stopped" : r.status === "scanning" ? "scanning" : r.status === "scan_failed" ? "scan failed" : "" }
+  const label = <>{site(me)} <span className="text-muted-foreground/70">· {new Date(me.created).toLocaleDateString([], { month: "short", day: "numeric" })}</span></>
   if (list.length < 2) return <span className="truncate text-sm text-muted-foreground">{label}</span>
+  const title = tool === "headings" ? "Heading plans" : tool === "seo" ? "SEO plans" : "Scans"
   return (
     <DropdownMenu>
       <DropdownMenuTrigger render={<button className="inline-flex items-center gap-1 truncate rounded-md px-1.5 py-0.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground" />}>
         {label}{list[0]!.id !== runId && <span className="ml-1 rounded bg-muted px-1 text-[11px]">older</span>}<ChevronDown className="size-3.5" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-64">
+      <DropdownMenuContent align="start" className="w-72">
         <DropdownMenuGroup>
-          <DropdownMenuLabel>Scans and plans in this project</DropdownMenuLabel>
+          <DropdownMenuLabel>{title} in this project</DropdownMenuLabel>
           {list.map((r, i) => (
-            <DropdownMenuItem key={r.id} onClick={() => openRun(r)}>
-              <span className="flex-1">{versionLabel(r)}{i === 0 && <span className="text-muted-foreground"> · latest</span>}{r.site && r.status !== "scanned" && <span className="text-muted-foreground"> · {SITE[r.site]}</span>}</span>
+            <DropdownMenuItem key={r.id} onClick={() => openVersion(r, tool)}>
+              <span className="flex-1">{site(r)}<span className="text-muted-foreground"> · {plural(r.pages, "page")}{state(r) ? ` · ${state(r)}` : i === 0 ? " · latest" : ""}</span></span>
               <span className="tabular text-[11px] text-muted-foreground">{when(r.created)}</span>
               {r.id === runId && <Check className="size-3.5" />}
             </DropdownMenuItem>
@@ -294,18 +293,19 @@ function UsageCard() {
   )
 }
 
-/** The scan menu used on run and to-do pages. */
-export function SiteMenu({ onRescan, onDelete, onReshoot, children }: { onRescan: () => void; onDelete: () => void; onReshoot?: () => void; children: React.ReactElement }) {
+/** The "…" menu on scan and plan pages: plan again, rescan, retake screenshots, remove. */
+export function SiteMenu({ onRescan, onDelete, onReshoot, onPlanAgain, children }: { onRescan: () => void; onDelete: () => void; onReshoot?: () => void; onPlanAgain?: () => void; children: React.ReactElement }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger render={children} />
       <DropdownMenuContent align="end" className="w-60">
         <DropdownMenuGroup>
+          {onPlanAgain && <DropdownMenuItem onClick={onPlanAgain}><Sparkles /> Plan again…</DropdownMenuItem>}
           <DropdownMenuItem onClick={onRescan}><RefreshCw /> Rescan the site</DropdownMenuItem>
           {onReshoot && <DropdownMenuItem onClick={onReshoot}><Camera /> Retake screenshots <span className="ml-auto text-xs text-muted-foreground">no AI</span></DropdownMenuItem>}
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem variant="destructive" onClick={onDelete}><Trash2 /> Remove…</DropdownMenuItem>
+        <DropdownMenuItem variant="destructive" onClick={onDelete}><Trash2 /> Remove this scan…</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   )

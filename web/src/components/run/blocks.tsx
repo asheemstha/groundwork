@@ -76,10 +76,10 @@ export function ScanBlock({ run, progress }: { run: Run; progress: Progress | nu
     [ok.length, ok.length === 1 ? "page scanned" : "pages scanned", false],
     [noH1, noH1 === 1 ? "page with no H1" : "pages with no H1", noH1 > 0],
     [multi, multi === 1 ? "page with several H1s" : "pages with several H1s", multi > 0],
-    [styled, "styled like headings but untagged", styled > 0],
+    [styled, "look like headings but aren’t tagged", styled > 0],
   ]
   return (
-    <Block label="Scan · runs on your Mac" title={<>Scanned {plural(ok.length, "page")}{tookSec ? <span className="font-normal text-muted-foreground"> in {fmtDur(tookSec)}</span> : null}</>} right={<span className="text-xs text-muted-foreground">{ago(run.crawledAt || run.created)}</span>}>
+    <Block label="Scan · runs on your Mac" title={<>{pages.length > ok.length ? <>Read {ok.length} of the {pages.length} pages found</> : <>Scanned {plural(ok.length, "page")}</>}{tookSec ? <span className="font-normal text-muted-foreground"> in {fmtDur(tookSec)}</span> : null}</>} right={<span className="text-xs text-muted-foreground">{ago(run.crawledAt || run.created)}</span>}>
       <div className="grid grid-cols-2 gap-px overflow-hidden border-y bg-border sm:grid-cols-4">
         {stats.map(([n, l, bad]) => (
           <div key={l} className="bg-card px-5 py-3.5">
@@ -115,9 +115,13 @@ const GROUP: Record<string, [string, string?]> = {
   sitemap: ["Only in the sitemap", "Not linked from the navigation."], unscanned: ["Not scanned", "Over the 60-page limit."], broken: ["Couldn’t load"],
 }
 
-export function PagesBlock({ run, selected, setSelected, locked }: { run: Run; selected: Set<string>; setSelected: (s: Set<string>) => void; locked?: boolean }) {
+/**
+ * The scan's pages. On a plan's page you pick which ones to plan; with `browse` it's a plain list of what was found,
+ * folded until you open it.
+ */
+export function PagesBlock({ run, selected, setSelected, locked, browse }: { run: Run; selected: Set<string>; setSelected: (s: Set<string>) => void; locked?: boolean; browse?: boolean }) {
   const [peek, setPeek] = React.useState<ScanPage | null>(null)
-  const [expanded, setExpanded] = React.useState(!run.settings)
+  const [expanded, setExpanded] = React.useState(!run.settings && !browse)
   const pages = run.pages || []
   const usable = pages.filter((p) => p.status && p.status < 400)
   const groups = new Map<string, ScanPage[]>()
@@ -128,8 +132,10 @@ export function PagesBlock({ run, selected, setSelected, locked }: { run: Run; s
   return (
     <Block
       label="Pages"
-      title={<>{run.settings && !expanded ? "Planned" : "Plan"} {selected.size} of {plural(usable.length, "page")}</>}
-      right={!expanded ? (
+      title={browse ? <>{plural(pages.length, "page")} found</> : <>{run.settings && !expanded ? "Planned" : "Plan"} {selected.size} of {plural(usable.length, "page")}</>}
+      right={browse ? (
+        <Button variant="outline" size="sm" onClick={() => setExpanded(!expanded)}>{expanded ? "Hide pages" : "Show pages"}</Button>
+      ) : !expanded ? (
         <Button variant="outline" size="sm" disabled={locked} onClick={() => setExpanded(true)}>Change pages</Button>
       ) : !locked && (
         <div className="flex items-center gap-0.5 rounded-lg bg-muted p-0.5 text-xs">
@@ -151,10 +157,10 @@ export function PagesBlock({ run, selected, setSelected, locked }: { run: Run; s
                 const bad = p.status === 0 || (p.status || 0) >= 400, uns = p.status == null, c = p.counts || {}
                 const on = selected.has(p.id)
                 return (
-                  <div key={p.id} className={cn("group grid grid-cols-[20px_minmax(0,1fr)_auto_auto] items-center gap-3 px-5 py-2 hover:bg-muted/50", !on && "text-muted-foreground")}>
-                    <Checkbox checked={on} disabled={bad || uns || locked} onCheckedChange={(v) => toggle(p.id, !!v)} aria-label={`Plan ${p.name}`} />
+                  <div key={p.id} className={cn("group grid items-center gap-3 px-5 py-2 hover:bg-muted/50", browse ? "grid-cols-[minmax(0,1fr)_auto_auto]" : "grid-cols-[20px_minmax(0,1fr)_auto_auto]", !on && !browse && "text-muted-foreground")}>
+                    {!browse && <Checkbox checked={on} disabled={bad || uns || locked} onCheckedChange={(v) => toggle(p.id, !!v)} aria-label={`Plan ${p.name}`} />}
                     <button className="min-w-0 text-left" onClick={() => !bad && !uns && setPeek(p)}>
-                      <span className={cn("block truncate text-sm font-medium", on && "text-foreground")}>{p.navGroup ? <span className="text-muted-foreground">{p.navGroup} › </span> : null}{p.name}</span>
+                      <span className={cn("block truncate text-sm font-medium", (on || browse) && "text-foreground")}>{p.navGroup ? <span className="text-muted-foreground">{p.navGroup} › </span> : null}{p.name}</span>
                       <span className="block truncate tabular text-xs text-muted-foreground">{p.path}</span>
                     </button>
                     <span className="flex items-center gap-1.5">
@@ -162,7 +168,7 @@ export function PagesBlock({ run, selected, setSelected, locked }: { run: Run; s
                         <>
                           {c.H1 === 0 && <Tag tone="brand">No H1</Tag>}
                           {(c.H1 || 0) > 1 && <Tag tone="brand">{c.H1} H1s</Tag>}
-                          <span className="text-xs text-muted-foreground tabular">{p.headings || 0} h</span>
+                          <span className="text-xs text-muted-foreground tabular">{plural(p.headings || 0, "heading")}</span>
                         </>
                       )}
                     </span>

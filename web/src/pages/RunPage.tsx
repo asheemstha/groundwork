@@ -1,6 +1,6 @@
 import * as React from "react"
 import { cn } from "cn"
-import { ArrowRight, ListChecks, Loader2, Lock, MoreHorizontal, Search, Sparkles } from "lucide-react"
+import { ArrowRight, ListChecks, Loader2, Lock, MoreHorizontal, Sparkles } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -58,26 +58,30 @@ function Thread({ tool }: { tool: PlanTool | null }) {
   const remove = async () => { await api.remove(run.id); await app.refreshRuns(); toast("Removed the scan"); back() }
   const planDone = run.status === "done" || run.status === "partial"
   const seoDone = run.seo?.status === "done" || run.seo?.status === "partial"
+  // One name per page: the tool's name is its finished plan; this page is where a plan runs, or a new one starts.
+  const ready = tool === "headings" ? planDone : tool === "seo" ? seoDone : false
+  const planning = tool === "headings" ? run.status === "running" : tool === "seo" ? seoRunning : false
+  const openPlan = () => go(tool === "seo" ? routes.seo(run.id) : routes.review(run.id))
 
   return (
     <div className="flex h-full min-h-0 flex-col">
       <TopBar>
-        <Crumbs projectId={run.projectId || null} label={tool ? TOOL_LABEL[tool] : "Site scan"}>
+        <Crumbs projectId={run.projectId || null} label={!tool ? "Scan" : ready ? <button onClick={openPlan} className="hover:underline">{TOOL_LABEL[tool]}</button> : TOOL_LABEL[tool]}>
           <span className="text-muted-foreground/60">/</span>
-          <VersionMenu runId={run.id} />
+          <VersionMenu runId={run.id} tool={tool || "scan"} />
+          {tool && !planning && <><span className="text-muted-foreground/60">/</span><span className="shrink-0 px-1.5">{(tool === "headings" ? run.job : run.seo) ? "Plan again" : "New plan"}</span></>}
         </Crumbs>
         <span className="flex-1" />
-        {tool === "headings" && planDone && <Button size="sm" onClick={() => go(routes.review(run.id))}><ListChecks /> To-do list</Button>}
-        {tool === "seo" && seoDone && <Button size="sm" onClick={() => go(routes.seo(run.id))}><Search /> SEO plan</Button>}
+        {ready && <Button size="sm" onClick={openPlan}><ListChecks /> Open the plan</Button>}
         <SiteMenu onRescan={rescan} onReshoot={busy ? undefined : reshoot} onDelete={() => setConfirm("delete")}><Button variant="ghost" size="icon-sm" aria-label="Scan options"><MoreHorizontal /></Button></SiteMenu>
       </TopBar>
       <div className="scrollbar-thin min-h-0 flex-1 overflow-auto">
         <div className="mx-auto grid max-w-3xl gap-4 px-4 py-6">
           {run.status === "scan_failed" ? <FailedBlock run={run} onRetry={rescan} /> : <ScanBlock run={run} progress={run.status === "scanning" ? progress : null} />}
-          {run.status !== "scanning" && run.status !== "scan_failed" && <PagesBlock key={run.id + (run.settings ? "p" : "")} run={run} selected={selected} setSelected={setSelected} locked={!tool || run.status === "running" || seoRunning} />}
+          {!tool && run.status === "scanned" && <NextBlock runId={run.id} />}
+          {run.status !== "scanning" && run.status !== "scan_failed" && <PagesBlock key={run.id + (run.settings ? "p" : "") + (tool || "")} run={run} selected={selected} setSelected={setSelected} browse={!tool} locked={run.status === "running" || seoRunning} />}
           {tool === "headings" && run.job && <PlanBlock run={run} progress={run.status === "running" ? progress : null} log={log} result={result} onStop={() => setConfirm("stop")} />}
           {tool === "seo" && run.seo && <SeoBlock run={run} progress={seoRunning ? seoProgress : null} log={log} result={seo} state={seoState} onStop={() => setConfirm("stop")} />}
-          {!tool && run.status === "scanned" && <NextBlock runId={run.id} />}
           {tool && !busy && run.status !== "scan_failed" && <RunPanel tool={tool} />}
           <div ref={bottom} />
         </div>
@@ -202,7 +206,7 @@ function RunPanel({ tool }: { tool: PlanTool }) {
               {est.limitPct != null ? `, similar runs used about ${Math.max(1, Math.round(est.limitPct * 100))}%` : ""}.
             </span>
           )}
-          <span className="flex items-start gap-1.5"><Lock className="mt-0.5 size-3 shrink-0" /><span>{eng || "The AI"} reads the chosen pages’ text and headings from this scan{isSeo ? " and their current titles and descriptions" : ", and a screenshot when the layout is unclear"}, plus your notes. Your checklist, client details and files stay on this Mac. <button onClick={() => go(routes.settings("privacy"))} className="underline underline-offset-2 hover:text-foreground">Data and privacy</button></span></span>
+          <span className="flex items-start gap-1.5"><Lock className="mt-0.5 size-3 shrink-0" /><span>Sends the text and headings of {plural(n, "page")}{isSeo ? " with their current titles and descriptions" : ", a screenshot when a layout is unclear"} and your notes to {d.s.engine === "codex" ? "OpenAI through your ChatGPT account" : "Anthropic through your Claude account"}. {d.s.engine === "claude" && e?.restricted ? "Claude Code can only open this scan’s folder, so your projects, client details and files stay on this Mac." : "Groundwork only gives it this scan’s folder; your projects and client details aren’t part of it."} <button onClick={() => go(routes.settings("privacy"))} className="underline underline-offset-2 hover:text-foreground">Data and privacy</button></span></span>
         </div>
         <Button onClick={() => start()} disabled={busy || !n} className="justify-self-end">
           {busy ? <Loader2 className="animate-spin" /> : ready ? <Sparkles /> : <ArrowRight />}
@@ -224,6 +228,32 @@ function RunPanel({ tool }: { tool: PlanTool }) {
       </AlertDialog>
     </section>
   )
+}
+
+/** "Remove this scan" with its confirmation, for the plan pages' menus. Afterwards you land on the project's Tools. */
+export function useRemoveScan(run: Run | null) {
+  const app = useApp()
+  const [open, setOpen] = React.useState(false)
+  const remove = async () => {
+    if (!run) return
+    await api.remove(run.id); await app.refreshRuns(); toast("Removed the scan")
+    go(run.projectId ? routes.project(run.projectId, "tools") : routes.home)
+  }
+  const dialog = (
+    <AlertDialog open={open} onOpenChange={setOpen}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Remove this scan?</AlertDialogTitle>
+          <AlertDialogDescription>This deletes the scan, the plans made from it and their to-do progress from this computer. You can’t undo it.</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction variant="destructive" onClick={() => { setOpen(false); remove() }}>Remove</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  )
+  return { ask: () => setOpen(true), dialog }
 }
 
 export function Empty({ title }: { title: string }) {

@@ -20,7 +20,7 @@ import { finalMode, isH, isTask, pageChecks, phases, siteChecks, taskCounts } fr
 import { ago, pct, plural } from "@/lib/format"
 import { go, routes } from "@/lib/router"
 import { store } from "@/lib/store"
-import { Empty } from "./RunPage"
+import { Empty, useRemoveScan } from "./RunPage"
 
 type PRow = Row & { mode: "live" | "optimize"; phase: 1 | 2 }
 const keyOf = (pid: string, r: PRow) => `${r.mode}|${pid}|${r.key}`
@@ -30,6 +30,7 @@ export function ReviewPage({ view }: { view: string }) {
   const { run, result, cstate, setCState, progress, notFound } = useRun()
   const app = useApp()
   const [checking, setChecking] = React.useState(false)
+  const removeScan = useRemoveScan(run)
   if (notFound) return <Empty title="This plan doesn’t exist any more." />
   if (!run || !result) return <div className="grid h-full place-items-center"><Spinner className="size-5" /></div>
 
@@ -88,9 +89,9 @@ export function ReviewPage({ view }: { view: string }) {
   return (
     <div className="flex h-full min-h-0 flex-col">
       <TopBar className="gap-3">
-        <Crumbs projectId={run.projectId || null} label={<button onClick={() => go(routes.run(run.id, "headings"))} className="hover:underline">Heading plan</button>}>
+        <Crumbs projectId={run.projectId || null} label="Heading plan">
           <span className="text-muted-foreground/60">/</span>
-          <VersionMenu runId={run.id} />
+          <VersionMenu runId={run.id} tool="headings" />
         </Crumbs>
         <select aria-label="Go to" className="h-8 max-w-44 rounded-lg border bg-card px-2 text-sm min-[1400px]:hidden" value={view} onChange={(e) => go(routes.review(run.id, e.target.value))}>
           <option value="overview">Overview</option>
@@ -113,8 +114,9 @@ export function ReviewPage({ view }: { view: string }) {
           <DropdownMenuTrigger render={<Button variant="outline" size="sm" disabled={running} />}><Download /> Export</DropdownMenuTrigger>
           <ExportItems id={run.id} modes={result.site.modes} />
         </DropdownMenu>
-        <SiteMenu onRescan={rescan} onReshoot={reshoot} onDelete={() => go(routes.run(run.id, "headings"))}><Button variant="ghost" size="icon-sm" aria-label="Site options"><MoreHorizontal /></Button></SiteMenu>
+        <SiteMenu onPlanAgain={() => go(routes.run(run.id, "headings"))} onRescan={rescan} onReshoot={reshoot} onDelete={removeScan.ask}><Button variant="ghost" size="icon-sm" aria-label="Site options"><MoreHorizontal /></Button></SiteMenu>
       </TopBar>
+      {removeScan.dialog}
       <div className="flex min-h-0 flex-1">
         <nav className="scrollbar-thin hidden w-52 shrink-0 overflow-auto border-r px-2 py-3 min-[1400px]:block" aria-label="Pages">
           {top("overview", Gauge, "Overview")}

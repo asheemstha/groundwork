@@ -306,7 +306,7 @@ async function job(run) {
   pollPlan(run);
   if (l.cancelled) return finish(run, 'cancelled');
   const planned = planFiles(run).filter(f => f !== '_site.json').length;
-  if (!planned) { run.error = r1.error || 'The AI finished without writing a plan.'; return finish(run, 'failed'); }
+  if (!planned) { run.error = r1.error ? friendly(r1.error) : 'The AI finished without writing a plan.'; return finish(run, 'failed'); }
   if (!r1.ok) logLine(run.id, 'error', r1.error);
   // Checks, and one fix pass if the plan breaks its own rules.
   j.stage = 'check'; push(run);
@@ -427,7 +427,7 @@ async function seoJob(run) {
   pollPlan(run, 'seo');
   if (l.cancelled) return seoFinish(run, 'cancelled');
   const planned = planFiles(run, 'seo').filter(f => f !== '_site.json').length;
-  if (!planned) { sq.error = r1.error || 'The AI finished without writing a plan.'; return seoFinish(run, 'failed'); }
+  if (!planned) { sq.error = r1.error ? friendly(r1.error) : 'The AI finished without writing a plan.'; return seoFinish(run, 'failed'); }
   if (!r1.ok) logLine(run.id, 'error', r1.error, 'seo');
   j.stage = 'check'; push(run);
   let result = SEO.assemble(run, current);

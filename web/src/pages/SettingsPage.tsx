@@ -65,6 +65,7 @@ export function SettingsPage({ focus }: { focus?: EngineId | "privacy" }) {
 
 /** What stays on this Mac and what goes to the AI engine, in plain words. */
 function Privacy() {
+  const { status } = useApp()
   const row = (title: string, body: React.ReactNode) => (
     <div className="grid gap-1 bg-card p-4 text-[13.5px]"><span className="font-medium">{title}</span><span className="leading-relaxed text-muted-foreground">{body}</span></div>
   )
@@ -75,7 +76,7 @@ function Privacy() {
         <span className="flex-1"><span className="font-medium">Everything is saved on this Mac.</span> <span className="text-muted-foreground">Projects, checklists, sign-off proof, scans and plans live in Groundwork’s data folder. There’s no Groundwork account or server.</span></span>
         <Button size="sm" variant="outline" onClick={() => api.openData().catch((e) => toast.error(e.message))}>Show in Finder</Button>
       </div>
-      {row("What the AI sees", <>Only the heading plan and the SEO plan use AI. They run Claude Code or Codex on this Mac, signed in to your own account, so the provider’s own privacy terms apply. The AI reads the pages you chose from the scan (their public text, headings, current titles and descriptions, and a screenshot when a layout is unclear), your notes and the skill. Checklists, client names, messages and sign-off files are never sent.</>)}
+      {row("What the AI sees", <>Only the heading plan and the SEO plan use AI. They send the pages you chose from a scan (their public text, headings, current titles and descriptions, and a screenshot when a layout is unclear), your notes and the rules they follow to Anthropic (Claude Code) or OpenAI (Codex), through your own account, so that provider’s privacy terms apply. Groundwork runs the AI in that scan’s folder only. {status?.engines.claude.restricted ? "Claude Code is confined to it, so it can’t open your projects, client details, messages, sign-off files or other scans." : "Update Claude Code to confine it to that folder."} Codex (Beta) is pointed at the folder but not confined to it.</>)}
       {row("Scans and checks", "The site scan, launch check and redirect test run in a browser on this Mac. They only visit the addresses you give them, and they don’t use AI.")}
       {row("Other connections", "Groundwork checks GitHub for new versions a few times a day. The usage bars ask Claude for your plan’s limits when you refresh them.")}
     </div>

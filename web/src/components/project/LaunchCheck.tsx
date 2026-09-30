@@ -9,6 +9,7 @@ import { ToolCard } from "@/components/project/ToolCard"
 import { useApp } from "@/hooks/useApp"
 import { api, type LaunchCheck, type LaunchCheckId, type LaunchIssue, type LaunchReport, type LaunchSummary, type PItem, type Project } from "@/lib/api"
 import { go, routes } from "@/lib/router"
+import { hostOfUrl, today } from "@/lib/project"
 
 const ORDER: LaunchCheckId[] = ["indexing", "placeholders", "links", "seo", "canonicals", "legal", "https"]
 const STEPS = [
@@ -26,9 +27,17 @@ const counted = (s: Pick<LaunchSummary, "checks" | "staging">) => (Object.entrie
 const passed = (s: Pick<LaunchSummary, "checks" | "staging">) => counted(s).filter(([, c]) => c.ok).length
 const total = (s: Pick<LaunchSummary, "checks" | "staging">) => counted(s).length
 const itemsOf = (p: Project) => p.phases.flatMap((ph) => [...ph.groups.flatMap((g) => g.items), ...ph.handoff.items])
-/** The address to check next: whatever was checked last, else the project's site. */
-// Before launch day the check runs on staging; from launch day on, on the live domain.
-const defaultUrl = (p: Project) => { const live = !!p.launch && new Date().toISOString().slice(0, 10) >= p.launch; return (live ? p.sites.live : p.sites.staging) || p.tools.launchHistory[0]?.url || p.sites.live || p.url || "" }
+/**
+ * The address to check next. Before launch day that's staging; from launch day on, the live domain. In a same-domain
+ * redesign the live domain still shows the old site before launch, so it isn't offered then.
+ */
+const defaultUrl = (p: Project) => {
+  const launched = !!p.launch && today() >= p.launch
+  const liveIsOld = !!p.sites.old && !!p.sites.live && hostOfUrl(p.sites.old) === hostOfUrl(p.sites.live) && !launched
+  const live = liveIsOld ? null : p.sites.live
+  return (launched ? live || p.sites.staging : p.sites.staging || live) || p.tools.launchHistory.find((h) => !h.oldSite)?.url || ""
+}
+const where = (h: { staging?: boolean; oldSite?: boolean }) => (h.oldSite ? ", old site" : h.staging ? ", staging" : "")
 
 /** Follows a running check until it finishes, then reloads the project so the checklist picks it up. */
 export function useLaunch(p: Project, checkId: string | undefined, reload: () => void) {
@@ -113,7 +122,7 @@ export function LaunchCard({ p, reload }: { p: Project; reload: () => void }) {
         <div className="grid">
           {history.slice(0, 4).map((h) => (
             <button key={h.id} onClick={() => go(routes.launch(p.id, h.id))} className="grid h-9 grid-cols-[minmax(0,1fr)_110px_90px_120px] items-center gap-3 border-t text-left text-[13px] hover:bg-muted/30">
-              <span className="truncate">{hostOf(h.url)}{h.staging && <span className="text-muted-foreground">, staging</span>}</span>
+              <span className="truncate">{hostOf(h.url)}<span className="text-muted-foreground">{where(h)}</span></span>
               <span className={cn("tabular", h.status !== "done" ? "text-muted-foreground" : passed(h) === total(h) ? "text-muted-foreground" : "")}>{h.status === "cancelled" ? "Stopped" : h.status === "failed" ? "Didn’t finish" : `${passed(h)} of ${total(h)} pass`}</span>
               <span className="text-muted-foreground tabular">{h.pages} pages</span>
               <span className="text-right text-muted-foreground">{when(h.at)}</span>
@@ -184,20 +193,23 @@ function Report({ p, r, focus, busy, onRun, head }: { p: Project; r: LaunchRepor
         <span className="flex-1" />
         {history.length > 1 && (
           <select value={r.id} onChange={(e) => go(routes.launch(p.id, e.target.value))} aria-label="Earlier checks" className="h-8 rounded-lg border border-input bg-card px-2 text-[13px]">
-            {history.map((h) => <option key={h.id} value={h.id}>{when(h.at)}{h.staging ? ", staging" : ""}</option>)}
+            {history.map((h) => <option key={h.id} value={h.id}>{when(h.at)}{where(h)}</option>)}
           </select>
         )}
         {ok < now.length && <Button variant="outline" size="sm" onClick={copy}><Copy />Copy issues</Button>}
         <Button size="sm" onClick={onRun} disabled={busy || !!p.tools.launchRunning}>{busy ? <Loader2 className="animate-spin" /> : <RotateCw />}Run again</Button>
       </div>
       <div>
-        <h1 className="text-[22px] font-medium">{failing.length ? `${failing.length} ${failing.length === 1 ? "check needs" : "checks need"} fixing` : r.staging ? "Staging is ready" : "Ready to launch"}</h1>
+        <h1 className="text-[22px] font-medium">{r.oldSite ? "The old site" : failing.length ? `${failing.length} ${failing.length === 1 ? "check needs" : "checks need"} fixing` : r.staging ? "Staging is ready" : "Ready to launch"}</h1>
         <p className="mt-1.5 text-sm text-muted-foreground">
-          <a href={r.url} target="_blank" rel="noreferrer" className="text-foreground/80 underline-offset-2 hover:underline">{r.host}</a>{r.staging ? ", staging" : ""}. {r.pagesChecked} pages and {r.linksChecked?.toLocaleString()} links, {when(r.started)}.
+          <a href={r.url} target="_blank" rel="noreferrer" className="text-foreground/80 underline-offset-2 hover:underline">{r.host}</a>{where(r)}. {r.pagesChecked} pages and {r.linksChecked?.toLocaleString()} links, {when(r.started)}.
           {r.previous && <> Since the {day(r.previous.at)} check: {newCount} new {newCount === 1 ? "issue" : "issues"}, {(r.fixed || []).length} fixed.</>}
         </p>
       </div>
-      {r.staging && (
+      {r.oldSite && (
+        <p className="flex items-start gap-2.5 rounded-lg bg-muted/60 px-3.5 py-3 text-[13px] leading-relaxed text-muted-foreground"><Info className="mt-0.5 size-4 shrink-0" />Before launch day, {r.host} still shows the old site, so this is a check of the old site. It’s useful for spotting what to carry over, but nothing on the checklist is ticked from it. Check staging before launch, and the live domain from launch day.</p>
+      )}
+      {r.staging && !r.oldSite && (
         <p className="flex items-start gap-2.5 rounded-lg bg-muted/60 px-3.5 py-3 text-[13px] leading-relaxed text-muted-foreground"><Info className="mt-0.5 size-4 shrink-0" />This is the staging site. {r.liveHost !== r.host ? `Canonicals are compared to ${r.liveHost}, the live domain.` : "Add the live domain in the project details to check where canonicals point."}</p>
       )}
       {([["Needs fixing", failing], ["Passed", passedChecks], ["After launch", afterChecks]] as [string, LaunchCheck[]][]).filter(([, list]) => list.length).map(([title, list]) => (

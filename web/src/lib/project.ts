@@ -4,6 +4,15 @@ import type { DueRule, LaunchCheckId, MessageTemplate, PItem, Project, SiteKey }
 const parse = (d: string) => { const [y, m, day] = d.split("-").map(Number); return new Date(y!, m! - 1, day!) }
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
 export const today = () => iso(new Date())
+/** A time as a local YYYY-MM-DD day. (toISOString gives the UTC day, which is a day off in the evening.) */
+export const dayOf = (t: number | Date) => iso(new Date(t))
+const DAY = 864e5
+/** How long the client has had an item: "asked Sep 12, 17 days ago". Counted in calendar days. */
+export const waited = (x: Pick<PItem, "asked">) => {
+  if (!x.asked) return "not asked yet"
+  const days = Math.max(0, Math.round((parse(today()).getTime() - parse(dayOf(x.asked)).getTime()) / DAY))
+  return `asked ${fmtDay(dayOf(x.asked))}, ${days === 0 ? "today" : days === 1 ? "yesterday" : `${days} days ago`}`
+}
 const daysBetween = (a: string, b: string) => Math.round((parse(b).getTime() - parse(a).getTime()) / 86400000)
 
 /** "Oct 6", or "Tue, Oct 6" with the weekday. */

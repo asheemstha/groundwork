@@ -16,14 +16,12 @@ import { DateField } from "@/components/common/DateField"
 import { Chip } from "@/pages/Dashboard"
 import { useApp } from "@/hooks/useApp"
 import { api, proofUrl, type MessageTemplate, type PItem, type PPhase, type Project, type SiteKey, type TemplateSummary } from "@/lib/api"
-import { SITE_KEYS, SITE_NAME, dueLabel, fmtDay, hostOfUrl, renderMessage, today } from "@/lib/project"
+import { SITE_KEYS, SITE_NAME, dayOf, dueLabel, fmtDay, hostOfUrl, renderMessage, today, waited } from "@/lib/project"
 import { ago } from "@/lib/format"
 import { go, routes } from "@/lib/router"
 import { LaunchCard, LaunchItemPanel, LaunchReportPage, useLaunchRefresh } from "@/components/project/LaunchCheck"
 import { RedirectCard, RedirectsPage } from "@/components/project/Redirects"
 import { ShiftDialog, shiftPlan } from "@/components/project/ShiftDialog"
-import { NudgeDialog, waited } from "@/components/project/Nudge"
-import { ToolCard } from "@/components/project/ToolCard"
 import { TemplateUpdateDialog, updateFromTemplate } from "@/components/project/TemplateUpdate"
 
 type Tab = "checklist" | "client" | "tools" | "launch" | "redirects"
@@ -105,7 +103,7 @@ export function ProjectPage({ id, tab: asked, sub }: { id: string; tab: Tab; sub
           </header>
         )}
         {tab === "checklist" && <ChecklistTab p={p} setItem={setItem} setP={setP} reload={load} />}
-        {tab === "client" && <ClientTab p={p} setItem={setItem} setP={setP} />}
+        {tab === "client" && <ClientTab key={sub || ""} p={p} setItem={setItem} setP={setP} remind={sub === "remind"} />}
         {tab === "tools" && <ToolsTab p={p} reload={load} onEdit={() => setEditing(true)} />}
         {tab === "launch" && <LaunchReportPage key={sub || ""} p={p} sub={sub} reload={load} />}
         {tab === "redirects" && <RedirectsPage p={p} reload={load} />}
@@ -154,7 +152,6 @@ function ChecklistTab({ p, setItem, setP, reload }: { p: Project; setItem: SetIt
   const [filter, setFilter] = React.useState<Filter>("all")
   const [toolsOnly, setToolsOnly] = React.useState(false)
   const [hideDone, setHideDone] = React.useState(false)
-  const [nudging, setNudging] = React.useState(false)
   const [itemId, setItemId] = React.useState<string | null>(null)
   const [signing, setSigning] = React.useState(false)
   React.useEffect(() => { setSel(p.current || p.phases[p.phases.length - 1]!.id) }, [p.id]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -164,10 +161,12 @@ function ChecklistTab({ p, setItem, setP, reload }: { p: Project; setItem: SetIt
   const allItems = p.phases.flatMap((x) => [...x.groups.flatMap((g) => g.items), ...x.handoff.items])
   const item = itemId ? allItems.find((x) => x.id === itemId) || null : null
   const toggle = (it: PItem) => setItem(it.id, { status: it.status === "done" ? "todo" : "done" })
-  const waiting = [...p.client.late, ...p.client.soon]
+  // Waiting means asked and not received yet. Late items nobody has asked for are counted separately.
+  const waiting = [...p.client.late, ...p.client.soon].filter((x) => x.asked)
+  const lateUnasked = p.client.late.filter((x) => !x.asked).length
   const toolCount = all.filter((x) => x.tool).length
   // The phase in one line: on track, at risk or behind, and why.
-  const todayIso = new Date().toISOString().slice(0, 10)
+  const todayIso = today()
   const oursLate = all.filter((x) => x.who === "us" && x.late).length, clientLate = all.filter((x) => x.who === "client" && x.late).length
   const daysTo = ph.due ? Math.round((new Date(ph.due).getTime() - new Date(todayIso).getTime()) / 864e5) : null
   const health = ph.state === "signed" ? null : (daysTo != null && daysTo < 0 && ph.state === "current") || (ph.state === "current" && p.behind.days >= 7) ? "Behind" : oursLate || clientLate || (daysTo != null && daysTo <= 7 && ph.total && ph.done / ph.total < 0.8) ? "At risk" : "On track"
@@ -179,7 +178,7 @@ function ChecklistTab({ p, setItem, setP, reload }: { p: Project; setItem: SetIt
       {p.behind.items >= 3 && p.behind.days >= 7 && (
         <div className="mx-12 mt-5 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg bg-muted/60 px-4 py-3 text-[14px]">
           <CalendarDays className="size-4 text-muted-foreground" />
-          <span className="min-w-0 flex-1">The schedule has slipped. <span className="text-muted-foreground">{p.behind.items} items are late, the oldest in this phase by {p.behind.days} days.</span></span>
+          <span className="min-w-0 flex-1">The schedule has slipped. <span className="text-muted-foreground">{p.behind.items} items are late across the project ({p.behind.ours} yours, {p.behind.client} the client’s). The oldest in {p.phases.find((x) => x.id === p.current)?.name || "this phase"} is {p.behind.days} days late.</span></span>
           <Button size="sm" variant="outline" onClick={shiftPlan}>Move dates…</Button>
         </div>
       )}
@@ -220,8 +219,8 @@ function ChecklistTab({ p, setItem, setP, reload }: { p: Project; setItem: SetIt
             <div className="mt-2.5 h-[5px] overflow-hidden rounded-full bg-muted"><span className="block h-full bg-brand" style={{ width: `${ph.total ? (100 * ph.done) / ph.total : 0}%` }} /></div>
             {health && health !== "On track" && (
               <ul className="mt-3 grid gap-1 text-[13px]">
-                {oursLate > 0 && <li>{oursLate} of yours overdue</li>}
-                {clientLate > 0 && <li>{clientLate} from the client late</li>}
+                {oursLate > 0 && <li>{oursLate} of yours late in {ph.name}</li>}
+                {clientLate > 0 && <li>{clientLate} of the client’s late in {ph.name}</li>}
                 {daysTo != null && daysTo < 0 && <li>Sign-off was due {-daysTo} {daysTo === -1 ? "day" : "days"} ago</li>}
                 {daysTo != null && daysTo >= 0 && daysTo <= 7 && <li>Sign-off {daysTo === 0 ? "is today" : `in ${daysTo} ${daysTo === 1 ? "day" : "days"}`}, {ph.total - ph.done} left</li>}
               </ul>
@@ -235,15 +234,16 @@ function ChecklistTab({ p, setItem, setP, reload }: { p: Project; setItem: SetIt
           </section>
           <section className="flex flex-col gap-1 rounded-xl border bg-card p-4">
             <div className="mb-1.5 flex items-center gap-2"><h3 className="text-[13.5px] font-medium">Waiting on the client</h3><span className="text-[12.5px] text-muted-foreground tabular">{waiting.length}</span></div>
+            {lateUnasked > 0 && <button onClick={() => go(routes.project(p.id, "client"))} className="-mx-2 mb-1 rounded-md px-2 py-1.5 text-left text-[12.5px] text-destructive hover:bg-muted/50">{lateUnasked} late {lateUnasked === 1 ? "item hasn’t" : "items haven’t"} been asked for yet</button>}
             {waiting.length ? waiting.slice(0, 5).map((x) => (
               <button key={x.id} onClick={() => setItemId(x.id)} className="-mx-2 grid gap-0.5 rounded-md px-2 py-1.5 text-left hover:bg-muted/50">
                 <span className="truncate text-[13px]">{x.title}</span>
-                <span className={cn("text-xs", x.late ? "text-destructive" : "text-muted-foreground")}>{waited(x).replace(/^./, (c) => c.toUpperCase())}{x.nudged ? `, nudged ${fmtDay(new Date(x.nudged).toISOString().slice(0, 10))}` : ""}{x.late ? ", late" : ""}</span>
+                <span className={cn("text-xs", x.late ? "text-destructive" : "text-muted-foreground")}>{waited(x).replace(/^./, (c) => c.toUpperCase())}{x.nudged ? `, nudged ${fmtDay(dayOf(x.nudged))}` : ""}{x.late ? ", late" : ""}</span>
               </button>
             )) : <p className="text-[13px] text-muted-foreground">Nothing you’ve asked for is outstanding.</p>}
             {waiting.length > 5 && <span className="text-xs text-muted-foreground">and {waiting.length - 5} more</span>}
             <div className="mt-2 flex gap-2">
-              {waiting.length > 0 && <Button size="sm" className="flex-1" onClick={() => setNudging(true)}><Mail />Nudge</Button>}
+              {waiting.some((x) => x.late) && <Button size="sm" className="flex-1" onClick={() => go(routes.remind(p.id))}><Mail />Remind</Button>}
               <Button variant="outline" size="sm" className="flex-1" onClick={() => go(routes.project(p.id, "client"))}>Client tab</Button>
             </div>
           </section>
@@ -251,7 +251,6 @@ function ChecklistTab({ p, setItem, setP, reload }: { p: Project; setItem: SetIt
       </div>
       <ItemSheet p={p} it={item} onClose={() => setItemId(null)} setItem={setItem} reload={reload} order={order} onMove={setItemId} />
       <SignoffDialog p={p} ph={ph} open={signing} onClose={() => setSigning(false)} onDone={(x) => { setP(x); setSigning(false) }} />
-      <NudgeDialog p={p} items={waiting} open={nudging} onClose={() => setNudging(false)} onDone={setP} />
     </div>
   )
 }
@@ -283,7 +282,7 @@ function ItemRow({ it, onToggle, onOpen, active }: { it: PItem; onToggle: () => 
       <StatusIcon it={it} onClick={onToggle} />
       <span className={cn("truncate text-[13.5px]", faded && "text-muted-foreground", it.status === "na" && "line-through")}>{it.title}{it.carriedFrom && <span className="ml-2 text-xs text-muted-foreground">from {it.carriedFrom}</span>}</span>
       <span className="flex justify-end">{tag}</span>
-      <span className={cn("text-right text-[12.5px] whitespace-nowrap", it.status === "todo" && it.late ? "text-destructive" : faded ? "text-muted-foreground/70" : "text-muted-foreground")}>{it.status === "na" ? "Not needed" : it.status === "done" ? (it.at ? fmtDay(new Date(it.at).toISOString().slice(0, 10)) : "Done") : dueLabel(it)}</span>
+      <span className={cn("text-right text-[12.5px] whitespace-nowrap", it.status === "todo" && it.late ? "text-destructive" : faded ? "text-muted-foreground/70" : "text-muted-foreground")}>{it.status === "na" ? "Not needed" : it.status === "done" ? (it.at ? fmtDay(dayOf(it.at)) : "Done") : dueLabel(it)}</span>
     </div>
   )
 }
@@ -372,7 +371,7 @@ function ItemSheet({ p, it, onClose, setItem, reload, order, onMove }: { p: Proj
                   <Prop icon={<User className="size-3.5" />} label="Whose">{x.who === "client" ? "The client’s" : "Ours"}</Prop>
                   {x.who === "client" && (
                     <Prop icon={<Mail className="size-3.5" />} label="Asked">
-                      {x.asked ? <span>{fmtDay(new Date(x.asked).toISOString().slice(0, 10), true)}<span className="text-muted-foreground">{x.nudged ? `, nudged ${fmtDay(new Date(x.nudged).toISOString().slice(0, 10))}` : ""}</span></span> : <span className="text-muted-foreground">Not yet</span>}
+                      {x.asked ? <span>{fmtDay(dayOf(x.asked), true)}<span className="text-muted-foreground">{x.nudged ? `, nudged ${fmtDay(dayOf(x.nudged))}` : ""}</span></span> : <span className="text-muted-foreground">Not yet</span>}
                       <button onClick={() => setItem(x.id, { asked: !x.asked })} className="ml-2 text-xs text-muted-foreground hover:text-foreground">{x.asked ? "Clear" : "Mark as asked today"}</button>
                     </Prop>
                   )}
@@ -430,6 +429,17 @@ function Prop({ icon, label, children }: { icon: React.ReactNode; label: string;
 
 // ---------- sign-off ----------
 function SignoffDialog({ p, ph, open, onClose, onDone }: { p: Project; ph: PPhase; open: boolean; onClose: () => void; onDone: (x: Project) => void }) {
+  const { prefs } = useApp()
+  // The "Ask for sign-off" message, ready to paste, for phases the client approves.
+  const copyRequest = async () => {
+    try {
+      const t = await api.template("signoff-request")
+      if (t.kind === "checklist") return
+      const m = renderMessage(t, p, prefs.appliedBy || "", [])
+      navigator.clipboard.writeText(t.kind === "email" && m.subject ? `Subject: ${m.subject}\n\n${m.body}` : m.body)
+      toast("Copied the approval request", { description: "Paste it into email or Slack, then record the reply here." })
+    } catch { toast.error("The “Ask for sign-off” message template isn’t there any more. Add one in Templates.") }
+  }
   const [by, setBy] = React.useState("")
   const [date, setDate] = React.useState("")
   const [note, setNote] = React.useState("")
@@ -437,7 +447,7 @@ function SignoffDialog({ p, ph, open, onClose, onDone }: { p: Project; ph: PPhas
   const [file, setFile] = React.useState<{ name: string; data: string } | null>(null)
   const [plan, setPlan] = React.useState<Record<string, "carry" | "skip">>({})
   const [busy, setBusy] = React.useState(false)
-  React.useEffect(() => { if (open) { setBy(p.clientName ? `${p.clientName}, ${p.name}` : ""); setDate(new Date().toISOString().slice(0, 10)); setNote(""); setLink(""); setFile(null); setPlan({}); setBusy(false) } }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
+  React.useEffect(() => { if (open) { setBy(p.clientName ? `${p.clientName}, ${p.name}` : ""); setDate(today()); setNote(""); setLink(""); setFile(null); setPlan({}); setBusy(false) } }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
   const openItems = [...ph.groups.flatMap((g) => g.items), ...ph.handoff.items].filter((x) => x.status === "todo")
   const next = p.phases[ph.index + 1]
   const pick = (f?: File) => {
@@ -462,7 +472,7 @@ function SignoffDialog({ p, ph, open, onClose, onDone }: { p: Project; ph: PPhas
       <DialogContent className="gap-0 p-0 sm:max-w-[620px]">
         <DialogHeader className="grid grid-cols-[40px_minmax(0,1fr)] items-start gap-3.5 px-6 pt-6">
           <span className="grid size-10 place-items-center rounded-[10px] border bg-muted/60 text-foreground/70"><Stamp className="size-[19px]" /></span>
-          <div className="grid gap-1.5"><DialogTitle>Record sign-off: {ph.handoff.title}</DialogTitle><DialogDescription>{ph.handoff.needs === "client" ? `${next ? next.name + " starts" : "The project closes"} once the client approves in writing. Keep the proof here so it stays with the project.` : "Record when this phase is finished."}</DialogDescription></div>
+          <div className="grid gap-1.5"><DialogTitle>Record sign-off: {ph.handoff.title}</DialogTitle><DialogDescription>{ph.handoff.needs === "client" ? <>{next ? next.name + " starts" : "The project closes"} once the client approves in writing. Keep the proof here so it stays with the project. <button onClick={copyRequest} className="text-foreground/80 underline underline-offset-2 hover:text-foreground">Copy the approval request</button></> : "Record when this phase is finished."}</DialogDescription></div>
         </DialogHeader>
         <div className="scrollbar-thin grid max-h-[62vh] gap-4 overflow-auto px-6 py-5">
           {ph.handoff.items.length > 0 && (
@@ -518,31 +528,38 @@ function SignoffDialog({ p, ph, open, onClose, onDone }: { p: Project; ph: PPhas
 // ---------- client ----------
 // Everything the client owes, with a checkbox per item for the request message. Late ones, ones due soon and ones
 // it's time to ask for start ticked.
-function ClientTab({ p, setItem, setP }: { p: Project; setItem: SetItem; setP: (x: Project) => void }) {
+function ClientTab({ p, setItem, setP, remind }: { p: Project; setItem: SetItem; setP: (x: Project) => void; remind?: boolean }) {
   const { prefs } = useApp()
   const [tpls, setTpls] = React.useState<TemplateSummary[]>([])
   const [tid, setTid] = React.useState("")
+  const [picked, setPicked] = React.useState(false) // a template chosen by hand stays
   const [tpl, setTpl] = React.useState<MessageTemplate | null>(null)
   const [record, setRecord] = React.useState(true)
   const [showReceived, setShowReceived] = React.useState(false)
   const c = p.client
   const due = (x: PItem & { askBy?: string | null }) => !x.askBy || x.askBy <= today()
-  const [pick, setPick] = React.useState<Set<string>>(() => new Set([...c.late, ...c.soon, ...c.notAsked.filter(due)].map((x) => x.id)))
+  // A reminder starts from the late items already asked for; a request from everything it's time to ask for.
+  const [pick, setPick] = React.useState<Set<string>>(() => new Set((remind ? c.late.filter((x) => x.asked) : [...c.late, ...c.soon, ...c.notAsked.filter(due)]).map((x) => x.id)))
   const panel = React.useRef<HTMLElement>(null)
   React.useEffect(() => {
-    api.templates().then((l) => { const m = l.filter((t) => t.kind !== "checklist"); setTpls(m); setTid((m.find((t) => t.use?.includes("client-request")) || m[0])?.id || "") }).catch(() => {})
+    api.templates().then((l) => setTpls(l.filter((t) => t.kind !== "checklist"))).catch(() => {})
   }, [])
   React.useEffect(() => { if (tid) api.template(tid).then((t) => t.kind !== "checklist" && setTpl(t)).catch(() => {}) }, [tid])
   const open = [...c.late, ...c.soon, ...c.notAsked]
   const chosen = open.filter((x) => pick.has(x.id))
   const fresh = chosen.filter((x) => !x.asked)
+  // The message follows the items: a reminder when every ticked item was asked for already, otherwise a request.
+  const reminderTpl = (tpls.find((t) => t.id === "reminder") || tpls.find((t) => /remind|nudge/i.test(t.name)))?.id
+  const requestTpl = (tpls.find((t) => t.use?.includes("client-request")) || tpls[0])?.id
+  const auto = chosen.length > 0 && !fresh.length && reminderTpl ? reminderTpl : requestTpl
+  React.useEffect(() => { if (!picked && auto) setTid(auto) }, [auto, picked])
   const msg = tpl ? renderMessage(tpl, p, prefs.appliedBy || "", chosen) : null
   const text = msg ? (tpl?.kind === "email" && msg.subject ? `Subject: ${msg.subject}\n\n${msg.body}` : msg.body) : ""
   const received = p.phases.flatMap((ph) => [...ph.groups.flatMap((g) => g.items), ...ph.handoff.items]).filter((x) => x.who === "client" && x.status === "done")
   const toggle = (id: string, on: boolean) => setPick((s) => { const n = new Set(s); if (on) n.add(id); else n.delete(id); return n })
   const copy = async () => {
     navigator.clipboard.writeText(text)
-    if (!record) return toast("Copied the message")
+    if (!record || !chosen.length) return toast("Copied the message")
     try {
       if (fresh.length) setP(await api.askItems(p.id, fresh.map((x) => x.id)))
       const again = chosen.filter((x) => x.asked)
@@ -591,13 +608,13 @@ function ClientTab({ p, setItem, setP }: { p: Project; setItem: SetItem; setP: (
         {showReceived && received.map((x) => <Row key={x.id} x={x} select={false} right={<span className="text-muted-foreground">{x.at ? `Received ${new Date(x.at).toLocaleDateString([], { month: "short", day: "numeric" })}` : "Received"}</span>} />)}
       </div>
       <section ref={panel} className="flex scroll-mt-4 flex-col gap-3.5 self-start rounded-xl border bg-card p-[18px]">
-        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2.5"><div className="grid gap-0.5"><h2 className="text-sm font-medium">Message to the client</h2><span className="text-[12.5px] text-muted-foreground">{chosen.length ? `${chosen.length} ${chosen.length === 1 ? "item" : "items"} ticked` : "Tick items on the left to include them"}</span></div>{tid && <button onClick={() => go(routes.template(tid))} className="text-[12.5px] text-foreground/70 underline underline-offset-2">Edit template</button>}</div>
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2.5"><div className="grid gap-0.5"><h2 className="text-sm font-medium">Message to the client</h2><span className="text-[12.5px] text-muted-foreground">{chosen.length ? `${chosen.length} ${chosen.length === 1 ? "item" : "items"} ticked${!fresh.length ? ", all asked before" : ""}` : "No items ticked. Tick items on the left to list them."}</span></div>{tid && <button onClick={() => go(routes.template(tid))} className="text-[12.5px] text-foreground/70 underline underline-offset-2">Edit template</button>}</div>
         <label className="grid gap-1.5 text-[12.5px] text-muted-foreground">Template
-          <select value={tid} onChange={(e) => setTid(e.target.value)} className="h-9 rounded-lg border border-input bg-card px-2.5 text-[13.5px] text-foreground">{tpls.map((t) => <option key={t.id} value={t.id}>{t.name}{t.kind === "email" ? " (email)" : ""}</option>)}</select>
+          <select value={tid} onChange={(e) => { setPicked(true); setTid(e.target.value) }} className="h-9 rounded-lg border border-input bg-card px-2.5 text-[13.5px] text-foreground">{tpls.map((t) => <option key={t.id} value={t.id}>{t.name}{t.kind === "email" ? " (email)" : ""}</option>)}</select>
         </label>
-        <div className="max-h-80 overflow-auto rounded-[10px] border bg-background px-4 py-3.5 text-[13.5px] leading-relaxed whitespace-pre-line">{!chosen.length ? <span className="text-muted-foreground">No items ticked yet.</span> : text || "Pick a template."}</div>
+        <div className="max-h-80 overflow-auto rounded-[10px] border bg-background px-4 py-3.5 text-[13.5px] leading-relaxed whitespace-pre-line">{text || "Pick a template."}</div>
         {chosen.length > 0 && <label className="flex items-start gap-2 text-[13px]"><input type="checkbox" checked={record} onChange={(e) => setRecord(e.target.checked)} className="mt-0.5 size-[15px] accent-foreground" /><span>Record it as sent today <span className="text-muted-foreground">({[fresh.length ? `${fresh.length} asked` : "", chosen.length - fresh.length ? `${chosen.length - fresh.length} nudged` : ""].filter(Boolean).join(", ")})</span></span></label>}
-        <Button onClick={copy} disabled={!text || !chosen.length}><Copy />Copy message</Button>
+        <Button onClick={copy} disabled={!text}><Copy />Copy message</Button>
         <p className="text-[12.5px] leading-relaxed text-muted-foreground">Groundwork doesn’t send anything. Paste the message wherever you talk to the client.{!prefs.appliedBy && " Add your name in Settings to sign it."}</p>
       </section>
     </div>
@@ -605,71 +622,105 @@ function ClientTab({ p, setItem, setP }: { p: Project; setItem: SetItem; setP: (
 }
 
 // ---------- tools ----------
+type Run = Project["tools"]["runs"][number]
+const DONE = (s?: string | null) => s === "done" || s === "partial"
+const countsOf = (r: Run) => { const c = r.progress?.now || r.progress?.all || r.progress?.live; return c ? `${c.done} of ${c.tasks} tag fixes done` : "Ready" }
+
 function ToolsTab({ p, reload, onEdit }: { p: Project; reload: () => void; onEdit: () => void }) {
   const { refreshRuns } = useApp()
-  const [busy, setBusy] = React.useState(false)
-  const have = SITE_KEYS.filter((k) => p.sites[k])
-  const [which, setWhich] = React.useState<SiteKey>(have.includes("old") ? "old" : have[0] || "live")
-  const scan = async (site?: SiteKey) => {
-    setBusy(true)
-    try { const { runId } = await api.scanProject(p.id, site); await refreshRuns(); reload(); go(routes.run(runId)) } catch (e) { toast.error((e as Error).message); setBusy(false) }
+  const [busy, setBusy] = React.useState<SiteKey | null>(null)
+  const audit = p.kind === "audit"
+  const scan = async (site: SiteKey) => {
+    setBusy(site)
+    try { const { runId } = await api.scanProject(p.id, site); await refreshRuns(); reload(); go(routes.run(runId)) } catch (e) { toast.error((e as Error).message); setBusy(null) }
   }
-  const latestScan = p.tools.runs.find((r) => r.pages > 0 && r.status !== "scanning")
-  const last = p.tools.runs[0]
-  const failed = last && last.status === "scan_failed" ? last : null
-  const scanning = p.tools.runs.find((r) => r.status === "scanning")
-  const siteOf = (r?: Project["tools"]["runs"][number] | null) => (r?.site && p.kind !== "audit" ? { old: "old site", staging: "staging site", live: "live site" }[r.site] : "")
-  const label = (r: Project["tools"]["runs"][number]) => (r.status === "done" || r.status === "partial" ? (r.output === "live" ? "Heading plan (tags only)" : "Heading plan (tags and rewrites)") : r.status === "scanning" ? "Scanning" : r.status === "running" ? "Planning headings" : r.status === "scan_failed" ? "Scan failed" : r.status === "failed" ? "Heading plan failed" : "Scan") + (r.seo && (r.seo.status === "done" || r.seo.status === "partial") ? ", SEO plan" : r.seo?.status === "running" ? ", planning SEO" : "")
-  const noScan = "Scan a site first."
-  const AI = "uses your Claude or ChatGPT subscription"
+  const keys: SiteKey[] = audit ? ["live"] : SITE_KEYS
+  const label = (r: Run) => (DONE(r.status) ? (r.output === "live" ? "Heading plan (tags only)" : "Heading plan (tags and rewrites)") : r.status === "scanning" ? "Scanning" : r.status === "running" ? "Planning headings" : r.status === "scan_failed" ? "Scan failed" : r.status === "failed" ? "Heading plan failed" : "Scan") + (r.seo && DONE(r.seo.status) ? ", SEO plan" : r.seo?.status === "running" ? ", planning SEO" : "")
   return (
     <div className="grid max-w-3xl gap-3 px-12 pt-6 pb-10">
-      <p className="mb-1 text-[14px] text-muted-foreground">{p.kind === "audit" ? `Groundwork’s tools for ${p.name}.` : `Groundwork’s tools for ${p.name}. Their results tick checklist items for you.`}</p>
-      {!have.length ? (
-        <ToolCard title="Site scan" cost="runs on your Mac, no AI" status="Add the project’s websites to scan them: the old site, staging or the live domain. The heading plan, SEO plan and redirect map start from a scan." action={<Button size="sm" variant="outline" onClick={onEdit}>Add websites</Button>} />
-      ) : (
-        <ToolCard
-          title="Site scan" cost="runs on your Mac, no AI"
-          status={scanning ? `Scanning the ${siteOf(scanning) || "site"} now.` : failed ? <>The last scan failed: {failed.error || "the site didn’t load"}</> : latestScan ? <>Latest: {siteOf(latestScan) ? `the ${siteOf(latestScan)}, ` : ""}{latestScan.pages} pages, {ago(latestScan.created)}.{p.sites.old && p.kind !== "audit" ? " A scan of the old site ticks “Crawl the current site”." : ""}</> : "Not scanned yet."}
-          action={scanning ? <Button size="sm" variant="outline" onClick={() => go(routes.run(scanning.id))}><Loader2 className="animate-spin" />Open</Button> : (
-            <div className="flex items-center gap-1.5">
-              {have.length > 1 && <select aria-label="Which site" value={which} onChange={(e) => setWhich(e.target.value as SiteKey)} className="h-8 rounded-lg border border-input bg-card px-2 text-[13px]">{have.map((k) => <option key={k} value={k}>{SITE_NAME[k]}</option>)}</select>}
-              <Button size="sm" variant="outline" onClick={() => scan(have.length > 1 ? which : have[0])} disabled={busy}>{busy && <Loader2 className="animate-spin" />}{failed ? "Retry" : latestScan ? "Scan again" : "Scan"}</Button>
-            </div>
-          )}
-        />
-      )}
+      <p className="text-[14px] text-muted-foreground">{audit ? `Groundwork’s tools for ${p.name}.` : `Groundwork’s tools for ${p.name}. Their results tick checklist items for you.`}</p>
+      <h2 className="mt-2 text-[13px] font-medium text-muted-foreground">{audit ? "Site" : "Websites"}</h2>
+      <div className="overflow-hidden rounded-xl border bg-card">
+        {keys.map((k) => <SiteTools key={k} p={p} k={k} label={audit ? "Site" : SITE_NAME[k]} busy={busy === k} onScan={() => scan(k)} onEdit={onEdit} />)}
+      </div>
+      <p className="text-[12.5px] text-muted-foreground">Scans run on your Mac with no AI. The heading and SEO plans use your Claude or ChatGPT subscription.</p>
+      <h2 className="mt-4 text-[13px] font-medium text-muted-foreground">Checks</h2>
       <LaunchCard p={p} reload={reload} />
-      <ToolCard
-        title="Heading plan" cost={AI}
-        status={p.tools.plan ? `${p.tools.plan.done} of ${p.tools.plan.total} tag fixes done.${p.kind !== "audit" ? " Ticks “Heading structure” when they’re all done." : ""}` : latestScan ? `H1 to H6 for each page: which tags to fix, and rewrites if you want them. Starts from the latest scan${siteOf(latestScan) ? `, of the ${siteOf(latestScan)}` : ""}.` : noScan}
-        action={p.tools.plan ? <Button size="sm" variant="outline" onClick={() => go(routes.review(p.tools.plan!.runId))}>Open the to-do list</Button> : latestScan ? <Button size="sm" variant="outline" onClick={() => go(routes.run(latestScan.id, "headings"))}>Plan headings</Button> : undefined}
-      />
-      <ToolCard
-        title="SEO plan" cost={AI}
-        status={p.tools.seoRunning ? "Planning now." : p.tools.seo ? `${p.tools.seo.done} of ${p.tools.seo.total} changes done across ${p.tools.seo.pages} pages.${p.kind !== "audit" ? " Ticks “SEO per page”." : ""}` : latestScan ? "A title, meta description and URL for each page, using the heading plan’s keywords when there is one." : noScan}
-        action={p.tools.seoRunning ? <Button size="sm" variant="outline" onClick={() => go(routes.run(p.tools.seoRunning!, "seo"))}><Loader2 className="animate-spin" />Open</Button> : p.tools.seo ? <Button size="sm" variant="outline" onClick={() => go(routes.seo(p.tools.seo!.runId))}>Open the SEO plan</Button> : latestScan ? <Button size="sm" variant="outline" onClick={() => go(routes.run(p.tools.plan?.runId || latestScan.id, "seo"))}>Plan SEO</Button> : undefined}
-      />
-      {p.kind !== "audit" && <RedirectCard p={p} />}
+      {!audit && <RedirectCard p={p} onEdit={onEdit} />}
       {p.tools.runs.length > 0 && (
         <section className="mt-4">
-          <h2 className="mb-2 text-[13px] font-medium text-muted-foreground">Scans and plans</h2>
+          <h2 className="mb-2 text-[13px] font-medium text-muted-foreground">History</h2>
           <div className="overflow-hidden rounded-xl border bg-card">
             {p.tools.runs.map((r) => (
-              <div key={r.id} className="grid min-h-11 grid-cols-[minmax(0,1fr)_84px_80px_64px_auto] items-center gap-3 border-t px-4 py-2 text-[13.5px] first:border-t-0">
-                <button onClick={() => go(r.status === "done" || r.status === "partial" ? routes.review(r.id) : r.seo && r.seo.status !== "failed" ? routes.seo(r.id) : routes.run(r.id))} className="grid min-w-0 gap-0.5 text-left hover:underline">
+              <div key={r.id} className="grid min-h-11 grid-cols-[minmax(0,1fr)_84px_96px_64px] items-center gap-3 border-t px-4 py-2 text-[13.5px] first:border-t-0">
+                <button onClick={() => go(DONE(r.status) ? routes.review(r.id) : r.seo && DONE(r.seo.status) ? routes.seo(r.id) : r.status === "running" ? routes.run(r.id, "headings") : r.seo?.status === "running" ? routes.run(r.id, "seo") : routes.run(r.id))} className="grid min-w-0 gap-0.5 text-left hover:underline">
                   <span className={cn(r.error && "text-destructive")}>{label(r)}</span>
                   {r.error && <span className="truncate text-xs text-muted-foreground">{r.error}</span>}
                 </button>
-                <span className="truncate text-muted-foreground">{r.site ? SITE_NAME[r.site] : ""}</span>
-                <span className="text-muted-foreground tabular">{r.pages} pages</span>
+                <span className="truncate text-muted-foreground">{r.site ? (audit ? "Site" : SITE_NAME[r.site]) : ""}</span>
+                <span className="text-muted-foreground tabular">{r.pages} found</span>
                 <span className="text-muted-foreground">{new Date(r.created).toLocaleDateString([], { month: "short", day: "numeric" })}</span>
-                {r.status === "scan_failed" ? <Button size="xs" variant="outline" onClick={() => scan(r.site || undefined)}>Retry</Button> : <span />}
               </div>
             ))}
           </div>
         </section>
       )}
+    </div>
+  )
+}
+
+/** One website on the Tools tab: its latest scan, and the heading and SEO plans made from its scans. */
+function SiteTools({ p, k, label, busy, onScan, onEdit }: { p: Project; k: SiteKey; label: string; busy: boolean; onScan: () => void; onEdit: () => void }) {
+  const url = p.sites[k]
+  const runs = p.tools.runs.filter((r) => r.site === k)
+  const scanning = runs.find((r) => r.status === "scanning")
+  const failed = runs[0]?.status === "scan_failed" ? runs[0] : null
+  const scan = runs.find((r) => r.pages > 0 && r.status !== "scanning" && r.status !== "scan_failed")
+  const heading = runs.find((r) => DONE(r.status) || r.status === "running")
+  const seo = runs.find((r) => r.seo && (DONE(r.seo.status) || r.seo.status === "running"))
+  const date = (r: Run) => new Date(r.created).toLocaleDateString([], { month: "short", day: "numeric" })
+  // One grid for the site and its tools, so the addresses and statuses line up.
+  const Row = ({ name, status, children }: { name: string; status: React.ReactNode; children?: React.ReactNode }) => (
+    <div className="grid min-h-10 grid-cols-[110px_minmax(0,1fr)_auto] items-center gap-3 text-[13.5px]">
+      <span className="text-muted-foreground">{name}</span>
+      <span className="min-w-0 truncate text-muted-foreground">{status}</span>
+      <span className="flex items-center gap-1.5">{children}</span>
+    </div>
+  )
+  // In a same-domain redesign the live domain shows the old site until launch day, so there's nothing new to scan yet.
+  const sameAsOld = k === "live" && !!url && !!p.sites.old && hostOfUrl(p.sites.old) === hostOfUrl(url) && !(p.launch && today() >= p.launch)
+  if (sameAsOld) return (
+    <div className="grid grid-cols-[110px_minmax(0,1fr)] items-center gap-3 border-t px-4 py-3 text-[13.5px] first:border-t-0">
+      <span className="font-medium">{label}</span>
+      <span className="min-w-0 text-muted-foreground"><a href={url} target="_blank" rel="noreferrer" className="text-foreground hover:underline">{hostOfUrl(url)}</a>, the same address as the old site. It shows the old site until launch day{p.launch ? ` (${fmtDay(p.launch)})` : ""}, so scan and check it from then on.</span>
+    </div>
+  )
+  if (!url) return (
+    <div className="grid grid-cols-[110px_minmax(0,1fr)_auto] items-center gap-3 border-t px-4 py-3 text-[13.5px] first:border-t-0">
+      <span className="font-medium">{label}</span>
+      <span className="text-muted-foreground">{k === "old" ? "Only for redesigns: the site being replaced." : k === "staging" ? "The new site before launch, like new-site.webflow.io." : "Where the site launches."}</span>
+      <Button size="xs" variant="ghost" onClick={onEdit}>Add</Button>
+    </div>
+  )
+  return (
+    <div className="grid gap-0.5 border-t px-4 py-3 first:border-t-0">
+      <div className="grid min-h-9 grid-cols-[110px_minmax(0,1fr)_auto] items-center gap-3 text-[13.5px]">
+        <span className="font-medium">{label}</span>
+        <a href={url} target="_blank" rel="noreferrer" className="min-w-0 truncate hover:underline">{hostOfUrl(url)}</a>
+        {scanning ? <Button size="sm" variant="outline" onClick={() => go(routes.run(scanning.id))}><Loader2 className="animate-spin" />Scanning</Button>
+          : <Button size="sm" variant="outline" onClick={onScan} disabled={busy}>{busy && <Loader2 className="animate-spin" />}{failed ? "Retry the scan" : scan ? "Scan again" : "Scan"}</Button>}
+      </div>
+      <Row name="Scan" status={failed && !scanning ? <span className="text-destructive">Failed: {failed.error || "the site didn’t load"}</span> : scan ? <>{scan.pages} pages found, {scan.scanned} read, {ago(scan.created)}</> : scanning ? "Scanning now" : "Not scanned yet"}>
+        {scan && <Button size="xs" variant="ghost" onClick={() => go(routes.run(scan.id))}>Open</Button>}
+      </Row>
+      <Row name="Heading plan" status={heading ? <>{heading.status === "running" ? "Planning now" : countsOf(heading)}{scan && heading.id !== scan.id ? `, from the ${date(heading)} scan` : ""}</> : scan ? "Not planned yet" : "Scan first"}>
+        {heading && <Button size="xs" variant="ghost" onClick={() => go(heading.status === "running" ? routes.run(heading.id, "headings") : routes.review(heading.id))}>Open</Button>}
+        {scan && (!heading || heading.id !== scan.id) && <Button size="xs" variant="outline" onClick={() => go(routes.run(scan.id, "headings"))}>{heading ? "Plan the latest scan" : "Plan headings"}</Button>}
+      </Row>
+      <Row name="SEO plan" status={seo ? <>{seo.seo!.status === "running" ? "Planning now" : seo.seo!.progress ? `${seo.seo!.progress.done} of ${seo.seo!.progress.tasks} changes done` : "Ready"}{scan && seo.id !== scan.id ? `, from the ${date(seo)} scan` : ""}</> : scan ? "Not planned yet" : "Scan first"}>
+        {seo && <Button size="xs" variant="ghost" onClick={() => go(seo.seo!.status === "running" ? routes.run(seo.id, "seo") : routes.seo(seo.id))}>Open</Button>}
+        {scan && (!seo || seo.id !== scan.id) && <Button size="xs" variant="outline" onClick={() => go(routes.run(scan.id, "seo"))}>{seo ? "Plan the latest scan" : "Plan SEO"}</Button>}
+      </Row>
     </div>
   )
 }
