@@ -11,33 +11,51 @@ import { api, type EngineId } from "@/lib/api"
 import { ago, cap, clock, pct } from "@/lib/format"
 import { SkillsSection } from "@/components/settings/Skills"
 
+const SECTIONS = [["you", "You"], ["engines", "Engines"], ["skills", "Skills"], ["updates", "Updates"], ["scanning", "Scanning"]] as const
+
 export function SettingsPage({ focus }: { focus?: EngineId }) {
   const { status } = useApp()
+  const [at, setAt] = React.useState<string>("you")
+  const scroller = React.useRef<HTMLDivElement>(null)
   React.useEffect(() => { if (focus) document.getElementById("engine-" + focus)?.scrollIntoView({ behavior: "smooth" }) }, [focus])
+  // The nav follows the section you've scrolled to.
+  React.useEffect(() => {
+    const el = scroller.current; if (!el) return
+    const on = () => { const top = el.getBoundingClientRect().top + 80; let cur = "you"; for (const [id] of SECTIONS) { const s = document.getElementById("s-" + id); if (s && s.getBoundingClientRect().top <= top) cur = id } setAt(cur) }
+    el.addEventListener("scroll", on); return () => el.removeEventListener("scroll", on)
+  }, [status])
   if (!status) return null
+  const Section = ({ id, title, desc, children }: { id: string; title: string; desc?: React.ReactNode; children: React.ReactNode }) => (
+    <section id={"s-" + id} className="scroll-mt-6 pt-10 first:pt-0">
+      <h2 className="border-b pb-2 text-[16px] font-medium">{title}</h2>
+      {desc && <p className="mt-3 text-[13.5px] text-muted-foreground">{desc}</p>}
+      <div className="mt-4">{children}</div>
+    </section>
+  )
   return (
     <div className="flex h-full flex-col">
-      <TopBar><span className="text-sm font-medium">Engines & settings</span></TopBar>
-      <div className="scrollbar-thin flex-1 overflow-auto">
-        <div className="mx-auto max-w-3xl px-6 py-8">
-          <Tag tone="muted">Settings</Tag>
-          <h1 className="mt-2 text-3xl font-medium">Engines & settings</h1>
-          <p className="mt-2 max-w-2xl text-sm text-muted-foreground">Groundwork runs Claude Code or Codex on this computer, signed in to <b className="text-foreground">your own account</b>. Every plan counts toward that plan’s usage limits. Groundwork never sees your password, and nothing goes through a Groundwork server.</p>
-          <div className="mt-6 grid gap-4">
-            <EngineCard k="claude" highlight={focus === "claude"} />
-            <EngineCard k="codex" highlight={focus === "codex"} />
-          </div>
-          <h2 id="skills" className="mt-10 mb-1 text-lg font-medium">Skills</h2>
-          <p className="mb-3 max-w-2xl text-sm text-muted-foreground">The rulebook the AI follows for heading plans. The built-in one is always here. Add your own to change the rules, and pick which one to use.</p>
-          <SkillsSection />
-          <h2 className="mt-10 mb-3 text-lg font-medium">You</h2>
-          <Preferences />
-          <h2 className="mt-10 mb-3 text-lg font-medium">Updates</h2>
-          <Updates />
-          <h2 className="mt-10 mb-3 text-lg font-medium">Scanning</h2>
-          <div className="grid gap-px overflow-hidden rounded-2xl border bg-border">
-            <div className="flex items-center gap-3 bg-card p-4 text-sm"><Globe className="size-4" /><span className="flex-1">Browser for scans</span>{status.browser.ok ? <span className="flex items-center gap-2"><Dot tone="ink" />{status.browser.name}</span> : <span className="text-brand">{status.browser.error}</span>}</div>
-            <div className="flex items-center gap-3 bg-card p-4 text-sm"><HardDrive className="size-4" /><span className="flex-1">Where sites and plans are saved</span><code className="rounded bg-muted px-1.5 py-0.5 tabular text-xs">groundwork/data</code></div>
+      <TopBar><span className="px-1.5 text-[14px]">Settings</span></TopBar>
+      <div className="flex min-h-0 flex-1">
+        <nav aria-label="Settings" className="hidden w-52 shrink-0 flex-col gap-px px-3 pt-10 md:flex">
+          {SECTIONS.map(([id, label]) => (
+            <button key={id} onClick={() => document.getElementById("s-" + id)?.scrollIntoView({ behavior: "smooth", block: "start" })} className={cn("flex h-[30px] items-center rounded-md px-2 text-left text-[14px] hover:bg-muted/60", at === id ? "bg-muted font-medium text-foreground" : "text-muted-foreground")}>{label}</button>
+          ))}
+        </nav>
+        <div ref={scroller} className="scrollbar-thin flex-1 overflow-auto">
+          <div className="max-w-3xl px-12 pt-10 pb-16">
+            <h1 className="mb-8 text-[32px] leading-tight font-medium">Settings</h1>
+            <Section id="you" title="You"><Preferences /></Section>
+            <Section id="engines" title="Engines" desc={<>Groundwork runs Claude Code or Codex on this computer, signed in to <b className="font-medium text-foreground">your own account</b>. Every plan counts toward that plan’s usage limits. Groundwork never sees your password, and nothing goes through a Groundwork server.</>}>
+              <div className="grid gap-4"><EngineCard k="claude" highlight={focus === "claude"} /><EngineCard k="codex" highlight={focus === "codex"} /></div>
+            </Section>
+            <Section id="skills" title="Skills" desc="The rules the AI follows. The built-in ones are always here. Add your own to change the rules, and pick which one each plan uses."><SkillsSection /></Section>
+            <Section id="updates" title="Updates"><Updates /></Section>
+            <Section id="scanning" title="Scanning">
+              <div className="grid gap-px overflow-hidden rounded-xl border bg-border">
+                <div className="flex items-center gap-3 bg-card p-4 text-sm"><Globe className="size-4" /><span className="flex-1">Browser for scans</span>{status.browser.ok ? <span className="flex items-center gap-2"><Dot tone="ink" />{status.browser.name}</span> : <span className="text-brand">{status.browser.error}</span>}</div>
+                <div className="flex items-center gap-3 bg-card p-4 text-sm"><HardDrive className="size-4" /><span className="flex-1">Where projects, sites and plans are saved</span><span className="text-xs text-muted-foreground">The app’s data folder (Help, Show app data in Finder)</span></div>
+              </div>
+            </Section>
           </div>
         </div>
       </div>
@@ -48,8 +66,8 @@ export function SettingsPage({ focus }: { focus?: EngineId }) {
 function Cmd({ cmd }: { cmd: string }) {
   const [ok, setOk] = React.useState(false)
   return (
-    <div className="mt-2 flex items-center gap-2 rounded-lg bg-[#161716] py-2 pr-2 pl-3 tabular text-[13px] text-[#fefcf6]">
-      <span className="text-[#817f79]">$</span><code className="flex-1 overflow-auto whitespace-nowrap">{cmd}</code>
+    <div className="mt-2 flex items-center gap-2 rounded-lg bg-[#161716] py-2 pr-2 pl-3 tabular text-[13px] text-[#fcfcfb]">
+      <span className="text-[#7f7e7a]">$</span><code className="flex-1 overflow-auto whitespace-nowrap">{cmd}</code>
       <button onClick={() => { navigator.clipboard.writeText(cmd); setOk(true); setTimeout(() => setOk(false), 1500) }} className="inline-flex items-center gap-1 rounded-md bg-white/10 px-2 py-1 font-sans text-xs hover:bg-white/15">
         {ok ? <Check className="size-3" /> : <Copy className="size-3" />}{ok ? "Copied" : "Copy"}
       </button>

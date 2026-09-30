@@ -1,6 +1,6 @@
 import * as React from "react"
 import { cn } from "cn"
-import { ArrowLeft, ArrowRight, Camera, Check, ChevronDown, Download, FolderPlus, House, LayoutTemplate, Loader2, MoreHorizontal, PanelLeft, Pencil, RefreshCw, Settings, SquarePen, Trash2 } from "lucide-react"
+import { ArrowLeft, ArrowRight, Camera, Check, ChevronDown, Download, FolderPlus, House, LayoutTemplate, Loader2, MoreHorizontal, PanelLeft, Pencil, RefreshCw, Search, Settings, SquarePen, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -10,6 +10,7 @@ import { useApp } from "@/hooks/useApp"
 import { go, routes, useRoute } from "@/lib/router"
 import { api, type ProjectSummary, type RunSummary } from "@/lib/api"
 import { NewProjectDialog, newProject } from "@/components/project/NewProjectDialog"
+import { QuickFind, openQuickFind } from "@/components/shell/QuickFind"
 import { ago, pct, plural } from "@/lib/format"
 import { OUTPUTS } from "@/components/composer/pickers"
 import { Bar, Dot, Logo, Ring, SiteIcon, Spinner, renameSite, runLabel } from "@/components/common/bits"
@@ -46,6 +47,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       if (!(MAC ? e.metaKey : e.ctrlKey) || e.altKey || e.shiftKey) return
       const k = e.key.toLowerCase()
       if (k === "b") { e.preventDefault(); setSidebar(!sidebar) }
+      else if (k === "k") { e.preventDefault(); openQuickFind() }
       else if (DESKTOP() && k === "[") { e.preventDefault(); history.back() }
       else if (DESKTOP() && k === "]") { e.preventDefault(); history.forward() }
       else if (DESKTOP() && k === "n") { e.preventDefault(); newProject() }
@@ -58,6 +60,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="relative flex h-full bg-canvas" data-sidebar={sidebar ? "open" : "closed"}>
       <RenameDialog />
       <NewProjectDialog />
+      <QuickFind />
       {sidebar ? (
         <Sidebar />
       ) : (
@@ -156,9 +159,9 @@ function SiteRow({ host, list, cur, onRemove }: { host: string; list: RunSummary
   const active = list.some((r) => r.id === cur)
   const busy = list.some((r) => r.status === "running" || r.status === "scanning")
   return (
-    <div className={cn("group relative flex items-center rounded-lg hover:bg-sidebar-accent", active && "bg-sidebar-accent")}>
+    <div className={cn("group relative flex items-center rounded-md hover:bg-sidebar-accent", active && "bg-sidebar-accent")}>
       {/* Fixed columns so the rings and counts line up from row to row. The menu button sits over the count on hover. */}
-      <button onClick={() => openRun(latest)} className="grid min-w-0 flex-1 grid-cols-[20px_minmax(0,1fr)_14px_38px] items-center gap-2 py-1.5 pl-2 text-left text-[13.5px]">
+      <button onClick={() => openRun(latest)} className="grid h-[30px] min-w-0 flex-1 grid-cols-[20px_minmax(0,1fr)_14px_38px] items-center gap-2 pl-2 text-left text-[14px] text-foreground/85">
         <SiteIcon runId={(list.find((r) => r.hasIcon) || latest).id} name={label} className="size-5 rounded-[5px] text-[10px]" />
         <span className="min-w-0 truncate" title={label !== host ? host : undefined}>{label}</span>
         <span className="grid place-items-center">{busy ? <Spinner className="size-3" /> : l.total ? <Ring done={l.done!} total={l.total} size={13} /> : l.tone === "bad" ? <Dot tone="bad" /> : null}</span>
@@ -215,10 +218,10 @@ export function VersionMenu({ runId }: { runId: string }) {
   )
 }
 
-function NavItem({ icon: Icon, label, active, onClick }: { icon: React.ComponentType<{ className?: string }>; label: string; active?: boolean; onClick: () => void }) {
+function NavItem({ icon: Icon, label, active, onClick, hint }: { icon: React.ComponentType<{ className?: string }>; label: string; active?: boolean; onClick: () => void; hint?: string }) {
   return (
-    <button onClick={onClick} className={cn("flex h-8 items-center gap-2.5 rounded-lg px-2 text-[13.5px] hover:bg-sidebar-accent", active && "bg-sidebar-accent")}>
-      <Icon className="size-4 text-foreground/70" />{label}
+    <button onClick={onClick} className={cn("group flex h-[30px] items-center gap-2.5 rounded-md px-2 text-[14px] font-medium text-foreground/80 hover:bg-sidebar-accent", active && "bg-sidebar-accent text-foreground")}>
+      <Icon className="size-4 text-muted-foreground" /><span className="flex-1 text-left">{label}</span>{hint && <span className="text-[11px] font-normal text-muted-foreground opacity-0 group-hover:opacity-100">{hint}</span>}
     </button>
   )
 }
@@ -227,11 +230,11 @@ function NavItem({ icon: Icon, label, active, onClick }: { icon: React.Component
 function ProjectRow({ p, active }: { p: ProjectSummary; active: boolean }) {
   const c = p.current
   return (
-    <button onClick={() => go(routes.project(p.id))} className={cn("grid h-8 w-full grid-cols-[20px_minmax(0,1fr)_18px_14px] items-center gap-2 rounded-lg px-2 text-left text-[13.5px] hover:bg-sidebar-accent", active && "bg-sidebar-accent")}>
+    <button onClick={() => go(routes.project(p.id))} className={cn("grid h-[30px] w-full grid-cols-[20px_minmax(0,1fr)_18px_14px] items-center gap-2 rounded-md px-2 text-left text-[14px] text-foreground/85 hover:bg-sidebar-accent", active && "bg-sidebar-accent text-foreground")}>
       <SiteIcon runId={p.iconRun || undefined} name={p.name} className="size-5 rounded-[5px] text-[10px]" />
       <span className="truncate">{p.name}</span>
       <span className="text-right text-[11px] text-muted-foreground tabular">{c ? String(c.index).padStart(2, "0") : ""}</span>
-      <span className="grid place-items-center">{c ? <Ring done={c.ready ? 1 : c.done} total={c.ready ? 1 : c.total} size={13} /> : <Ring done={1} total={1} size={13} />}</span>
+      <span className="grid place-items-center" title={p.running ? `${p.running} running` : undefined}>{p.running ? <Spinner className="size-3" /> : c ? <Ring done={c.ready ? 1 : c.done} total={c.ready ? 1 : c.total} size={13} /> : <Ring done={1} total={1} size={13} />}</span>
     </button>
   )
 }
@@ -268,17 +271,18 @@ function Sidebar({ floating, open, onHover, panelRef }: { floating?: boolean; op
       {/* The top row belongs to the window buttons and the toggle cluster, which float above it. */}
       <div className={cn("app-drag shrink-0", floating ? "h-12" : "h-14")} />
       <nav aria-label="Main" className="grid gap-px">
-        <NavItem icon={SquarePen} label="New project" onClick={() => newProject()} />
+        <NavItem icon={SquarePen} label="New project" hint="⌘N" onClick={() => newProject()} />
+        <NavItem icon={Search} label="Search" hint="⌘K" onClick={openQuickFind} />
         <NavItem icon={House} label="Home" active={route.name === "home"} onClick={() => go(routes.home)} />
         <NavItem icon={LayoutTemplate} label="Templates" active={route.name === "templates" || route.name === "template"} onClick={() => go(routes.templates)} />
       </nav>
       <div className="scrollbar-thin mt-4 min-h-0 flex-1 overflow-auto">
-        <div className="px-2 pb-1 text-xs text-muted-foreground">Projects</div>
+        <div className="px-2 pb-1 text-[12px] font-medium text-muted-foreground">Projects</div>
         {!projects.length && <p className="px-2 py-1 text-[13px] text-muted-foreground">Projects you start show up here.</p>}
         {projects.map((p) => <ProjectRow key={p.id} p={p} active={(route.name === "project" && route.id === p.id) || (!!curHost && curHost === p.host)} />)}
         {groups.length > 0 && (
           <>
-            <div className="mt-4 px-2 pb-1 text-xs text-muted-foreground">Other sites</div>
+            <div className="mt-5 px-2 pb-1 text-[12px] font-medium text-muted-foreground">Other sites</div>
             {groups.map(([host, list]) => <SiteRow key={host} host={host} list={list} cur={cur} onRemove={() => setRemoving({ host, list })} />)}
           </>
         )}
@@ -347,7 +351,7 @@ function UsageCard() {
       </div>
       {sub && (w.five_hour || w.seven_day) && <div className="grid gap-1.5 px-1 py-1">{bar("5-hour", w.five_hour)}{bar("Weekly", w.seven_day)}</div>}
       <button onClick={() => go(routes.settings())} className={cn("flex items-center gap-2 rounded-md px-1 py-1 text-left text-[13px] text-muted-foreground hover:bg-sidebar-accent hover:text-foreground", route.name === "settings" && "text-foreground")}>
-        <Settings className="size-3.5" /><span className="flex-1">Engines & settings</span>
+        <Settings className="size-3.5" /><span className="flex-1">Settings</span>
         {!ready("claude") && !ready("codex") && <span className="text-xs font-medium text-brand-ink">Set up</span>}
       </button>
     </div>

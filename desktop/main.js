@@ -2,9 +2,33 @@
 const { app, BrowserWindow, Menu, dialog, nativeTheme, shell } = require('electron');
 const path = require('path'), fs = require('fs'), net = require('net');
 
-const ROOT = path.join(__dirname, '..');
+const BUNDLED = path.join(__dirname, '..');
 // Running from source (npm run app) gets its own lock and uses the source folder's data, so it can run next to the installed app.
 if (!app.isPackaged) app.setPath('userData', path.join(app.getPath('appData'), 'Groundwork Dev'));
+
+// Code updates: most releases only change the app's code, which the updater downloads into <userData>/code/<version>/.
+// That never touches the app in /Applications, so macOS doesn't ask for permission on every update. The newest copy
+// that fits this app's shell (desktop/, Electron) runs; a release that changes the shell comes as a full app update.
+const SHELL = require('../package.json').gwShell || 1;
+const CODE_DIR = path.join(app.getPath('userData'), 'code');
+const newer = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); return false; };
+function pickCode() {
+  if (!app.isPackaged) return BUNDLED;
+  let best = null, bestV = app.getVersion();
+  try {
+    for (const name of fs.readdirSync(CODE_DIR)) {
+      const dir = path.join(CODE_DIR, name);
+      try {
+        const pkg = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'));
+        // Copies no newer than this app (after a full update) are left over: remove them.
+        if (!newer(pkg.version, app.getVersion())) { fs.rmSync(dir, { recursive: true, force: true }); continue; }
+        if ((pkg.gwShell || 1) === SHELL && newer(pkg.version, bestV) && fs.existsSync(path.join(dir, 'server.js'))) { best = dir; bestV = pkg.version; }
+      } catch {}
+    }
+  } catch {}
+  return best || BUNDLED;
+}
+const ROOT = pickCode();
 if (!app.requestSingleInstanceLock()) { app.quit(); process.exit(0); }
 app.setName('Groundwork');
 
@@ -30,7 +54,7 @@ function createWindow() {
     width: 1440, height: 900, minWidth: 980, minHeight: 640, show: false,
     // The window buttons sit on the same line as the sidebar toggle and the page header (32px from the top).
     titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 20, y: 25 },
-    backgroundColor: nativeTheme.shouldUseDarkColors ? '#080807' : '#eae9e5',
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#080808' : '#ebebe9',
     webPreferences: { contextIsolation: true, sandbox: true },
   });
   const home = `http://127.0.0.1:${port}/`;
@@ -61,10 +85,19 @@ app.whenReady().then(async () => {
   try {
     port = await freePort(4478);
     Object.assign(process.env, { PORT: String(port), GW_DATA: DATA, GW_APP: '1' });
-    global.gwDesktop = require('./updater')({ app, shell, repo: 'asheemstha/groundwork', log });
-    server = require(path.join(ROOT, 'server.js'));
-    await server.ready;
-    log('server on', port, 'data', DATA, 'version', app.getVersion());
+    const codeVersion = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version;
+    global.gwDesktop = require('./updater')({ app, shell, repo: 'asheemstha/groundwork', log, version: codeVersion, shellVersion: SHELL, codeDir: CODE_DIR, running: ROOT });
+    try {
+      server = require(path.join(ROOT, 'server.js'));
+      await Promise.race([server.ready, new Promise((_, no) => setTimeout(() => no(new Error('The server didn’t start in time.')), 30000))]);
+    } catch (e) {
+      // A downloaded copy that won't start is thrown away, and the app starts again on the version it shipped with.
+      if (ROOT === BUNDLED) throw e;
+      log('code update failed to start, going back to the bundled version', e.stack || e);
+      fs.rmSync(ROOT, { recursive: true, force: true });
+      app.relaunch(); app.exit(0); return;
+    }
+    log('server on', port, 'data', DATA, 'version', codeVersion, ROOT === BUNDLED ? '(bundled)' : '(code update)', 'app', app.getVersion());
     buildMenu();
     createWindow();
   } catch (e) {

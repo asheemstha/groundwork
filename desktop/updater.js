@@ -1,10 +1,11 @@
 // Self-updater for the unsigned Mac app, using the repo's GitHub Releases.
-// It downloads the new .zip, unpacks it with ditto, swaps the app bundle once we quit, and reopens.
-// Files downloaded this way aren't quarantined, so macOS doesn't ask again after the first install.
+// Usually it downloads just the new code (Groundwork-x.y.z-code-shellN.zip) into the app's data folder and restarts:
+// the app in /Applications isn't touched, so macOS doesn't ask for permission each time. When a release changes the
+// app's shell (desktop/, Electron), it downloads the full .zip, swaps the app bundle once we quit, and reopens.
 const https = require('https'), fs = require('fs'), path = require('path'), os = require('os');
 const { execFile, spawn } = require('child_process');
 
-module.exports = function updater({ app, shell, repo, log }) {
+module.exports = function updater({ app, shell, repo, log, version: codeVersion, shellVersion = 1, codeDir, running }) {
   const feed = process.env.GW_RELEASES_URL || `https://api.github.com/repos/${repo}/releases/latest`;
   const releasesPage = `https://github.com/${repo}/releases/latest`;
   let latest = null;
@@ -23,13 +24,14 @@ module.exports = function updater({ app, shell, repo, log }) {
   const run = (cmd, args) => new Promise((resolve, reject) => execFile(cmd, args, (e, o, er) => e ? reject(new Error(er || e.message)) : resolve(o)));
 
   async function check() {
-    const version = app.getVersion();
+    const version = codeVersion || app.getVersion();
     const base = { enabled: app.isPackaged, app: true, version, commit: version, behind: 0, latest: null, checkedAt: Date.now(), error: null, launcher: true, url: releasesPage };
     try {
       const rel = await getJson(feed);
       const v = String(rel.tag_name || '').replace(/^v/, '');
-      const asset = (rel.assets || []).find(a => /\.zip$/i.test(a.name) && /mac|darwin|universal/i.test(a.name)) || (rel.assets || []).find(a => /\.zip$/i.test(a.name));
-      latest = v && asset ? { v, url: asset.browser_download_url, page: rel.html_url || releasesPage } : null;
+      const asset = (rel.assets || []).find(a => /\.zip$/i.test(a.name) && /mac|darwin|universal/i.test(a.name));
+      const code = (rel.assets || []).find(a => new RegExp(`-code-shell${shellVersion}\\.zip$`, 'i').test(a.name));
+      latest = v && (asset || code) ? { v, url: asset && asset.browser_download_url, codeUrl: code && code.browser_download_url, page: rel.html_url || releasesPage } : null;
       const note = String(rel.body || rel.name || '').split('\n').map(s => s.trim()).find(Boolean) || null;
       return { ...base, behind: latest && newer(v, version) ? 1 : 0, latest: latest ? `${v}${note ? ': ' + note : ''}` : null, url: latest ? latest.page : releasesPage };
     } catch (e) {
@@ -39,9 +41,34 @@ module.exports = function updater({ app, shell, repo, log }) {
     }
   }
 
+  // Just the code: unpack it next to the others, keep the one that's running, and restart.
+  async function installCode() {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'groundwork-code-'));
+    try {
+      const zip = path.join(tmp, 'code.zip'), out = path.join(tmp, 'code');
+      log && log('downloading code', latest.codeUrl);
+      await download(latest.codeUrl, zip);
+      fs.mkdirSync(out);
+      await run('/usr/bin/ditto', ['-x', '-k', zip, out]);
+      const pkg = JSON.parse(fs.readFileSync(path.join(out, 'package.json'), 'utf8'));
+      if (pkg.version !== latest.v || !fs.existsSync(path.join(out, 'server.js'))) throw new Error('The update download didn’t look right.');
+      fs.mkdirSync(codeDir, { recursive: true });
+      const dest = path.join(codeDir, latest.v);
+      fs.rmSync(dest, { recursive: true, force: true });
+      fs.renameSync(out, dest);
+      // Older copies go, except the one running now (it's the fallback until the new one starts).
+      for (const name of fs.readdirSync(codeDir)) { const d = path.join(codeDir, name); if (d !== dest && d !== running) fs.rmSync(d, { recursive: true, force: true }); }
+    } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+    log && log('installed code', latest.v);
+    setTimeout(() => { app.relaunch(); app.exit(0); }, 400);
+    return { ok: true, restart: 'auto' };
+  }
+
   async function install() {
     if (!latest) await check();
-    if (!latest || !newer(latest.v, app.getVersion())) throw new Error('Groundwork is already up to date.');
+    if (!latest || !newer(latest.v, codeVersion || app.getVersion())) throw new Error('Groundwork is already up to date.');
+    if (latest.codeUrl) return installCode();
+    if (!latest.url) throw new Error('This release has no Mac download yet.');
     const bundle = path.resolve(app.getPath('exe'), '..', '..', '..');
     try { fs.accessSync(path.dirname(bundle), fs.constants.W_OK); if (!bundle.endsWith('.app')) throw new Error(); }
     catch {

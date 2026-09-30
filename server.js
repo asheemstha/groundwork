@@ -33,7 +33,7 @@ const siteName = host => (readJson(sitesFile, {})[host] || {}).name || null;
 const setSiteName = (host, name) => { const all = readJson(sitesFile, {}); name = String(name || '').trim().slice(0, 60); if (name) all[host] = { ...(all[host] || {}), name }; else if (all[host]) delete all[host].name; writeJson(sitesFile, all); };
 // Projects and templates (lib/projects.js). A project links to a site's scans and plans by its host.
 const runsFor = host => fs.readdirSync(RUNS).map(id => loadRun(id)).filter(r => r && hostOf(r.origin || r.url) === host).sort((a, b) => b.created - a.created);
-const SK = require('./lib/skills')({ DATA, BUILTIN: H.SKILL_DIR, readJson, writeJson });
+const SK = require('./lib/skills')({ DATA, BUILTIN: H.SKILL_DIR, readJson, writeJson, seoRules: SEO.RULES });
 const P = require('./lib/projects')({ DATA, readJson, writeJson, runsFor, hostOf: u => hostOf(/^https?:\/\//i.test(u) ? u : 'https://' + u) });
 const ICON_EXT = { 'image/svg+xml': 'svg', 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif' };
 function saveFavicon(run, fav) {
@@ -246,7 +246,7 @@ async function startJob(run, settings, selected) {
     notes: String(settings.notes || '').trim().slice(0, 2000)
   };
   // The skill in use: the one picked in the composer, else the one remembered, else the built-in.
-  const sk = SK.get(settings.skill || (getSettings().prefs || {}).skill);
+  const sk = SK.get(settings.skill || (getSettings().prefs || {}).skill, 'headings');
   Object.assign(S, { skill: sk.id, skillName: sk.name, skillSlug: sk.slug });
   const ids = new Set(run.pages.map(p => p.id));
   run.selected = selected.filter(id => ids.has(id));
@@ -380,6 +380,8 @@ async function startSeo(run, settings, selected) {
     model: String(settings.model || 'default'), effort: String(settings.effort || 'medium'),
     notes: String(settings.notes || '').trim().slice(0, 2000)
   };
+  const sk = SK.get(settings.skill || (getSettings().prefs || {}).seoSkill, 'seo');
+  Object.assign(S, { skill: sk.id, skillName: sk.name });
   const ok = new Set(run.pages.filter(p => p.status && p.status < 400).map(p => p.id));
   const sel = selected.filter(id => ok.has(id));
   if (!sel.length) throw new Error('Pick at least one page.');
@@ -399,6 +401,11 @@ async function seoJob(run) {
   if (l.cancelled) return seoFinish(run, 'cancelled');
   fs.rmSync(path.join(seoDir(run), 'plan'), { recursive: true, force: true });
   fs.mkdirSync(path.join(seoDir(run), 'plan'), { recursive: true });
+  // An added SEO skill goes next to the plan, for the AI to read first.
+  fs.rmSync(path.join(seoDir(run), 'skill'), { recursive: true, force: true });
+  const skDir = sq.settings.skill && SK.dirOf(sq.settings.skill);
+  if (skDir) fs.cpSync(skDir, path.join(seoDir(run), 'skill'), { recursive: true });
+  else if (sq.settings.skill !== SK.SEO_BUILTIN) sq.settings.skill = SK.SEO_BUILTIN;
   writeJson(path.join(seoDir(run), 'current.json'), current);
   for (const p of run.pages.filter(x => sq.selected.includes(x.id))) {
     const cr = readJson(path.join(dir, 'crawl', p.id + '.json'));
@@ -560,14 +567,15 @@ const server = http.createServer(async (req, res) => {
       return json(res, getSettings().limits || null);
     }
     // ---- skills ----
-    const skillsOut = () => ({ active: SK.get((getSettings().prefs || {}).skill).id, skills: SK.list() });
+    const skillsOut = () => { const pr = getSettings().prefs || {}; return { headings: { active: SK.get(pr.skill, 'headings').id, skills: SK.list('headings') }, seo: { active: SK.get(pr.seoSkill, 'seo').id, skills: SK.list('seo') } }; };
+    const prefKey = tool => tool === 'seo' ? 'seoSkill' : 'skill';
     if (p === '/api/skills' && M === 'GET') return json(res, skillsOut());
     if (p === '/api/skills' && M === 'POST') {
       const b = await body(req);
-      try { const id = SK.add(b); setSettings({ prefs: { ...(getSettings().prefs || {}), skill: id } }); return json(res, { ...skillsOut(), added: id }); }
+      try { const id = SK.add(b); setSettings({ prefs: { ...(getSettings().prefs || {}), [prefKey(b.tool)]: id } }); return json(res, { ...skillsOut(), added: id }); }
       catch (e) { return json(res, { error: e.message }, 400); }
     }
-    if (p === '/api/skills/active' && M === 'POST') { const b = await body(req); setSettings({ prefs: { ...(getSettings().prefs || {}), skill: SK.get(b.id).id } }); return json(res, skillsOut()); }
+    if (p === '/api/skills/active' && M === 'POST') { const b = await body(req); const tool = SK.toolOf(b.id); setSettings({ prefs: { ...(getSettings().prefs || {}), [prefKey(tool)]: SK.get(b.id, tool).id } }); return json(res, skillsOut()); }
     let sm = p.match(/^\/api\/skills\/([a-z0-9-]+)\/(copy|open)$/);
     if (sm && M === 'POST' && sm[2] === 'copy') { try { const id = SK.duplicate(sm[1]); return json(res, { ...skillsOut(), added: id }); } catch (e) { return json(res, { error: e.message }, 400); } }
     if (sm && M === 'POST' && sm[2] === 'open') {
@@ -578,7 +586,12 @@ const server = http.createServer(async (req, res) => {
     }
     sm = p.match(/^\/api\/skills\/([a-z0-9-]+)$/);
     if (sm && M === 'DELETE') {
-      try { SK.remove(sm[1]); const pr = getSettings().prefs || {}; if (pr.skill === sm[1]) setSettings({ prefs: { ...pr, skill: SK.BUILTIN_ID } }); return json(res, skillsOut()); }
+      try {
+        SK.remove(sm[1]); const pr = getSettings().prefs || {};
+        if (pr.skill === sm[1]) setSettings({ prefs: { ...pr, skill: SK.BUILTIN_ID } });
+        if (pr.seoSkill === sm[1]) setSettings({ prefs: { ...(getSettings().prefs || {}), seoSkill: SK.SEO_BUILTIN } });
+        return json(res, skillsOut());
+      }
       catch (e) { return json(res, { error: e.message }, 400); }
     }
     if (p === '/api/sites' && M === 'POST') { const b = await body(req); if (!b.host) return json(res, { error: 'Missing site' }, 400); setSiteName(String(b.host), b.name); return json(res, { ok: true, name: siteName(String(b.host)) }); }
@@ -624,14 +637,18 @@ const server = http.createServer(async (req, res) => {
         if (!sub && M === 'GET') return json(res, P.get(id));
         if (!sub && M === 'PATCH') { const b = await body(req); P.update(id, b); if (b.name && P.readRaw(id).host) setSiteName(P.readRaw(id).host, b.name); return json(res, P.get(id)); }
         if (!sub && M === 'DELETE') { P.remove(id); return json(res, { ok: true }); }
+        if (sub === '/template' && M === 'POST') { const b = await body(req); const r = P.templateUpdate(id, b); return json(res, b.dryRun ? r : { ...r, project: P.get(id) }); }
         if (sub === '/shift' && M === 'POST') { const b = await body(req); const r = P.shiftPlan(id, b); return json(res, b.dryRun ? r : P.get(id)); }
         let mm = sub.match(/^\/items\/([\w-]+)$/);
         if (mm && M === 'POST') { P.setItem(id, mm[1], await body(req)); return json(res, P.get(id)); }
-        if (sub === '/ask' && M === 'POST') { const b = await body(req); P.askItems(id, b.items || []); return json(res, P.get(id)); }
+        if (sub === '/ask' && M === 'POST') { const b = await body(req); P.askItems(id, b.items || [], !!b.nudge); return json(res, P.get(id)); }
         mm = sub.match(/^\/signoff\/([\w-]+)$/);
         if (mm && M === 'POST') { P.signoff(id, mm[1], await body(req)); return json(res, P.get(id)); }
         if (mm && M === 'DELETE') { P.unsign(id, mm[1]); return json(res, P.get(id)); }
         if (sub === '/launch' && M === 'POST') { const b = await body(req); return json(res, { checkId: P.startLaunch(id, b.url) }); }
+        const lc = sub.match(/^\/launch\/([a-z0-9]+)\/cancel$/);
+        if (lc && M === 'POST') { P.cancelLaunch(id, lc[1]); return json(res, { ok: true }); }
+        if (sub === '/redirects/cancel' && M === 'POST') { P.cancelRedirects(id); return json(res, { ok: true }); }
         mm = sub.match(/^\/launch\/([a-z0-9]+)$/);
         if (mm && M === 'GET') { const r = P.getLaunch(id, mm[1]); return r ? json(res, r) : json(res, { error: 'Not found' }, 404); }
         if (sub === '/redirects' && M === 'GET') return json(res, P.redirectState(id));

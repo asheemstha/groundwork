@@ -42,6 +42,17 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
         run: npx electron-builder --mac --universal --publish never
 
+      # Just the code, for updates that don't need a new app: the app downloads this into its data folder,
+      # so /Applications isn't touched and macOS doesn't ask for permission. N is package.json's gwShell.
+      - name: Code-only update
+        run: |
+          v=$(node -p "require('./package.json').version"); s=$(node -p "require('./package.json').gwShell || 1")
+          mkdir -p codepkg/web codepkg/node_modules
+          cp -R server.js package.json lib shared tools codepkg/
+          cp -R web/dist codepkg/web/
+          cp -R node_modules/playwright-core codepkg/node_modules/
+          (cd codepkg && zip -qry "../release/Groundwork-$v-code-shell$s.zip" .)
+
       - name: Release notes
         run: git log -1 --format=%B | grep -v '^Co-Authored-By:' > notes.md
 
@@ -52,3 +63,4 @@ jobs:
           files: |
             release/Groundwork-*-mac.dmg
             release/Groundwork-*-mac.zip
+            release/Groundwork-*-code-shell*.zip

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { ChipButton } from "@/components/composer/pickers"
-import { api, type Skill, type Skills as SkillsData } from "@/lib/api"
+import { api, type Skill, type SkillTool, type Skills as SkillsData } from "@/lib/api"
 import { go, routes } from "@/lib/router"
 
 // One copy of the list for the whole app, so the settings page and the composer agree.
@@ -26,24 +26,35 @@ export function useSkills() {
 const b64 = (f: Blob) => new Promise<string>((ok, no) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(",")[1] || ""); r.onerror = no; r.readAsDataURL(f) })
 const day = (t: number) => new Date(t).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })
 
+/** Both tools' skills, one list each. */
 export function SkillsSection() {
-  const { data, set } = useSkills()
+  return (
+    <div className="grid gap-6">
+      <div><h3 className="mb-1 text-[14px] font-medium">Heading plan</h3><p className="mb-2.5 text-[13px] text-muted-foreground">The rulebook for H1 to H6: which tags to fix and how to write headings.</p><SkillList tool="headings" /></div>
+      <div><h3 className="mb-1 text-[14px] font-medium">SEO plan</h3><p className="mb-2.5 text-[13px] text-muted-foreground">How titles, meta descriptions and URLs are written. An added skill is read first and wins, except the character limits the app checks.</p><SkillList tool="seo" /></div>
+    </div>
+  )
+}
+
+function SkillList({ tool }: { tool: SkillTool }) {
+  const { data: all, set } = useSkills()
+  const data = all?.[tool]
   const [busy, setBusy] = React.useState(false)
   const [removing, setRemoving] = React.useState<Skill | null>(null)
   const folder = React.useRef<HTMLInputElement>(null), zip = React.useRef<HTMLInputElement>(null)
-  const added = (r: SkillsData) => { set(r); const s = r.skills.find((x) => x.id === r.added); toast.success(`Added ${s?.name || "the skill"}`, { description: "It’s the one in use now." }) }
+  const added = (r: SkillsData) => { set(r); const s = r[tool].skills.find((x) => x.id === r.added); toast.success(`Added ${s?.name || "the skill"}`, { description: "It’s the one in use now." }) }
   const addFolder = async (list: FileList | null) => {
     if (!list?.length) return
     setBusy(true)
     try {
       const files = await Promise.all([...list].filter((f) => !/(^|\/)\./.test(f.webkitRelativePath) && f.size < 5e6).map(async (f) => ({ path: f.webkitRelativePath || f.name, data: await b64(f) })))
-      added(await api.addSkill({ files }))
+      added(await api.addSkill({ files, tool }))
     } catch (e) { toast.error((e as Error).message) } finally { setBusy(false); if (folder.current) folder.current.value = "" }
   }
   const addZip = async (f?: File) => {
     if (!f) return
     setBusy(true)
-    try { added(await api.addSkill({ zip: await b64(f) })) } catch (e) { toast.error((e as Error).message) } finally { setBusy(false); if (zip.current) zip.current.value = "" }
+    try { added(await api.addSkill({ zip: await b64(f), tool })) } catch (e) { toast.error((e as Error).message) } finally { setBusy(false); if (zip.current) zip.current.value = "" }
   }
   const use = async (id: string) => { try { set(await api.useSkill(id)) } catch (e) { toast.error((e as Error).message) } }
   if (!data) return null
@@ -51,7 +62,7 @@ export function SkillsSection() {
     <div className="overflow-hidden rounded-2xl border bg-card text-sm">
       {data.skills.map((s) => {
         const on = s.id === data.active
-        const rules = s.missing.some((m) => m.file === "references/heading-rules.md"), tpl = s.missing.some((m) => m.file === "assets/heading-map-template.html")
+        const rules = tool === "headings" && s.missing.some((m) => m.file === "references/heading-rules.md"), tpl = tool === "headings" && s.missing.some((m) => m.file === "assets/heading-map-template.html")
         return (
           <div key={s.id} className={cn("grid grid-cols-[18px_minmax(0,1fr)_auto] items-start gap-3 border-b p-4 last:border-b-0", on && "bg-muted/40")}>
             <button onClick={() => !on && use(s.id)} aria-label={`Use ${s.name}`} className={cn("mt-0.5 grid size-[18px] place-items-center rounded-full border-[1.5px]", on ? "border-foreground bg-foreground text-background" : "border-input hover:border-foreground/50")}>{on && <Check className="size-3" strokeWidth={3} />}</button>
@@ -82,7 +93,7 @@ export function SkillsSection() {
             <DropdownMenuItem onClick={() => zip.current?.click()}><FileArchive />A .zip or .skill file…</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-        <span className="text-[12.5px] text-muted-foreground">To change the rules, make an editable copy of the built-in skill and open its folder. Plans read the files each time they start.</span>
+        <span className="text-[12.5px] text-muted-foreground">To change the rules, make an editable copy of the built-in one and open its folder. Plans read the files each time they start.</span>
         <input ref={folder} type="file" className="hidden" onChange={(e) => addFolder(e.target.files)} {...({ webkitdirectory: "", directory: "" } as Record<string, string>)} />
         <input ref={zip} type="file" accept=".zip,.skill" className="hidden" onChange={(e) => addZip(e.target.files?.[0])} />
       </div>
@@ -90,7 +101,7 @@ export function SkillsSection() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete {removing?.name}?</AlertDialogTitle>
-            <AlertDialogDescription>{removing?.id === data.active ? "It’s the one in use, so heading plans go back to the built-in skill. " : ""}Plans already made with it keep their copy. You can’t undo this.</AlertDialogDescription>
+            <AlertDialogDescription>{removing?.id === data.active ? `It’s the one in use, so ${tool === "seo" ? "SEO plans" : "heading plans"} go back to the built-in one. ` : ""}Plans already made with it keep their copy. You can’t undo this.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
@@ -102,9 +113,10 @@ export function SkillsSection() {
   )
 }
 
-/** The composer chip: which skill the next heading plan uses. Only there once you've added one. */
-export function SkillPicker() {
-  const { data, set } = useSkills()
+/** The composer chip: which skill the next plan uses. Only there once you've added one for that tool. */
+export function SkillPicker({ tool = "headings" }: { tool?: SkillTool }) {
+  const { data: all, set } = useSkills()
+  const data = all?.[tool]
   if (!data || data.skills.length < 2) return null
   const cur = data.skills.find((s) => s.id === data.active) || data.skills[0]!
   return (

@@ -5,6 +5,7 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Spinner } from "@/components/common/bits"
+import { ToolCard } from "@/components/project/ToolCard"
 import { useApp } from "@/hooks/useApp"
 import { api, type LaunchCheck, type LaunchCheckId, type LaunchIssue, type LaunchReport, type LaunchSummary, type PItem, type Project } from "@/lib/api"
 import { go, routes } from "@/lib/router"
@@ -65,16 +66,21 @@ function CheckMark({ ok, size = 18 }: { ok: boolean; size?: number }) {
     : <svg width={size} height={size} viewBox="0 0 18 18" className="shrink-0"><circle cx="9" cy="9" r="7.75" fill="none" className="stroke-destructive/70" strokeWidth="1.5" /><path d="M9 5.2v4.6" className="stroke-destructive" strokeWidth="1.7" strokeLinecap="round" /><circle cx="9" cy="12.4" r="1" className="fill-destructive" /></svg>
 }
 
+const clock = (ms: number) => { const s = Math.max(0, Math.round(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}` }
 function Progress({ r }: { r: LaunchReport }) {
   const at = STEPS.findIndex((s) => s.id === r.progress.step)
-  const { done, total: all } = r.progress
+  const { done, total: all, times = {}, stepAt } = r.progress
+  // Re-render every second so the running step's timer moves.
+  const [, tick] = React.useState(0)
+  React.useEffect(() => { const t = setInterval(() => tick((n) => n + 1), 1000); return () => clearInterval(t) }, [])
   return (
     <div className="grid gap-2.5">
       {STEPS.map((s, i) => (
-        <div key={s.id} className="grid grid-cols-[18px_minmax(0,1fr)_120px] items-center gap-3 text-[13.5px]">
+        <div key={s.id} className="grid grid-cols-[18px_minmax(0,1fr)_110px_44px] items-center gap-3 text-[13.5px]">
           {i < at ? <CheckMark ok size={16} /> : i === at ? <Loader2 className="size-4 animate-spin text-muted-foreground" /> : <span className="size-4 rounded-full border border-dashed border-input" />}
           <span className={cn(i > at && "text-muted-foreground")}>{s.label}</span>
           <span className="text-right text-[12.5px] text-muted-foreground tabular">{i === at && all ? `${done} of ${all}` : ""}</span>
+          <span className="text-right text-[12.5px] text-muted-foreground tabular">{i < at && times[s.id] != null ? clock(times[s.id]!) : i === at && stepAt ? clock(Date.now() - stepAt) : ""}</span>
         </div>
       ))}
       {at > 0 && all > 0 && <div className="mt-1 h-[5px] overflow-hidden rounded-full bg-muted"><span className="block h-full bg-brand transition-[width]" style={{ width: `${(100 * done) / all}%` }} /></div>}
@@ -90,31 +96,31 @@ export function LaunchCard({ p, reload }: { p: Project; reload: () => void }) {
   const { r } = useLaunch(p, running?.id, reload)
   const last = p.tools.launch
   const history = p.tools.launchHistory
+  const fails = last ? Object.entries(last.checks).filter(([id, c]) => !c!.ok && !(last.staging && LATER.includes(id as LaunchCheckId))).length : 0
   return (
-    <section className="grid gap-3 rounded-xl border bg-card p-4">
-      <div className="flex items-center gap-2"><h2 className="text-sm font-medium">Launch check</h2><span className="text-[12.5px] text-muted-foreground">runs on your Mac, no AI</span><span className="flex-1" />{last && <Button size="sm" variant="outline" onClick={() => go(routes.launch(p.id, last.id))}>Open the report</Button>}</div>
-      <p className="text-[13px] leading-relaxed text-muted-foreground">Reads the site the way Google and a visitor would: noindex and robots.txt, placeholder text, broken links, titles and descriptions, canonicals, legal pages and redirects. Use the staging address before launch and the live one after.</p>
+    <ToolCard
+      title="Launch check" cost="runs on your Mac, no AI"
+      status={running ? "Checking now." : last ? <>Last check {day(last.at)}{last.staging ? " on staging" : ""}: {fails ? `${fails} ${fails === 1 ? "check needs" : "checks need"} fixing` : "ready"}. <button onClick={() => go(routes.launch(p.id, last.id))} className="text-foreground/80 underline underline-offset-2 hover:text-foreground">Open the report</button></> : "Reads the site the way Google and a visitor would: noindex, placeholder text, broken links, titles, canonicals, legal pages and redirects. Use staging before launch and the live domain after."}
+      action={running ? <Button size="sm" variant="outline" onClick={() => api.cancelLaunch(p.id, running.id).catch(() => {})}>Stop</Button> : <Button size="sm" variant="outline" onClick={async () => { setBusy(true); await startLaunch(p, url, reload); setBusy(false) }} disabled={busy || !url.trim()}>{busy && <Loader2 className="animate-spin" />}{last ? "Run again" : "Run the check"}</Button>}
+    >
       {running && r?.status === "running" ? (
-        <button onClick={() => go(routes.launch(p.id, running.id))} className="rounded-[10px] border bg-background px-3.5 py-3 text-left"><Progress r={r} /></button>
+        <button onClick={() => go(routes.launch(p.id, running.id))} className="rounded-lg bg-muted/50 px-3.5 py-3 text-left"><Progress r={r} /></button>
       ) : (
-        <div className="flex gap-2">
-          <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="client-site.webflow.io" />
-          <Button onClick={async () => { setBusy(true); await startLaunch(p, url, reload); setBusy(false) }} disabled={busy || !url.trim()}>{busy ? <Loader2 className="animate-spin" /> : <Play />}Run the check</Button>
-        </div>
+        <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="client-site.webflow.io" className="h-8" />
       )}
-      {history.length > 0 && (
+      {history.length > 1 && (
         <div className="grid">
-          {history.slice(0, 5).map((h) => (
-            <button key={h.id} onClick={() => go(routes.launch(p.id, h.id))} className="grid h-10 grid-cols-[minmax(0,1fr)_110px_96px_120px] items-center gap-3 border-t text-left text-[13px] hover:bg-muted/30">
+          {history.slice(0, 4).map((h) => (
+            <button key={h.id} onClick={() => go(routes.launch(p.id, h.id))} className="grid h-9 grid-cols-[minmax(0,1fr)_110px_90px_120px] items-center gap-3 border-t text-left text-[13px] hover:bg-muted/30">
               <span className="truncate">{hostOf(h.url)}{h.staging && <span className="text-muted-foreground">, staging</span>}</span>
-              <span className={cn("tabular", h.status === "failed" ? "text-destructive" : passed(h) === total(h) ? "text-muted-foreground" : "")}>{h.status === "failed" ? "Didn’t finish" : `${passed(h)} of ${total(h)} pass`}</span>
+              <span className={cn("tabular", h.status !== "done" ? "text-muted-foreground" : passed(h) === total(h) ? "text-muted-foreground" : "")}>{h.status === "cancelled" ? "Stopped" : h.status === "failed" ? "Didn’t finish" : `${passed(h)} of ${total(h)} pass`}</span>
               <span className="text-muted-foreground tabular">{h.pages} pages</span>
               <span className="text-right text-muted-foreground">{when(h.at)}</span>
             </button>
           ))}
         </div>
       )}
-    </section>
+    </ToolCard>
   )
 }
 
@@ -126,14 +132,10 @@ export function LaunchReportPage({ p, sub, reload }: { p: Project; sub?: string;
   const [url, setUrl] = React.useState(defaultUrl(p))
   const [busy, setBusy] = React.useState(false)
   const run = async (u: string) => { setBusy(true); await startLaunch(p, u, reload); setBusy(false) }
-  const head = (
-    <div className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
-      <button onClick={() => go(routes.project(p.id, "tools"))} className="hover:text-foreground">Tools</button><ChevronRight className="size-3.5" /><span className="text-foreground">Launch check</span>
-    </div>
-  )
+  const head = null
 
   if (!checkId || missing) return (
-    <div className="mx-auto grid max-w-3xl gap-5 px-7 py-7">
+    <div className="grid max-w-3xl gap-5 px-12 pt-8 pb-10">
       {head}
       <div><h1 className="text-[22px] font-medium">Launch check</h1><p className="mt-1.5 text-sm text-muted-foreground">{missing ? "That report isn’t on this Mac any more." : `Not run for ${p.name} yet.`} Use the staging address before launch and the live one after.</p></div>
       <div className="flex gap-2"><Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="client-site.webflow.io" /><Button onClick={() => run(url)} disabled={busy || !url.trim()}>{busy ? <Loader2 className="animate-spin" /> : <Play />}Run the check</Button></div>
@@ -142,17 +144,20 @@ export function LaunchReportPage({ p, sub, reload }: { p: Project; sub?: string;
   if (!r) return <div className="grid h-full place-items-center py-24"><Spinner /></div>
 
   if (r.status === "running") return (
-    <div className="mx-auto grid max-w-3xl gap-5 px-7 py-7">
+    <div className="grid max-w-3xl gap-5 px-12 pt-8 pb-10">
       {head}
-      <div><h1 className="text-[22px] font-medium">Checking {hostOf(r.url)}</h1><p className="mt-1.5 text-sm text-muted-foreground">Up to 60 pages, then every link on them. It usually takes a minute or two. You can leave this page, the check keeps going.</p></div>
+      <div className="flex items-start gap-3">
+        <div className="flex-1"><h1 className="text-[22px] font-medium">Checking {hostOf(r.url)}</h1><p className="mt-1.5 text-sm text-muted-foreground">Up to 60 pages, then every link on them. It usually takes a minute or two. You can leave this page, the check keeps going.</p></div>
+        <Button variant="outline" size="sm" onClick={() => api.cancelLaunch(p.id, r.id).then(() => toast("Stopping the check…")).catch(() => {})}>Stop</Button>
+      </div>
       <section className="rounded-xl border bg-card p-4"><Progress r={r} /></section>
     </div>
   )
 
-  if (r.status === "failed") return (
-    <div className="mx-auto grid max-w-3xl gap-5 px-7 py-7">
+  if (r.status === "failed" || r.status === "cancelled") return (
+    <div className="grid max-w-3xl gap-5 px-12 pt-8 pb-10">
       {head}
-      <div><h1 className="text-[22px] font-medium">The check didn’t finish</h1><p className="mt-1.5 text-sm text-muted-foreground">{hostOf(r.url)}, {when(r.started)}. {r.error}</p></div>
+      <div><h1 className="text-[22px] font-medium">{r.status === "cancelled" ? "The check was stopped" : "The check didn’t finish"}</h1><p className="mt-1.5 text-sm text-muted-foreground">{hostOf(r.url)}, {when(r.started)}. {r.error}</p></div>
       <div><Button onClick={() => run(r.url)} disabled={busy}>{busy ? <Loader2 className="animate-spin" /> : <RotateCw />}Try again</Button></div>
     </div>
   )
@@ -172,7 +177,7 @@ function Report({ p, r, focus, busy, onRun, head }: { p: Project; r: LaunchRepor
   const info = r.info!
   const year = new Date().getFullYear()
   return (
-    <div className="mx-auto grid max-w-4xl gap-5 px-7 py-7">
+    <div className="grid max-w-4xl gap-5 px-12 pt-8 pb-10">
       <div className="flex min-h-8 flex-wrap items-center gap-2">
         {head}
         <span className="flex-1" />

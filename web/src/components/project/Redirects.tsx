@@ -1,6 +1,6 @@
 import * as React from "react"
 import { cn } from "cn"
-import { ArrowRight, Check, ChevronRight, Copy, Download, Loader2, Play, RotateCw, Search } from "lucide-react"
+import { ArrowRight, Check, Copy, Download, Loader2, Play, RotateCw, Search } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -8,6 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Spinner } from "@/components/common/bits"
+import { ToolCard } from "@/components/project/ToolCard"
 import { api, type Project, type RedirectMap, type RedirectProblem, type RedirectResult, type RedirectRow, type RedirectState } from "@/lib/api"
 import { go, routes } from "@/lib/router"
 
@@ -70,21 +71,16 @@ export function RedirectCard({ p }: { p: Project }) {
     try { await api.buildRedirects(p.id, url); go(routes.project(p.id, "redirects")) } catch (e) { toast.error((e as Error).message) } finally { setBusy(false) }
   }
   return (
-    <section className="grid gap-3 rounded-xl border bg-card p-4">
-      <div className="flex items-center gap-2"><h2 className="text-sm font-medium">Redirect map</h2><span className="text-[12.5px] text-muted-foreground">runs on your Mac, no AI</span><span className="flex-1" />{r && <Button size="sm" variant={r.review ? "default" : "outline"} onClick={() => go(routes.project(p.id, "redirects"))}>Open the map</Button>}</div>
-      {p.tools.redirectsRunning ? (
-        <button onClick={() => go(routes.project(p.id, "redirects"))} className="flex items-center gap-2 text-left text-[13px] text-muted-foreground"><Loader2 className="size-4 animate-spin" />{p.tools.redirectsRunning === "test" ? "Testing the redirects" : "Building the map"}</button>
-      ) : r ? (
-        <p className="text-[13px] text-muted-foreground">{r.total} old URLs: {r.redirects} {r.redirects === 1 ? "redirect" : "redirects"}, {r.same} kept as they are{r.review ? `, ${r.review} to look at` : ""}. {r.test ? `Last test: ${r.test.ok} of ${r.test.total} worked${r.test.live ? "" : " on staging"}.` : "Not tested yet."}</p>
-      ) : !old ? (
-        <p className="text-[13px] text-muted-foreground">Matches every URL on the current site to its page on the new one, exports the redirects for Webflow, and tests them after launch. Scan the current site first: the map starts from its list of URLs.</p>
-      ) : (
-        <>
-          <p className="text-[13px] leading-relaxed text-muted-foreground">Matches the {old.urls} URLs the scan found on {p.host} to the new site’s pages, exports the redirects for Webflow, and tests them after launch. Enter the new site’s address, usually its staging one.</p>
-          <div className="flex gap-2"><Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="new-site.webflow.io" /><Button onClick={build} disabled={busy || !url.trim()}>{busy ? <Loader2 className="animate-spin" /> : <Play />}Build the map</Button></div>
-        </>
-      )}
-    </section>
+    <ToolCard
+      title="Redirect map" cost="runs on your Mac, no AI"
+      status={p.tools.redirectsRunning ? (p.tools.redirectsRunning === "test" ? "Testing the redirects now." : "Building the map now.")
+        : r ? <>{r.total} old URLs: {r.redirects} {r.redirects === 1 ? "redirect" : "redirects"}, {r.same} kept{r.review ? <>, <span className="text-brand-ink">{r.review} to look at</span></> : ""}. {r.test ? `Last test: ${r.test.ok} of ${r.test.total} worked${r.test.live ? "" : " on staging"}.` : "Not tested yet."}</>
+        : !old ? "Matches every URL on the current site to its page on the new one, exports the redirects for Webflow, and tests them after launch. It starts from the site scan."
+        : `Matches the ${old.urls} URLs the scan found on ${p.host} to the new site’s pages. Enter the new site’s address, usually staging.`}
+      action={p.tools.redirectsRunning || r ? <Button size="sm" variant="outline" onClick={() => go(routes.project(p.id, "redirects"))}>{p.tools.redirectsRunning ? <Loader2 className="animate-spin" /> : null}Open the map</Button> : old ? <Button size="sm" variant="outline" onClick={build} disabled={busy || !url.trim()}>{busy && <Loader2 className="animate-spin" />}Build the map</Button> : undefined}
+    >
+      {!r && !p.tools.redirectsRunning && old && <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="new-site.webflow.io" className="h-8" />}
+    </ToolCard>
   )
 }
 
@@ -94,11 +90,7 @@ export function RedirectsPage({ p, reload }: { p: Project; reload: () => void })
   const { st, setSt, load } = useRedirects(p, reload)
   const [url, setUrl] = React.useState(stagingGuess(p))
   const [busy, setBusy] = React.useState(false)
-  const head = (
-    <div className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
-      <button onClick={() => go(routes.project(p.id, "tools"))} className="hover:text-foreground">Tools</button><ChevronRight className="size-3.5" /><span className="text-foreground">Redirect map</span>
-    </div>
-  )
+  const head = null
   if (!st) return <div className="grid place-items-center py-24"><Spinner /></div>
   const build = async (u: string) => {
     setBusy(true)
@@ -108,9 +100,9 @@ export function RedirectsPage({ p, reload }: { p: Project; reload: () => void })
   if (st.job?.kind === "build") {
     const at = BUILD_STEPS.findIndex((s) => s.id === st.job!.progress.step)
     return (
-      <div className="mx-auto grid max-w-3xl gap-5 px-7 py-7">
+      <div className="grid max-w-3xl gap-5 px-12 pt-8 pb-10">
         {head}
-        <div><h1 className="text-[22px] font-medium">Building the redirect map</h1><p className="mt-1.5 text-sm text-muted-foreground">It reads both sites with plain requests. A few hundred pages take a minute or two.</p></div>
+        <div className="flex items-start gap-3"><div className="flex-1"><h1 className="text-[22px] font-medium">Building the redirect map</h1><p className="mt-1.5 text-sm text-muted-foreground">It reads both sites with plain requests. A few hundred pages take a minute or two.</p></div><Button variant="outline" size="sm" onClick={() => api.cancelRedirects(p.id).then(() => toast("Stopping…")).catch(() => {})}>Stop</Button></div>
         <section className="grid gap-2.5 rounded-xl border bg-card p-4">
           {BUILD_STEPS.map((s, i) => (
             <div key={s.id} className="grid grid-cols-[18px_minmax(0,1fr)_120px] items-center gap-3 text-[13.5px]">
@@ -124,7 +116,7 @@ export function RedirectsPage({ p, reload }: { p: Project; reload: () => void })
     )
   }
   if (!st.map) return (
-    <div className="mx-auto grid max-w-3xl gap-5 px-7 py-7">
+    <div className="grid max-w-3xl gap-5 px-12 pt-8 pb-10">
       {head}
       <div><h1 className="text-[22px] font-medium">Redirect map</h1><p className="mt-1.5 text-sm text-muted-foreground">{st.error ? st.error : p.tools.oldScan ? `Matches the ${p.tools.oldScan.urls} URLs the scan found on ${p.host} to the new site’s pages. Enter the new site’s address, usually its staging one.` : "Scan the current site first. The map starts from its list of URLs."}</p></div>
       {p.tools.oldScan && <div className="flex gap-2"><Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="new-site.webflow.io" /><Button onClick={() => build(url)} disabled={busy || !url.trim()}>{busy ? <Loader2 className="animate-spin" /> : <Play />}Build the map</Button></div>}
@@ -153,7 +145,7 @@ function MapView({ p, st, map, head, setSt, load, rebuild, busy }: { p: Project;
   const runTest = async () => { try { setSt(await api.testRedirects(p.id, testUrl)); load() } catch (e) { toast.error((e as Error).message) } }
   const cols = "grid-cols-[18px_minmax(0,1fr)_14px_minmax(0,1fr)_120px_150px_28px]"
   return (
-    <div className="mx-auto grid max-w-6xl gap-5 px-7 py-7">
+    <div className="grid max-w-6xl gap-5 px-12 pt-8 pb-10">
       <div className="flex min-h-8 flex-wrap items-center gap-2">
         {head}
         <span className="flex-1" />
@@ -172,7 +164,7 @@ function MapView({ p, st, map, head, setSt, load, rebuild, busy }: { p: Project;
       <section className="grid gap-2.5 rounded-xl border bg-card p-4">
         <div className="flex items-baseline gap-2"><h2 className="text-sm font-medium">Test the redirects</h2><span className="text-[12.5px] text-muted-foreground">once they’re imported and published</span></div>
         {testing ? (
-          <div className="grid gap-2"><div className="flex items-center gap-2 text-[13px]"><Loader2 className="size-4 animate-spin text-muted-foreground" />Testing {st.job!.progress.done} of {st.job!.progress.total}</div><div className="h-[5px] overflow-hidden rounded-full bg-muted"><span className="block h-full bg-brand transition-[width]" style={{ width: `${(100 * st.job!.progress.done) / Math.max(1, st.job!.progress.total)}%` }} /></div></div>
+          <div className="grid gap-2"><div className="flex items-center gap-2 text-[13px]"><Loader2 className="size-4 animate-spin text-muted-foreground" />Testing {st.job!.progress.done} of {st.job!.progress.total}<span className="flex-1" /><Button variant="ghost" size="xs" onClick={() => api.cancelRedirects(p.id).catch(() => {})}>Stop</Button></div><div className="h-[5px] overflow-hidden rounded-full bg-muted"><span className="block h-full bg-brand transition-[width]" style={{ width: `${(100 * st.job!.progress.done) / Math.max(1, st.job!.progress.total)}%` }} /></div></div>
         ) : (
           <div className="flex gap-2"><Input value={testUrl} onChange={(e) => setTestUrl(e.target.value)} placeholder={p.host || "client-site.com"} /><Button variant="outline" onClick={runTest} disabled={!testUrl.trim()}><Play />Test {rows.length} URLs</Button></div>
         )}

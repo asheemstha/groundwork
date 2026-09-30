@@ -21,8 +21,9 @@ Your sites, plans and to-do progress stay on your Mac in `~/Library/Application 
 ## Updates
 
 - Groundwork checks GitHub for a new version when it opens and every few hours. When there is one, the sidebar shows **Update available**.
-- Click **Update now**. It downloads the new version, replaces itself and reopens. Your data isn't touched.
-- Updating only works when the app is in Applications (or another folder you can write to).
+- Click **Update now**. Most updates only change the app's code: Groundwork downloads it (about 4 MB) into its own data folder and restarts. The app in Applications isn't touched, so macOS doesn't ask for permission each time. Your data isn't touched either.
+- When a release changes the app itself (its Electron shell, `gwShell` in package.json), the update downloads the full app, replaces it and reopens. That one needs the app in Applications (or another folder you can write to), and macOS may ask for permission.
+- If a downloaded update fails to start, Groundwork deletes it and opens the version it shipped with.
 
 **Publishing an update (maintainer only):** double-click **Publish Update.command**. It asks what changed, builds, bumps the version, and pushes a version tag. GitHub Actions then builds the Mac app (about 10 minutes) and publishes it as a Release. Everyone's app offers the update after that.
 
@@ -34,6 +35,10 @@ Needs Node.js (LTS). `git clone https://github.com/asheemstha/groundwork.git`, t
 
 - **New project** copies a checklist template (the default is "Website project": Setup, Discover, Design, Development, Launch, After launch) into a project with its own kickoff and launch dates. Optional parts, like replacing an existing site or online payments, switch groups of items on or off.
 - Each item is ours or the client’s, has a due date worked out from kickoff or launch, and can be ticked, marked not needed, or opened for notes and links.
+- **Opening an item** shows it in a side panel: status, due date, whose it is, when it was asked, a link, the Groundwork tool, notes and a short activity history. **J/K** or the arrow keys step through the phase's items.
+- **Waiting on the client** shows when each item was asked and how long ago. **Nudge** writes a reminder about just those items from a message template, and records the nudge.
+- **Update from the template** (project menu, or the notice on the project page) brings template changes into a running project: new items, reworded ones, and the option to remove untouched items the template dropped. Ticks, notes and dates stay.
+- **⌘K** opens quick find: projects, their tabs, other sites, templates and common actions.
 - **Shift the plan** (project menu, or the banner when the current phase is a week or more behind) moves every unfinished due date and phase sign-off by the same number of days, and the launch date too if you want. It previews what changes, done items keep their dates, and Undo is in the notice.
 - Each phase ends with a **sign-off**: who approved, when, and the proof (an email or screenshot you drop in, or a link). Open items can move to the next phase.
 - The **Client** tab lists everything the client owes you and writes a request message from a message template. Groundwork never sends anything.
@@ -65,7 +70,7 @@ Pick **SEO plan** in the composer's first chip. It uses the same scan and page p
 
 ### Skills
 
-The heading plan follows a skill: a folder with `SKILL.md` and its rules (`references/heading-rules.md` and friends). **Settings, Skills** lists the built-in one (`tools/h-tag-planner`, can't be deleted) and any you add, from a folder or a `.zip`/`.skill` file. Pick the one in use there or from the composer chip; the app remembers it. **Make an editable copy** duplicates a skill into the app's data folder (`data/skills/<id>/`) and **Open its folder** lets you edit its files. Deleting the skill in use switches back to the built-in. Each plan copies the skill it used, and an added skill without a guide template exports with the built-in one.
+The heading plan and the SEO plan each follow a skill. A heading skill is a folder with `SKILL.md` and its rules (`references/heading-rules.md` and friends); the built-in one is `tools/h-tag-planner`. The SEO plan's built-in rules live in its prompt (`lib/seo.js`, `RULES`); an added SEO skill is read first and wins, except the JSON format and the 60 and 155 character limits the app checks. **Settings, Skills** lists each tool's built-in skill (can't be deleted) and any you add, from a folder or a `.zip`/`.skill` file. Pick the one in use there or from the composer chip; the app remembers it. **Make an editable copy** duplicates a skill into the app's data folder (`data/skills/<id>/`) and **Open its folder** lets you edit its files. Deleting the skill in use switches back to the built-in. Each plan copies the skill it used, and an added skill without a guide template exports with the built-in one.
 
 ## Usage transparency
 

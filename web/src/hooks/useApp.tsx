@@ -78,7 +78,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [refreshStatus, refreshRuns])
 
   // Keep the sidebar fresh: fast while something is scanning or planning, slow otherwise.
-  const active = runs.some((r) => r.status === "running" || r.status === "scanning")
+  const active = runs.some((r) => r.status === "running" || r.status === "scanning" || r.seo?.status === "running") || projects.some((p) => p.running)
   React.useEffect(() => {
     const t = setInterval(() => refreshRuns().catch(() => {}), active ? 3000 : 20000)
     return () => clearInterval(t)

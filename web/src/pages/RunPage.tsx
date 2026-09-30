@@ -138,7 +138,7 @@ function PlanComposer() {
   return (
     <>
       <Composer
-        context={<><ToolPicker value={tool} onChange={setTool} /><CountryPicker value={d.s.market} onChange={(market) => d.set({ market })} />{!isSeo && <OutputPicker value={d.s.output} onChange={(output) => d.set({ output })} />}{!isSeo && <SkillPicker />}</>}
+        context={<><ToolPicker value={tool} onChange={setTool} /><CountryPicker value={d.s.market} onChange={(market) => d.set({ market })} />{!isSeo && <OutputPicker value={d.s.output} onChange={(output) => d.set({ output })} />}<SkillPicker tool={isSeo ? "seo" : "headings"} /></>}
         left={<EnginePicker value={d.s.engine} onChange={d.setEngine} />}
         right={<ModelPicker engine={d.s.engine} model={d.s.model} effort={d.s.effort} custom={d.custom} onChange={d.setModel} />}
         submit={

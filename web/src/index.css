@@ -10,7 +10,7 @@
 
 /*
   Palette:
-  cream #fefcf6 · light grey #eae9e5 · dim grey #817f79 · charcoal #161716 · accent #ff4500
+  near-white #fcfcfb · light grey #ebebe9 · dim grey #7f7e7a · charcoal #161716 · accent #ff4500 (neutral, not cream)
   plus their near-black #201d1d / #131313 and border greys #e3e2dd / #d1d0cd. No gradients anywhere.
 */
 @theme inline {
@@ -64,86 +64,86 @@
 }
 
 :root {
-  --canvas: #eae9e5;
-  --background: #fefcf6;
+  --canvas: #ebebe9;
+  --background: #fcfcfb;
   --foreground: #161716;
-  --surface: #f5f4ef;
+  --surface: #f6f6f4;
   --card: #ffffff;
   --card-foreground: #161716;
   --popover: #ffffff;
   --popover-foreground: #161716;
   --primary: #161716;
-  --primary-foreground: #fefcf6;
-  --secondary: #eae9e5;
+  --primary-foreground: #fcfcfb;
+  --secondary: #ededeb;
   --secondary-foreground: #161716;
-  --muted: #eae9e5;
-  --muted-foreground: #817f79;
-  --accent: #eae9e5;
+  --muted: #ededeb;
+  --muted-foreground: #7f7e7a;
+  --accent: #ededeb;
   --accent-foreground: #161716;
   --brand: #ff4500;
-  --brand-foreground: #fefcf6;
+  --brand-foreground: #fcfcfb;
   /* orange for small text (the accent itself is too light to read at small sizes) */
   --brand-ink: #b83700;
   /* soft states: finished items and meters, never solid black */
-  --done: #bdbbb5;
-  --strong: #5f5d58;
+  --done: #bebdb9;
+  --strong: #5e5d5a;
   --destructive: #c4260f;
-  --border: #e3e2dd;
-  --input: #d1d0cd;
+  --border: #e6e6e3;
+  --input: #d4d4d1;
   --ring: #ff4500;
   --chart-1: #ff4500;
   --chart-2: #161716;
-  --chart-3: #817f79;
-  --chart-4: #d1d0cd;
-  --chart-5: #eae9e5;
+  --chart-3: #7f7e7a;
+  --chart-4: #d4d4d1;
+  --chart-5: #ededeb;
   --radius: 0.5rem;
-  --sidebar: #eae9e5;
+  --sidebar: #ebebe9;
   --sidebar-foreground: #161716;
   --sidebar-primary: #161716;
-  --sidebar-primary-foreground: #fefcf6;
+  --sidebar-primary-foreground: #fcfcfb;
   --sidebar-accent: rgba(128, 128, 128, 0.15);
   --sidebar-accent-foreground: #161716;
-  --sidebar-border: #d1d0cd;
+  --sidebar-border: #d4d4d1;
   --sidebar-ring: #ff4500;
 }
 
 .dark {
-  --canvas: #080807;
+  --canvas: #080808;
   --background: #161716;
-  --foreground: #fefcf6;
-  --surface: #1b1a19;
-  --card: #201d1d;
-  --card-foreground: #fefcf6;
-  --popover: #201d1d;
-  --popover-foreground: #fefcf6;
-  --primary: #fefcf6;
+  --foreground: #f4f4f2;
+  --surface: #1b1b1a;
+  --card: #1f1f1e;
+  --card-foreground: #f4f4f2;
+  --popover: #1f1f1e;
+  --popover-foreground: #f4f4f2;
+  --primary: #f4f4f2;
   --primary-foreground: #131313;
-  --secondary: #2a2726;
-  --secondary-foreground: #fefcf6;
-  --muted: #2a2726;
-  --muted-foreground: #9a978f;
-  --accent: #2a2726;
-  --accent-foreground: #fefcf6;
+  --secondary: #2a2a28;
+  --secondary-foreground: #f4f4f2;
+  --muted: #2a2a28;
+  --muted-foreground: #9a9994;
+  --accent: #2a2a28;
+  --accent-foreground: #f4f4f2;
   --brand: #ff4500;
-  --brand-foreground: #fefcf6;
+  --brand-foreground: #fcfcfb;
   --brand-ink: #ff7a45;
-  --done: #5d5a55;
-  --strong: #c9c6bf;
+  --done: #5c5b58;
+  --strong: #c8c7c3;
   --destructive: #ff6a4d;
-  --border: #2c2a28;
-  --input: #3a3734;
+  --border: #2c2c2a;
+  --input: #3a3a37;
   --ring: #ff4500;
   --chart-1: #ff4500;
-  --chart-2: #fefcf6;
-  --chart-3: #817f79;
-  --chart-4: #3a3734;
-  --chart-5: #2a2726;
+  --chart-2: #f4f4f2;
+  --chart-3: #7f7e7a;
+  --chart-4: #3a3a37;
+  --chart-5: #2a2a28;
   --sidebar: #080807;
-  --sidebar-foreground: #fefcf6;
-  --sidebar-primary: #fefcf6;
+  --sidebar-foreground: #f4f4f2;
+  --sidebar-primary: #f4f4f2;
   --sidebar-primary-foreground: #131313;
   --sidebar-accent: rgba(128, 128, 128, 0.18);
-  --sidebar-accent-foreground: #fefcf6;
+  --sidebar-accent-foreground: #f4f4f2;
   --sidebar-border: #2c2a28;
   --sidebar-ring: #ff4500;
 }
