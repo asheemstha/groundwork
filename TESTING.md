@@ -11,7 +11,7 @@ Follow [Install (Mac)](README.md#install-mac) in the README. The app isn't signe
 ## Your first hour
 
 1. **Explore the sample project** (5 minutes). On Today, click **Explore a sample project**. Tick a few items, open one, look at the Client tab. Delete it when you're done.
-2. **Audit a site you know** (10 minutes). **New project**, then **Audit a site**. Scan it, then run the launch check from its Site tab. Does what it finds match what you know about the site?
+2. **Check a site you know** (10 minutes). **New project**, then **Check a site**. Scan it, then run the launch check from its Site tab. Does what it finds match what you know about the site?
 3. **Start a real project** (15 minutes). Pick the checklist that fits, paste the brief or your kickoff notes, and add the websites and dates. If it's a redesign, scan the old site.
 4. **Ask the client for something** (5 minutes). In the Client tab, tick what you need, copy the message and send it the way you normally would.
 
@@ -22,6 +22,7 @@ If you're new: the two-step start on Today. Did it open the right checklist?
 Run one real project in Groundwork from start to finish, or as far as it gets. Along the way, try:
 
 - Each project's Overview: does its first sentence say where things really stand?
+- Send feedback from Settings, Help and feedback: it's private, and goes to the person who gave you Groundwork.
 - On launch day, Mark launched from Today or the project. Did Groundwork's look at the live domain match what you knew?
 
 - Today each morning: plan your tasks, start a timer on each, and send the messages it lists.

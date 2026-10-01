@@ -18,6 +18,8 @@ type Run = Project["tools"]["runs"][number]
 const DONE = (s?: string | null) => s === "done" || s === "partial"
 // The checks by the short names a person would use.
 const SHORT: Record<LaunchCheckId, string> = { indexing: "Search engines", placeholders: "Placeholders", links: "Links", seo: "SEO basics", a11y: "Accessibility", speed: "Speed on a phone", tracking: "Tracking", canonicals: "Canonicals", legal: "Legal pages", https: "https and www" }
+// How much each kind of problem matters, most first: a site Google can't index beats a missing alt text.
+const WEIGHT: Record<LaunchCheckId, number> = { indexing: 10, https: 9, links: 8, speed: 7, tracking: 6, a11y: 6, seo: 5, canonicals: 5, placeholders: 4, legal: 3 }
 const day = (t: number) => new Date(t).toLocaleDateString([], { month: "short", day: "numeric" })
 const weekday = (t: number) => new Date(t).toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" })
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
@@ -129,13 +131,14 @@ function Checks({ p, setP, reload, onEdit }: { p: Project; setP: (x: Project) =>
       ) : (
         <div className="grid gap-4">
           <div className="grid gap-1.5">
-            <h1 className="text-[22px] font-medium">{!last ? "Not checked yet" : failing.length ? `${plural(failing.length, "check needs", "checks need")} fixing` : "Every check passed"}</h1>
+            <h1 className="text-[22px] font-medium">{!last ? "Not checked yet" : audit ? `${counted.length - failing.length} of ${counted.length} checks pass` : failing.length ? `${plural(failing.length, "check needs", "checks need")} fixing` : "Every check passed"}</h1>
             <p className="text-[14px] text-muted-foreground">
               {!last ? `The launch check reads ${host} the way Google and a visitor would: search engines, placeholders, links, SEO basics, accessibility, speed on a phone, tracking, canonicals, legal pages and redirects. About 3 minutes, on your Mac, with no AI.`
                 : <>{last.staging ? "Staging" : last.watch ? `Day ${last.watch} after launch` : site ? SITE_NAME[site] : host}, checked {weekday(last.at)}. <button onClick={() => go(routes.launch(p.id, last.id))} className="underline underline-offset-2 hover:text-foreground">{counted.length - failing.length} passed</button>{waiting ? `, and ${waiting} wait for the live domain` : ""}.</>}
             </p>
           </div>
-          {failing.length > 0 && (
+          {audit && report && <Verdict p={p} r={report} />}
+          {!audit && failing.length > 0 && (
             <div className="grid border-t">
               {failing.map((id) => {
                 const c = report?.checks?.find((x) => x.id === id), hard = (c?.issues || []).filter((i) => !i.soft)
@@ -244,5 +247,43 @@ function SiteTools({ p, k }: { p: Project; k: SiteKey }) {
         {scan && (!seo || seo.id !== scan.id) && <Button size="xs" variant="outline" onClick={() => go(routes.run(scan.id, "seo"))}>{seo ? "Plan the latest scan" : "Plan SEO"}</Button>}
       </Row>
     </>
+  )
+}
+
+/** A site check's verdict for the client: every check's result, then the problems worst first, and the PDF. */
+function Verdict({ p, r }: { p: Project; r: LaunchReport }) {
+  const checks = (r.checks || []).filter((c) => !(r.staging && LATER.includes(c.id)))
+  const problems = checks.flatMap((c) => c.issues.filter((i) => !i.soft).map((i) => ({ check: c.id, text: i.text, fix: i.fix || "", pages: i.pages || [] })))
+    .sort((a, b) => WEIGHT[b.check] - WEIGHT[a.check] || b.pages.length - a.pages.length)
+  const where = (pages: string[]) => (!pages.length ? "Site-wide" : pages.length === 1 ? (pages[0] === "/" ? "Home page" : pages[0]) : `${pages.length} pages`)
+  return (
+    <div className="grid gap-5">
+      <p className="-mt-2 text-[14px]">{problems.length ? `${plural(problems.length, "problem is", "problems are")} worth fixing.` : "Nothing needs fixing right now."} <span className="text-muted-foreground">{r.pagesChecked} pages and {r.linksChecked} links, checked on your Mac with no AI.</span></p>
+      <div className="flex flex-wrap gap-2">
+        <Button size="sm" onClick={() => { const a = document.createElement("a"); a.href = `/api/projects/${p.id}/check-report?format=pdf`; a.download = ""; a.click(); toast("Saving the PDF", { description: "The verdict, every check and the problems worst first, for the client." }) }}>Save as PDF for the client</Button>
+      </div>
+      <div className="grid gap-x-6 sm:grid-cols-2">
+        {checks.map((c) => (
+          <button key={c.id} onClick={() => go(routes.launch(p.id, r.id, c.id))} className="flex h-9 items-center justify-between gap-3 border-b text-left text-[13.5px] hover:bg-muted/30">
+            <span>{SHORT[c.id]}</span><span className={c.ok ? "text-muted-foreground" : "text-destructive"}>{c.ok ? "Passed" : `${c.issues.filter((i) => !i.soft).length} to fix`}</span>
+          </button>
+        ))}
+      </div>
+      {problems.length > 0 && (
+        <section className="grid">
+          <h2 className="mb-1 text-[15px] font-medium">The problems, worst first</h2>
+          {problems.slice(0, 10).map((x, n) => (
+            <div key={n} className="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-x-3 gap-y-0.5 border-b py-2.5 text-[14px]">
+              <span className="text-muted-foreground tabular">{n + 1}</span>
+              <span>{x.text}</span>
+              <span className="text-[13px] text-muted-foreground">{where(x.pages)}</span>
+              {x.fix && <span className="col-start-2 text-[13px] text-muted-foreground">{x.fix}</span>}
+            </div>
+          ))}
+          {problems.length > 10 && <button onClick={() => go(routes.launch(p.id, r.id))} className="mt-2 w-fit text-[13px] text-muted-foreground hover:text-foreground">{problems.length - 10} more in the full report</button>}
+        </section>
+      )}
+      <p className="text-[12.5px] text-muted-foreground">Win the redesign, and this check’s scans move into the new project, where they start the content inventory and the redirect map.</p>
+    </div>
   )
 }

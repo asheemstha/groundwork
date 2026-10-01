@@ -484,7 +484,7 @@ export const api = {
   update: () => req<{ ok: boolean; restart: "auto" | "manual" }>("POST", "/api/update"),
   status: (fresh = false) => req<AppStatus>("GET", "/api/status" + (fresh ? "?fresh" : "")),
   prefs: () => req<Partial<Settings>>("GET", "/api/prefs"),
-  diagnostics: () => req<{ text: string }>("GET", "/api/diagnostics"),
+  diagnostics: () => req<{ text: string; feedbackEmail: string | null }>("GET", "/api/diagnostics"),
   google: () => req<GoogleStatus>("GET", "/api/google"),
   googleClient: (text: string) => req<GoogleStatus>("POST", "/api/google/client", { text }),
   googleSignIn: () => req<{ url: string }>("POST", "/api/google/signin"),

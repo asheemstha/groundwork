@@ -147,20 +147,7 @@ const recentErrors = [];
 const friendly = e => {
   const m = String(e && e.message || e);
   recentErrors.push({ at: Date.now(), m: m.split('\n')[0].slice(0, 300) }); if (recentErrors.length > 15) recentErrors.shift();
-  if (/ERR_INTERNET_DISCONNECTED|ENETUNREACH|EAI_AGAIN/.test(m)) return 'This Mac seems to be offline. Check the internet connection and try again.';
-  if (/ERR_NAME_NOT_RESOLVED|ENOTFOUND/.test(m)) return 'We couldn’t find that site. Check the address for typos.';
-  if (/ERR_CONNECTION|ECONNREFUSED|ECONNRESET/.test(m)) return 'The site didn’t respond. Check that it’s online, then try again.';
-  if (/ERR_CERT|SSL|certificate/i.test(m)) return 'The site’s security certificate isn’t valid, so the browser won’t open it. Try the http:// address, or fix the certificate first.';
-  if (/ERR_TOO_MANY_REDIRECTS/.test(m)) return 'The site keeps redirecting in a loop, so no page loads.';
-  if (/Timeout|timed out/i.test(m)) return 'The site took too long to load. Try again, or scan fewer pages.';
-  const http = m.match(/HTTP (\d{3})/);
-  if (http && (http[1] === '401' || http[1] === '403')) return `The site blocked the scan (HTTP ${http[1]}). It may be password-protected or behind a firewall such as Cloudflare.`;
-  if (http && http[1] === '404') return 'That address returned “page not found” (HTTP 404). Check the address.';
-  if (http && http[1][0] === '5') return `The site had a server error (HTTP ${http[1]}). Try again in a few minutes.`;
-  if (/CLOUDFLARE_CHALLENGE/.test(m)) return 'The site’s Cloudflare bot protection turned the scan away. Scan the staging address instead, or allow Groundwork in the site’s Cloudflare settings.';
-  if (/rate.?limit|usage limit|\b429\b|quota/i.test(m)) return 'Your AI plan’s usage limit was reached. Try again when it resets; the pages already planned are kept.';
-  if (/not logged in|login required|unauthori[sz]ed|invalid api key|authentication/i.test(m)) return 'Claude Code or Codex isn’t signed in any more. Open Settings, AI accounts, to sign in again.';
-  return m.split('\n')[0];
+  return require('./lib/plain').plain(m);
 };
 
 async function scan(run) {
@@ -823,7 +810,8 @@ const server = http.createServer(async (req, res) => {
         ...(recentErrors.length ? ['', 'Recent errors:', ...recentErrors.slice(-8).map(x => `${new Date(x.at).toISOString().slice(0, 16).replace('T', ' ')} ${x.m}`)] : []),
         ...(log.length ? ['', 'From the app log:', ...log] : []),
       ];
-      return json(res, { text: redact(lines.join('\n')) });
+      // Where private feedback goes: the maker's address in package.json, when it's set.
+      return json(res, { text: redact(lines.join('\n')), feedbackEmail: readJson(path.join(ROOT, 'package.json'), {}).feedbackEmail || null });
     }
     if (p === '/api/calendar.ics' && M === 'GET') { res.writeHead(200, { 'content-type': 'text/calendar; charset=utf-8', 'content-disposition': 'inline; filename="groundwork.ics"' }); return res.end(P.calendar({ items: u.searchParams.get('items') === '1' })); }
     // Short AI jobs: set up a project from a brief, rewrite a message in your voice. Without an AI account the brief is
@@ -1002,6 +990,21 @@ const server = http.createServer(async (req, res) => {
         }
         if (im && M === 'POST') { P.setInvoice(id, im[1], await body(req)); return json(res, P.get(id)); }
         if (im && M === 'DELETE') { const inv = P.removeInvoice(id, im[1]); if (inv) T.unmarkInvoice(inv.id); return json(res, P.get(id)); }
+        // A site check for the client: the latest finished launch check (or one by id), as a PDF or a web page.
+        if (sub === '/check-report' && M === 'GET') {
+          const v = P.get(id), q = u.searchParams, pr = getSettings().prefs || {};
+          const ck = q.get('check') || ((v.tools.launchHistory || []).find(h => h.status === 'done') || {}).id;
+          const r = ck && P.getLaunch(id, ck);
+          if (!r || r.status !== 'done') return json(res, { error: 'Run the check first.' }, 400);
+          const html = require('./lib/check-report').render(r, { studio: pr.agency || '', yourName: pr.appliedBy || '', name: v.name });
+          const base = `${v.name.replace(/[^\w .()-]+/g, '').trim() || 'Site'} site check`;
+          if (q.get('format') === 'pdf') {
+            try { const pdf = await htmlToPdf(html); res.writeHead(200, { 'content-type': 'application/pdf', 'content-disposition': `attachment; filename="${base}.pdf"` }); return res.end(pdf); }
+            catch (e) { return json(res, { error: 'Couldn’t make the PDF: ' + friendly(e) }, 500); }
+          }
+          res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', ...(q.has('download') ? { 'content-disposition': `attachment; filename="${base}.html"` } : {}) });
+          return res.end(html);
+        }
         // A care plan's monthly report: this month (cycle empty) or an earlier one (its index in the project's cycles).
         if (sub === '/care-report' && M === 'GET') {
           const v = P.get(id), raw = P.readRaw(id), q = u.searchParams, pr = getSettings().prefs || {};
@@ -1182,7 +1185,7 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200, { 'content-type': MIME['.html'] }); return fs.createReadStream(path.join(PUB, 'index.html')).pipe(res);
     }
     json(res, { error: 'Not found' }, 404);
-  } catch (e) { console.error(e); if (!res.headersSent) json(res, { error: e.message }, 500); }
+  } catch (e) { console.error(e); if (!res.headersSent) json(res, { error: friendly(e) }, 500); }
 });
 
 // Runs interrupted by a restart can't be resumed; mark them so the UI doesn't spin forever.

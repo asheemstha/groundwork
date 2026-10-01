@@ -131,7 +131,7 @@ export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Ta
             {!audit && (p.closed ? <DropdownMenuItem onClick={async () => { setP(await api.setClosed(id, false)); refreshProjects() }}><RefreshCw /> Reopen project</DropdownMenuItem> : <DropdownMenuItem onClick={() => setClosing(true)}><Ban /> Close project…</DropdownMenuItem>)}
             <DropdownMenuItem onClick={() => { const a = document.createElement("a"); a.href = `/api/projects/${p.id}/export`; a.download = ""; a.click(); toast("Exporting the project", { description: "Its checklist, files, scans and plans, as one zip another Groundwork can import." }) }}><Download /> Export project…</DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem variant="destructive" onClick={() => setRemoving(true)}><Trash2 /> {audit ? "Delete audit…" : "Delete project…"}</DropdownMenuItem>
+            <DropdownMenuItem variant="destructive" onClick={() => setRemoving(true)}><Trash2 /> {audit ? "Delete site check…" : "Delete project…"}</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </TopBar>
@@ -209,7 +209,7 @@ export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Ta
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete {p.name}?</AlertDialogTitle>
-            <AlertDialogDescription>{audit ? "This deletes the audit’s scans, plans and checks from this computer." : "This deletes the project from this computer: its checklist, sign-offs, notes, and the scans and plans made in it."} You can’t undo it.</AlertDialogDescription>
+            <AlertDialogDescription>{audit ? "This deletes the site check’s scans, plans and checks from this computer." : "This deletes the project from this computer: its checklist, sign-offs, notes, and the scans and plans made in it."} You can’t undo it.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>

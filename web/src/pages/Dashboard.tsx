@@ -64,7 +64,7 @@ export function Dashboard() {
           )}
           {audits.length > 0 && (
             <section>
-              <h2 className="mb-1.5 flex items-baseline gap-2 text-[14px] font-medium">Audits<span className="text-[13px] font-normal text-muted-foreground">sites scanned without a checklist</span></h2>
+              <h2 className="mb-1.5 flex items-baseline gap-2 text-[14px] font-medium">Site checks<span className="text-[13px] font-normal text-muted-foreground">sites checked without a checklist</span></h2>
               <div className="-mx-2">
                 {audits.map((p) => (
                   <button key={p.id} onClick={() => go(routes.project(p.id))} className="flex h-9 w-full items-center gap-2.5 rounded-md px-2 text-left hover:bg-muted/50">

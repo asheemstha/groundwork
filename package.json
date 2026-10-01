@@ -1,7 +1,8 @@
 {
   "name": "groundwork",
-  "version": "0.26.0",
+  "version": "0.27.0",
   "gwShell": 1,
+  "feedbackEmail": "",
   "private": true,
   "description": "Plan site improvements with your own Claude Code or Codex account.",
   "main": "desktop/main.js",

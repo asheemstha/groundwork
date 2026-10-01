@@ -185,8 +185,8 @@ export function NewProjectDialog() {
             <div className="scrollbar-thin grid max-h-[66vh] grid-cols-1 gap-2.5 overflow-auto px-6 py-5 sm:grid-cols-2">
               {shown.filter((t) => t.website !== false).map(card)}
               <button onClick={() => { setAudit(true); setStep("details") }} className="grid content-start gap-1 rounded-xl border border-dashed px-4 py-3.5 text-left hover:border-foreground/25 hover:bg-muted/30">
-                <span className="font-medium">Audit a site</span>
-                <span className="text-[12.5px] leading-snug text-muted-foreground">Scan one site and check it, with no checklist. Turns into a project if the redesign is won.</span>
+                <span className="font-medium">Check a site</span>
+                <span className="text-[12.5px] leading-snug text-muted-foreground">Scan one site and check it, with no checklist: a verdict and the problems worst first, as a PDF for the client.</span>
               </button>
               {shown.some((t) => t.website === false) && <h3 className="mt-3 text-[13px] font-medium text-muted-foreground sm:col-span-2">Other client work <span className="font-normal">· no website needed, add one later if the work includes a site</span></h3>}
               {shown.filter((t) => t.website === false).map(card)}
@@ -202,15 +202,15 @@ export function NewProjectDialog() {
           </>
         ) : (
         <DialogHeader className="px-6 pt-6">
-          <DialogTitle className="flex items-center gap-2">{audit ? "Audit a site" : tpl?.name || "New project"}<Button variant="ghost" size="xs" className="text-muted-foreground" onClick={() => setStep("pick")}>Change</Button></DialogTitle>
-          <DialogDescription>{audit ? "Scan one site and run Groundwork’s tools on it, with no checklist. You can start a full project for it later." : tpl?.desc || "A checklist, phase by phase. Anything you change stays in this project."}</DialogDescription>
+          <DialogTitle className="flex items-center gap-2">{audit ? "Check a site" : tpl?.name || "New project"}<Button variant="ghost" size="xs" className="text-muted-foreground" onClick={() => setStep("pick")}>Change</Button></DialogTitle>
+          <DialogDescription>{audit ? "Scan one site and check it, with no checklist, for a verdict you can send as a PDF. You can start a full project for it later." : tpl?.desc || "A checklist, phase by phase. Anything you change stays in this project."}</DialogDescription>
           {!audit && !!tpl?.basedOn?.filter((b) => b.url).length && <p className="text-[12px] text-muted-foreground">Based on {tpl.basedOn.filter((b) => b.url).map((b, i) => <React.Fragment key={b.url}>{i > 0 && ", "}<a href={b.url} target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-foreground">{b.label}</a></React.Fragment>)}</p>}
         </DialogHeader>
         )}
         {step === "pick" ? null : audit ? (
           <div className="grid gap-4 px-6 py-5">
             <div className="grid grid-cols-2 gap-3">
-              {site("live", "Site to audit", "", "client-site.com")}
+              {site("live", "Site to check", "", "client-site.com")}
               <label className="grid content-start gap-1.5 text-[13px] font-medium"><span>Name <span className="font-normal text-muted-foreground">(optional)</span></span><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Northwind Dental" className="font-normal" /></label>
             </div>
             <p className="flex items-start gap-2 text-[12.5px] text-muted-foreground"><span className="mt-px grid size-4 shrink-0 place-items-center rounded bg-brand text-brand-foreground"><Layers className="size-2.5" strokeWidth={2.6} /></span>The scan runs on your Mac and doesn’t use AI. From it you can run the launch check, the heading plan and the SEO plan.</p>

@@ -41,7 +41,7 @@ export function QuickFind() {
         </CommandGroup>
         <CommandGroup heading="Actions">
           <CommandItem value="new project" onSelect={() => run(() => newProject())}><Plus />New project<CommandShortcut>⌘N</CommandShortcut></CommandItem>
-          <CommandItem value="audit a site scan" onSelect={() => run(() => newProject({ audit: true }))}><Search />Audit a site</CommandItem>
+          <CommandItem value="check a site audit scan" onSelect={() => run(() => newProject({ audit: true }))}><Search />Check a site</CommandItem>
         </CommandGroup>
         {projects.length > 0 && (
           <CommandGroup heading="Projects">

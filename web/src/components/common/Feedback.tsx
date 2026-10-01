@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Copy, ExternalLink } from "lucide-react"
+import { Copy, Mail } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -21,8 +21,9 @@ export function FeedbackDialog() {
   const [withDetails, setWithDetails] = React.useState(true)
   const [details, setDetails] = React.useState("")
   const [showDetails, setShowDetails] = React.useState(false)
+  const [email, setEmail] = React.useState<string | null>(null)
   React.useEffect(() => {
-    const on = (e: Event) => { setText(String((e as CustomEvent<string>).detail || "")); setShowDetails(false); setOpen(true); api.diagnostics().then((d) => setDetails(d.text)).catch(() => setDetails("")) }
+    const on = (e: Event) => { setText(String((e as CustomEvent<string>).detail || "")); setShowDetails(false); setOpen(true); api.diagnostics().then((d) => { setDetails(d.text); setEmail(d.feedbackEmail) }).catch(() => setDetails("")) }
     window.addEventListener("gw:feedback", on)
     return () => window.removeEventListener("gw:feedback", on)
   }, [])
@@ -34,7 +35,13 @@ export function FeedbackDialog() {
     window.open(`${REPO}/issues/new?title=${encodeURIComponent(title)}&body=${encodeURIComponent(b)}`)
     setOpen(false)
   }
-  const copy = () => { navigator.clipboard.writeText(body()); toast("Copied", { description: "Paste it into an email or a message." }); setOpen(false) }
+  const copy = () => { navigator.clipboard.writeText(body()); toast("Copied", { description: "Paste it into an email or a message to the person who gave you Groundwork." }); setOpen(false) }
+  // Private by default: your own email app, addressed to the maker. Nothing is sent until you press Send there.
+  const mail = () => {
+    let b = body(); if (b.length > 1800) b = b.slice(0, 1800) + "\n…"
+    window.open(`mailto:${email}?subject=${encodeURIComponent("Groundwork feedback: " + (text.trim().split("\n")[0] || "").slice(0, 60))}&body=${encodeURIComponent(b)}`)
+    setOpen(false)
+  }
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="sm:max-w-[560px]">
@@ -49,9 +56,11 @@ export function FeedbackDialog() {
           <p className="text-[12px] text-muted-foreground">Versions, macOS, the scan browser, whether Claude Code or Codex is set up (not the account), how many projects, and recent error messages. Error messages can include a site’s address, so look before you send.</p>
         </div>
         <DialogFooter className="items-center">
-          <span className="mr-auto text-[12px] leading-snug text-muted-foreground">GitHub issues are public, and need a free GitHub account.</span>
-          <Button variant="outline" onClick={copy} disabled={!text.trim()}><Copy />Copy</Button>
-          <Button onClick={github} disabled={!text.trim()}><ExternalLink />Open as a GitHub issue</Button>
+          <button onClick={github} disabled={!text.trim()} className="mr-auto text-left text-[12.5px] text-muted-foreground underline underline-offset-2 hover:text-foreground disabled:opacity-50">Post it on GitHub instead (public)</button>
+          {email ? <>
+            <Button variant="outline" onClick={copy} disabled={!text.trim()}><Copy />Copy</Button>
+            <Button onClick={mail} disabled={!text.trim()}><Mail />Email it privately</Button>
+          </> : <Button onClick={copy} disabled={!text.trim()}><Copy />Copy to send privately</Button>}
         </DialogFooter>
       </DialogContent>
     </Dialog>
