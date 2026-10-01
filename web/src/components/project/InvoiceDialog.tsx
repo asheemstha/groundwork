@@ -13,7 +13,7 @@ import { fmtDay, today } from "@/lib/project"
 import { fmtMins } from "@/lib/time"
 import { go, routes } from "@/lib/router"
 
-interface Ask { projectId: string; kind: "milestone" | "hours"; phaseId?: string; from?: string; to?: string }
+interface Ask { projectId: string; kind: "milestone" | "hours" | "extra"; phaseId?: string; extraId?: string; from?: string; to?: string }
 /** Opens the invoice dialog: for a phase's payment, or for billable hours (between two dates, or all not invoiced yet). */
 export const makeInvoice = (a: Ask) => window.dispatchEvent(new CustomEvent<Ask>("gw:invoice", { detail: a }))
 
@@ -32,7 +32,7 @@ export function InvoiceDialog() {
   const [busy, setBusy] = React.useState(false)
   const load = React.useCallback(async (a: Ask, r?: string) => {
     setErr("")
-    try { const x = await api.invoiceDraft(a.projectId, { kind: a.kind, phase: a.phaseId, from: a.from, to: a.to, rate: r }); setD(x); if (x.rate != null) setRate(fmtMoney(x.rate, x.currency).replace(/\.00(?=\D*$)/, "")) } catch (e) { setD(null); setErr((e as Error).message) }
+    try { const x = await api.invoiceDraft(a.projectId, { kind: a.kind, phase: a.phaseId, extra: a.extraId, from: a.from, to: a.to, rate: r }); setD(x); if (x.rate != null) setRate(fmtMoney(x.rate, x.currency).replace(/\.00(?=\D*$)/, "")) } catch (e) { setD(null); setErr((e as Error).message) }
   }, [])
   React.useEffect(() => {
     const on = (e: Event) => { const a = (e as CustomEvent<Ask>).detail; setAsk(a); setD(null); setRate(""); setBusy(false); load(a) }
@@ -63,7 +63,7 @@ export function InvoiceDialog() {
       <DialogContent className="gap-0 p-0 sm:max-w-[680px]">
         <DialogHeader className="px-6 pt-6">
           <DialogTitle>Invoice{p ? ` for ${p.name}` : ""}</DialogTitle>
-          <DialogDescription>{ask?.kind === "hours" ? (d ? `Billable time not invoiced yet${d.from ? `, ${fmtDay(d.from)} to ${fmtDay(d.to)}` : ""}: ${fmtMins(d.mins)}.` : "Billable time not invoiced yet.") : "The payment due with this sign-off."} Check it, change anything, then save it as a PDF.</DialogDescription>
+          <DialogDescription>{ask?.kind === "hours" ? (d ? `Billable time not invoiced yet${d.from ? `, ${fmtDay(d.from)} to ${fmtDay(d.to)}` : ""}: ${fmtMins(d.mins)}.` : "Billable time not invoiced yet.") : ask?.kind === "extra" ? "An extra request, at its price or for the hours logged on it." : ask?.phaseId === "deposit" ? "The deposit to start the work." : "The payment due with this sign-off."} Check it, change anything, then save it as a PDF.</DialogDescription>
         </DialogHeader>
         <div className="scrollbar-thin grid max-h-[64vh] gap-4 overflow-auto px-6 py-5">
           {ask?.kind === "hours" && (

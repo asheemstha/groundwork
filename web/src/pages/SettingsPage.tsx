@@ -13,7 +13,7 @@ import { store } from "@/lib/store"
 import { useTheme } from "@/components/theme-provider"
 import { Bar, Dot, Tag, TopBar } from "@/components/common/bits"
 import { useApp } from "@/hooks/useApp"
-import { api, type EngineId } from "@/lib/api"
+import { api, invoicesCsvUrl, type EngineId } from "@/lib/api"
 import { ago, cap, clock, pct } from "@/lib/format"
 import { SkillsSection } from "@/components/settings/Skills"
 
@@ -315,6 +315,22 @@ function Invoices() {
           {[7, 14, 21, 30, 45, 60].map((n) => <option key={n} value={n}>{n} days</option>)}
         </select>
       </div>
+      <AccountantExport />
+    </div>
+  )
+}
+
+/** Every invoice made in Groundwork for a year, as a CSV for the accountant. */
+function AccountantExport() {
+  const now = new Date().getFullYear()
+  const [year, setYear] = React.useState(String(now))
+  return (
+    <div className="grid gap-3 bg-card p-4 text-sm sm:grid-cols-[1fr_260px] sm:items-center">
+      <span><span className="block font-medium">For your accountant</span><span className="text-muted-foreground">Every invoice for the year, from every project: number, dates, client, amount and when it was paid.</span></span>
+      <span className="flex gap-2">
+        <select value={year} onChange={(e) => setYear(e.target.value)} aria-label="Year" className="h-9 rounded-lg border border-input bg-card px-2.5 text-sm">{[now, now - 1, now - 2].map((y) => <option key={y} value={y}>{y}</option>)}</select>
+        <Button variant="outline" className="h-9 flex-1" nativeButton={false} render={<a href={invoicesCsvUrl({ year })} download />}><Download />Export CSV</Button>
+      </span>
     </div>
   )
 }

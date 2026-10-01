@@ -54,7 +54,7 @@ async function htmlToPdf(html) {
 const SK = require('./lib/skills')({ DATA, BUILTIN: H.SKILL_DIR, readJson, writeJson, seoRules: SEO.RULES });
 const P = require('./lib/projects')({ DATA, readJson, writeJson, allRuns, hostOf: u => hostOf(/^https?:\/\//i.test(u) ? u : 'https://' + u), timeOf: (id, from) => T.forProject(id, from), userAgent: `Groundwork/${readJson(path.join(ROOT, 'package.json'), {}).version || '0'} (+https://github.com/asheemstha/groundwork)` });
 // The work log, the running timer and the day's tasks (lib/time.js). Entries are signed with your name from Settings.
-const T = require('./lib/time')({ DATA, readJson, writeJson, newId: () => P.newId(), who: () => (getSettings().prefs || {}).appliedBy || '', projectOf: id => P.readRaw(id), itemOf: (id, itemId) => P.itemRef(id, itemId) });
+const T = require('./lib/time')({ DATA, readJson, writeJson, newId: () => P.newId(), who: () => (getSettings().prefs || {}).appliedBy || '', projectOf: id => P.readRaw(id), itemOf: (id, itemId) => P.itemRef(id, itemId), extraOf: (id, extraId) => P.extraRef(id, extraId) });
 const ICON_EXT = { 'image/svg+xml': 'svg', 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif' };
 function saveFavicon(run, fav) {
   if (!fav) return;
@@ -748,6 +748,14 @@ const server = http.createServer(async (req, res) => {
       let tm = p.match(/^\/api\/time\/([a-z0-9]+)$/);
       if (tm && M === 'PATCH') return json(res, T.edit(tm[1], await body(req)));
       if (tm && M === 'DELETE') { T.remove(tm[1]); return json(res, { ok: true }); }
+      // Every invoice as a CSV for the accountant, for a year or one project.
+      if (p === '/api/invoices.csv' && M === 'GET') {
+        const q = u.searchParams, rows = P.invoiceRows({ year: q.get('year'), projectId: q.get('project') });
+        const cell = v => { let s = String(v ?? ''); if (/^[=+\-@]/.test(s)) s = "'" + s; return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+        const lines = [['Number', 'Date', 'Due', 'Client', 'Project', 'What', 'Amount', 'Currency', 'Paid on'], ...rows.map(r => [r.number, r.date, r.due, r.client, r.project, r.what, r.amount.toFixed(2), r.currency, r.paid])];
+        res.writeHead(200, { 'content-type': 'text/csv; charset=utf-8', 'content-disposition': `attachment; filename="Invoices${q.get('year') ? ' ' + q.get('year') : ''}.csv"` });
+        return res.end('\ufeff' + lines.map(r => r.map(cell).join(',')).join('\r\n') + '\r\n');
+      }
       if (p === '/api/tasks' && M === 'GET') return json(res, { tasks: T.taskList(u.searchParams.get('day') || undefined), ...timerOut() });
       if (p === '/api/tasks' && M === 'POST') return json(res, T.addTask(await body(req)));
       tm = p.match(/^\/api\/tasks\/([a-z0-9]+)$/);
@@ -865,6 +873,10 @@ const server = http.createServer(async (req, res) => {
         if (sub === '/traffic' && M === 'POST') { P.importTraffic(id, await body(req)); return json(res, P.get(id)); }
         const trm = sub.match(/^\/traffic\/([a-z0-9]+)$/);
         if (trm && M === 'DELETE') { P.removeTraffic(id, trm[1]); return json(res, P.get(id)); }
+        if (sub === '/extras' && M === 'POST') { P.setExtra(id, null, await body(req)); return json(res, P.get(id)); }
+        const exm = sub.match(/^\/extras\/([a-z0-9]+)$/);
+        if (exm && M === 'POST') { P.setExtra(id, exm[1], await body(req)); return json(res, P.get(id)); }
+        if (exm && M === 'DELETE') { P.setExtra(id, exm[1], { remove: true }); return json(res, P.get(id)); }
         if (sub === '/accounts' && M === 'POST') { const b = await body(req); P.setAccounts(id, b.accounts); return json(res, P.get(id)); }
         if (sub === '/renewals' && M === 'POST') { try { await P.checkRenewals(id); } catch (e) { return json(res, { error: e.message }, 400); } return json(res, P.get(id)); }
         if (sub === '/scan' && M === 'POST') {
@@ -893,11 +905,11 @@ const server = http.createServer(async (req, res) => {
         // Invoices: a draft to look over, then saved; the PDF is made from the saved invoice each time.
         if (sub === '/invoice-draft' && M === 'GET') {
           const q = u.searchParams, pr = getSettings().prefs || {};
-          return json(res, P.invoiceDraft(id, { kind: q.get('kind'), phaseId: q.get('phase'), from: q.get('from'), to: q.get('to'), rate: q.get('rate') }, { entries: T.list({ projectId: id }), rate: pr.rate, number: pr.invoiceNext || 'INV-0001', payDays: pr.payDays || 14 }));
+          return json(res, P.invoiceDraft(id, { kind: q.get('kind'), phaseId: q.get('phase'), extraId: q.get('extra'), from: q.get('from'), to: q.get('to'), rate: q.get('rate') }, { entries: T.list({ projectId: id }), rate: pr.rate, number: pr.invoiceNext || 'INV-0001', payDays: pr.payDays || 14 }));
         }
         if (sub === '/invoices' && M === 'POST') {
           const inv = P.saveInvoice(id, await body(req));
-          if (inv.kind === 'hours') T.markInvoiced(inv.entryIds, inv.id);
+          if (inv.entryIds.length) T.markInvoiced(inv.entryIds, inv.id);
           setSettings({ prefs: { ...(getSettings().prefs || {}), invoiceNext: P.nextNumber(inv.number) } });
           return json(res, { invoice: inv, project: P.get(id) });
         }

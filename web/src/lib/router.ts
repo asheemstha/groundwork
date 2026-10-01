@@ -2,7 +2,7 @@ import { useSyncExternalStore } from "react"
 
 export type Route =
   | { name: "home" }
-  | { name: "project"; id: string; tab: "checklist" | "client" | "tools" | "launch" | "redirects" | "inventory"; sub?: string; item?: string }
+  | { name: "project"; id: string; tab: "checklist" | "client" | "tools" | "money" | "launch" | "redirects" | "inventory"; sub?: string; item?: string }
   | { name: "time"; project?: string }
   | { name: "templates" }
   | { name: "template"; id: string }
@@ -14,7 +14,7 @@ export type Route =
 function parse(): Route {
   const parts = (location.hash.slice(1) || "/").split("/").filter(Boolean).map(decodeURIComponent)
   if (parts[0] === "project" && parts[1] && parts[2] === "item") return { name: "project", id: parts[1], tab: "checklist", item: parts[3] }
-  if (parts[0] === "project" && parts[1]) return { name: "project", id: parts[1], tab: parts[2] === "client" || parts[2] === "tools" || parts[2] === "launch" || parts[2] === "redirects" || parts[2] === "inventory" ? parts[2] : "checklist", sub: parts[3] }
+  if (parts[0] === "project" && parts[1]) return { name: "project", id: parts[1], tab: parts[2] === "client" || parts[2] === "tools" || parts[2] === "money" || parts[2] === "launch" || parts[2] === "redirects" || parts[2] === "inventory" ? parts[2] : "checklist", sub: parts[3] }
   if (parts[0] === "time") return { name: "time", project: parts[1] }
   if (parts[0] === "templates") return parts[1] ? { name: "template", id: parts[1] } : { name: "templates" }
   if (parts[0] === "settings") return { name: "settings", engine: parts[1] === "codex" || parts[1] === "claude" || parts[1] === "privacy" ? parts[1] : undefined }
@@ -47,7 +47,7 @@ export const go = (path: string) => {
 }
 export const routes = {
   home: "/",
-  project: (id: string, tab?: "client" | "tools" | "redirects" | "inventory") => `/project/${id}${tab ? "/" + tab : ""}`,
+  project: (id: string, tab?: "client" | "tools" | "money" | "redirects" | "inventory") => `/project/${id}${tab ? "/" + tab : ""}`,
   /** A checklist item, opened in the side panel. */
   item: (id: string, itemId: string) => `/project/${id}/item/${itemId}`,
   /** A phase of the checklist, scrolled to its sign-off. */

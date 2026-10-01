@@ -29,6 +29,7 @@ import { HandoffDialog } from "@/components/project/HandoffDoc"
 import { AccountsSection } from "@/components/project/Accounts"
 import { TrafficCard } from "@/components/project/Traffic"
 import { CareReportDialog } from "@/components/project/CareReport"
+import { MoneyTab } from "@/components/project/Money"
 import { ShiftDialog, shiftPlan } from "@/components/project/ShiftDialog"
 import { TemplateUpdateDialog, updateFromTemplate } from "@/components/project/TemplateUpdate"
 import { AddTime, EditTimeDialog, PlayButton, useRunningOn } from "@/components/time/TimeBits"
@@ -37,7 +38,7 @@ import { useTimeChanged, useTimer } from "@/hooks/useTimer"
 import { clockOf, fmtMins, parseDur, timeOf } from "@/lib/time"
 import type { TimeEntry } from "@/lib/api"
 
-type Tab = "checklist" | "client" | "tools" | "launch" | "redirects" | "inventory"
+type Tab = "checklist" | "client" | "tools" | "money" | "launch" | "redirects" | "inventory"
 type SetItem = (itemId: string, b: Parameters<typeof api.setItem>[2]) => Promise<void>
 
 export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Tab; sub?: string; item?: string }) {
@@ -69,7 +70,7 @@ export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Ta
   if (!p) return <div className="grid h-full place-items-center"><Spinner /></div>
   const audit = p.kind === "audit"
   // An audit has no checklist, so it only has the Tools page.
-  if (audit && (tab === "checklist" || tab === "client")) tab = "tools"
+  if (audit && (tab === "checklist" || tab === "client" || tab === "money")) tab = "tools"
   const open = p.client.late.length + p.client.soon.length
 
   return (
@@ -128,6 +129,7 @@ export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Ta
                 <TabLink on={tab === "checklist"} onClick={() => go(routes.project(id))}>Checklist</TabLink>
                 <TabLink on={tab === "client"} onClick={() => go(routes.project(id, "client"))}>Client <span className="text-xs text-muted-foreground tabular">{open}</span>{p.client.late.length > 0 && <span className="size-1.5 rounded-full bg-destructive" aria-label={`${p.client.late.length} late`} />}</TabLink>
                 {p.website && <TabLink on={tab === "tools"} onClick={() => go(routes.project(id, "tools"))}>Tools</TabLink>}
+                <TabLink on={tab === "money"} onClick={() => go(routes.project(id, "money"))}>Money{p.money && p.money.toInvoice > 0 && <span className="size-1.5 rounded-full bg-foreground/50" aria-label="Something to invoice" />}</TabLink>
               </nav>
             )}
           </header>
@@ -136,6 +138,7 @@ export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Ta
         {tab === "client" && <ClientTab key={sub || ""} p={p} setItem={setItem} setP={setP} mode={sub === "remind" || sub === "update" ? sub : undefined} />}
         {tab === "client" && <AccountsSection p={p} setP={setP} />}
         {tab === "tools" && <ToolsTab p={p} setP={setP} reload={load} onEdit={() => setEditing(true)} />}
+        {tab === "money" && !audit && <MoneyTab p={p} setP={setP} />}
         </div>
         {tab === "launch" && <LaunchReportPage key={sub || ""} p={p} sub={sub} reload={load} />}
         {tab === "redirects" && <RedirectsPage p={p} reload={load} />}

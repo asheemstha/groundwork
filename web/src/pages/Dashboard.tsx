@@ -140,8 +140,8 @@ function Messages({ list }: { list: HomeMessages[] }) {
     if (m.remind) out.push({ key: "r", icon: <Bell />, title: `Remind ${who} about ${n(m.remind, "item")}`, sub: "Asked before and due soon or late", go: () => go(routes.remind(m.projectId)) })
     if (m.ask) out.push({ key: "a", icon: <Mail />, title: `Ask ${who} for ${n(m.ask, "item")}`, sub: "Time to ask, going by the due dates", go: () => go(routes.project(m.projectId, "client")) })
     if (m.update) out.push({ key: "u", icon: <CalendarClock />, title: `Weekly update for ${who}`, sub: m.lastUpdate ? `Last one ${fmtDay(dayOf(m.lastUpdate))}` : "No update sent yet", go: () => go(routes.clientUpdate(m.projectId)) })
-    for (const x of m.invoices) out.push({ key: "i" + x.phaseId, icon: <Receipt />, title: `Send the invoice: ${x.label}${x.amount ? `, ${x.amount}` : ""}`, sub: "The phase is signed off", go: () => go(routes.phase(m.projectId, x.phaseId)) })
-    for (const x of m.unpaid) out.push({ key: "p" + (x.phaseId || x.invoiceId), icon: <Receipt />, title: `Payment reminder: ${x.label}${x.amount ? `, ${x.amount}` : ""}`, sub: `Invoiced ${fmtDay(dayOf(x.invoiced))}, not paid yet`, go: () => go(x.phaseId ? routes.phase(m.projectId, x.phaseId) : routes.time(m.projectId)) })
+    for (const x of m.invoices) out.push({ key: "i" + x.phaseId, icon: <Receipt />, title: `Send the invoice: ${x.label}${x.amount ? `, ${x.amount}` : ""}`, sub: x.phaseId === "deposit" ? "The deposit, due at kickoff" : "The phase is signed off", go: () => go(routes.project(m.projectId, "money")) })
+    for (const x of m.unpaid) out.push({ key: "p" + (x.phaseId || x.invoiceId), icon: <Receipt />, title: `Payment reminder: ${x.label}${x.amount ? `, ${x.amount}` : ""}`, sub: `Invoiced ${fmtDay(dayOf(x.invoiced))}, not paid yet`, go: () => go(routes.project(m.projectId, "money")) })
     return out.map((r) => ({ ...r, key: m.projectId + r.key, m }))
   })
   return (

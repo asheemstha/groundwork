@@ -317,6 +317,11 @@ export interface Project {
   rate: string; billTo: string
   /** Payments marked paid and paid hours invoices, added up in one currency. */
   paid: { amount: number; currency: Currency; mixed: boolean } | null
+  /** The project's money in one currency: planned in payments, paid, invoiced and waiting, ready to invoice. */
+  money: { currency: Currency; planned: number; paid: number; waiting: number; toInvoice: number; mixed: boolean } | null
+  /** The deposit due at kickoff, and what the client asked for beyond the agreed work. */
+  deposit: Payment | null
+  extras: Extra[]
   /** The live domain's SSL certificate and registration, checked once a day. */
   renewals: Renewals | null
   /** Who owns each account the work depends on, for the handoff. */
@@ -333,9 +338,10 @@ export interface Renewals {
   warnings: { what: "ssl" | "domain"; name: string; expires: string; days: number; late: boolean; auto?: boolean; by?: string | null }[]
 }
 export interface Currency { before: string; after: string }
+export interface Extra { id: string; title: string; asked: string; status: "asked" | "quoted" | "approved" | "done" | "declined"; price: string; note: string; at: number; invoiceId?: string; mins: number }
 export interface InvoiceLine { text: string; sub?: string; qty?: number; unit?: number; amount: number }
-export interface InvoiceSummary { id: string; number: string; kind: "milestone" | "hours"; date: string; due: string | null; phaseId: string | null; from: string | null; to: string | null; total: number; currency: Currency; paid: number | null; hours: number | null }
-export interface InvoiceDraft { kind: "milestone" | "hours"; number: string; date: string; due: string; billTo: string; note: string; lines: InvoiceLine[]; currency: Currency; total: number; phaseId?: string; from?: string; to?: string; entryIds?: string[]; rate?: number; mins?: number }
+export interface InvoiceSummary { id: string; number: string; kind: "milestone" | "hours" | "extra"; date: string; due: string | null; phaseId: string | null; extraId?: string | null; from: string | null; to: string | null; total: number; currency: Currency; paid: number | null; hours: number | null }
+export interface InvoiceDraft { kind: "milestone" | "hours" | "extra"; extraId?: string; number: string; date: string; due: string; billTo: string; note: string; lines: InvoiceLine[]; currency: Currency; total: number; phaseId?: string; from?: string; to?: string; entryIds?: string[]; rate?: number; mins?: number }
 // ---------- redirect map ----------
 export type RedirectHow = "same" | "seo" | "slug" | "similar" | "parent" | "home" | "manual"
 export interface RedirectRow { from: string; title: string; to: string; how: RedirectHow; score: number; sure: boolean; checked?: boolean }
@@ -419,18 +425,18 @@ export interface SignoffInput { by: string; date: string; note?: string; link?: 
 export interface TimeEntry {
   id: string; who: string; projectId: string | null; pname: string | null; gone?: boolean; itemId: string | null; item: { title: string; phase: string } | null; taskId: string | null
   title: string; day: string; mins: number; start: number | null; end: number | null; billable: boolean; by: "timer" | "hand"; at: number
-  /** The invoice this time was billed on. */
-  invoice?: string
+  /** The invoice this time was billed on, and the extra request it was for. */
+  invoice?: string; extraId?: string | null
 }
 export interface RunningTimer {
-  id: string; projectId: string | null; pname: string | null; itemId: string | null; item: { title: string; phase: string } | null; taskId: string | null; title: string; start: number; billable: boolean
+  id: string; projectId: string | null; pname: string | null; itemId: string | null; item: { title: string; phase: string } | null; taskId: string | null; extraId?: string | null; title: string; start: number; billable: boolean
   /** When "Still on it" was last answered, and time away from the Mac to ask about. */
   checked: number | null; away: { from: number; to: number } | null; now: number
 }
 export interface TimerState { running: RunningTimer | null; today: { mins: number; billable: number } }
 export type Stopped = TimeEntry | { dropped: true } | null
 export interface Task { id: string; title: string; est: number | null; projectId: string | null; pname: string | null; itemId: string | null; item: { title: string; phase: string; done: boolean } | null; day: string; done: number | null; created: number; mins: number }
-export interface TimerStart { projectId?: string | null; itemId?: string | null; taskId?: string | null; title?: string; billable?: boolean }
+export interface TimerStart { projectId?: string | null; itemId?: string | null; taskId?: string | null; extraId?: string | null; title?: string; billable?: boolean }
 
 export interface UpdateInfo { enabled: boolean; version: string; commit: string | null; behind: number; latest: string | null; checkedAt: number; error: string | null; launcher: boolean; app?: boolean; url?: string }
 
@@ -549,17 +555,23 @@ export const api = {
   removeTask: (id: string) => req<{ ok: boolean }>("DELETE", `/api/tasks/${id}`),
   // invoices
   /** A new invoice to look over: for a phase's payment, or for billable hours between two dates. */
-  invoiceDraft: (id: string, q: { kind: "milestone" | "hours"; phase?: string; from?: string; to?: string; rate?: string }) => req<InvoiceDraft>("GET", `/api/projects/${id}/invoice-draft?` + new URLSearchParams(Object.entries(q).filter(([, v]) => v) as [string, string][])),
+  invoiceDraft: (id: string, q: { kind: "milestone" | "hours" | "extra"; phase?: string; extra?: string; from?: string; to?: string; rate?: string }) => req<InvoiceDraft>("GET", `/api/projects/${id}/invoice-draft?` + new URLSearchParams(Object.entries(q).filter(([, v]) => v) as [string, string][])),
   saveInvoice: (id: string, d: InvoiceDraft) => req<{ invoice: InvoiceSummary; project: Project }>("POST", `/api/projects/${id}/invoices`, d),
   setInvoice: (id: string, invId: string, b: { paid: boolean }) => req<Project>("POST", `/api/projects/${id}/invoices/${invId}`, b),
   removeInvoice: (id: string, invId: string) => req<Project>("DELETE", `/api/projects/${id}/invoices/${invId}`),
   /** A Search Console, GA4 or Google Ads CSV export, read on this Mac. */
   importTraffic: (id: string, name: string, text: string) => req<Project>("POST", `/api/projects/${id}/traffic`, { name, text }),
   removeTraffic: (id: string, impId: string) => req<Project>("DELETE", `/api/projects/${id}/traffic/${impId}`),
+  /** An extra request: add one (no id), change it, or remove it. */
+  addExtra: (id: string, b: Partial<Pick<Extra, "title" | "asked" | "status" | "price" | "note">>) => req<Project>("POST", `/api/projects/${id}/extras`, b),
+  setExtra: (id: string, extraId: string, b: Partial<Pick<Extra, "title" | "asked" | "status" | "price" | "note">>) => req<Project>("POST", `/api/projects/${id}/extras/${extraId}`, b),
+  removeExtra: (id: string, extraId: string) => req<Project>("DELETE", `/api/projects/${id}/extras/${extraId}`),
   setAccounts: (id: string, accounts: Account[]) => req<Project>("POST", `/api/projects/${id}/accounts`, { accounts }),
   /** Reads the live domain's SSL certificate and domain expiry now. */
   checkRenewals: (id: string) => req<Project>("POST", `/api/projects/${id}/renewals`),
 }
+/** Every invoice for the accountant, as a CSV: for a year, or one project. */
+export const invoicesCsvUrl = (q: { year?: string; project?: string }) => "/api/invoices.csv?" + new URLSearchParams(Object.entries(q).filter(([, v]) => v) as [string, string][])
 export const invoiceUrl = (id: string, invId: string, html = false) => `/api/projects/${id}/invoices/${invId}${html ? "?format=html" : ""}`
 /** "$2,400.00", "1,250.50 EUR". */
 export const fmtMoney = (n: number, c: Currency) => `${c.before || ""}${(Math.round(n * 100) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${c.after ? " " + c.after : ""}`
