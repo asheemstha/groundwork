@@ -59,6 +59,8 @@ export interface Settings {
   skillName?: string
   /** The checklist template last used for a new project. */
   template?: string
+  /** The studio or agency name on client status pages. */
+  agency?: string
   /** How the person writes, for "Rewrite in my voice". */
   voice?: string
   /** A morning notification with what's due today. */
@@ -375,6 +377,7 @@ export const api = {
   update: () => req<{ ok: boolean; restart: "auto" | "manual" }>("POST", "/api/update"),
   status: (fresh = false) => req<AppStatus>("GET", "/api/status" + (fresh ? "?fresh" : "")),
   prefs: () => req<Partial<Settings>>("GET", "/api/prefs"),
+  diagnostics: () => req<{ text: string }>("GET", "/api/diagnostics"),
   savePrefs: (p: Partial<Settings>) => req<Partial<Settings>>("POST", "/api/prefs", p),
   runs: () => req<RunSummary[]>("GET", "/api/runs"),
   run: (id: string) => req<{ run: Run; progress: Progress | null; seoProgress: Progress | null; log: LogEntry[] }>("GET", `/api/runs/${id}`),

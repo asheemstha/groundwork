@@ -12,6 +12,7 @@ It works with sites built on Webflow, WordPress, Shopify, Framer, Squarespace, W
 - **Messages to send.** Home lists what to send today across every project: requests, reminders on a schedule you pick per project, a weekly update written from the checklist (done, up next, waiting on you), invoices once a phase is signed off, and payment reminders two weeks after invoicing.
 - **Payments.** Add the payment that falls due with each sign-off, then mark it invoiced and paid.
 - **Reminders and calendar.** An optional Mac notification each morning with what's due, and a calendar feed of launches, sign-offs and due dates to subscribe to in Calendar.
+- **Client status page.** A read-only page made from the project (where it stands, what the client owes, what's done and what's next) saved as a PDF or a web page to send. Your notes, links, payments and scans stay out of it.
 - **Launch check.** Reads up to 60 pages of the staging or live site and every link on them: noindex and robots.txt, placeholder text and dummy "#" links, broken links, titles and descriptions, H1s, canonicals, legal pages, https and www redirects. Each issue comes with a one-line fix, and items it passes tick themselves on the checklist.
 - **Accessibility and speed.** The launch check also runs axe (the engine Lighthouse uses) against WCAG 2.2 A and AA on every page, and a speed test of three key pages set up like Lighthouse's mobile test, against Google's Core Web Vitals targets. Both run on your Mac.
 - **After launch.** While the app is open, Groundwork checks the live site again 3, 7 and 30 days after launch, with the redirect test when there's a map, and Home lists anything new it finds.
@@ -68,7 +69,7 @@ Groundwork checks for a new version when it opens and every few hours. When ther
 
 ## Status
 
-- Groundwork is in active use at one agency and new to everyone else. Expect rough edges, and please open an issue when something's wrong.
+- Groundwork is in active use at one agency and is now being tried by a small group of outside testers. If you're one of them, start with [TESTING.md](TESTING.md). Expect rough edges, and send feedback from **Settings, Help and feedback** when something's wrong.
 - **Codex support is in beta.** The app is built and tested on Claude Code; Codex works but has had much less use.
 - The app isn't signed or notarized by Apple yet (see Install).
 - **Sites behind Cloudflare's bot protection** can turn scans and launch checks away. Groundwork doesn't try to get around it: it names itself ("Groundwork" in its user agent), and the app shows how to allow it in Cloudflare. Staging addresses usually aren't affected.

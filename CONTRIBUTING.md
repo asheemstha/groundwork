@@ -38,6 +38,8 @@ How updates install:
 - `lib/templates-gallery.js`: the seven gallery checklists, written from the public guidance they credit in `basedOn`. `lib/templates-default.js`: the full agency checklist and the messages. Bump `SEED` when a built-in checklist changes, so untouched copies update; new built-ins arrive once (`data/templates-seen.json`).
 - `shared/platforms.json`: each platform's staging addresses and redirect formats, read by `lib/platforms.js` (server) and `web/src/lib/platforms.ts` (the app, which also writes the redirect files).
 - `lib/engines.js`: Claude Code and Codex detection, models, efforts and the runner.
+- `lib/status-page.js`: the client status page's HTML. server.js turns it into a PDF with the app's own Chromium (`printToPDF`), or with the scan browser when running from source.
+- Feedback: `/api/diagnostics` builds the app details for a report (versions, macOS, browser, AI tools without the account, counts, recent errors from `friendly()` and main.log, emails redacted). The app only sends it where the person chooses.
 - `lib/assist.js`: short AI jobs outside the plans (a project from a brief, a message rewritten in your voice). Each runs in an empty temp folder with only its text in the prompt, and the brief has a plain, no-AI reader for addresses and dates.
 - `lib/crawl.js`: browser scans, screenshots and live checks. On a Mac, Chrome is started with `open` so macOS attributes it to Chrome, not Groundwork.
 - `lib/headings.js`, `lib/seo.js`, `lib/skills.js`: the AI plans and their skills.

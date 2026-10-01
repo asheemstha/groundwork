@@ -1,6 +1,6 @@
 import * as React from "react"
 import { cn } from "cn"
-import { Ban, CalendarDays, Check, ChevronDown, ChevronRight, ChevronUp, Copy, Download, ExternalLink, FolderPlus, Info, Layers, Link2, Loader2, Mail, MessageSquare, MoreHorizontal, Paperclip, Pencil, Plus, Receipt, RefreshCw, Stamp, Trash2, Undo2, User, X } from "lucide-react"
+import { Ban, CalendarDays, FileText, Check, ChevronDown, ChevronRight, ChevronUp, Copy, Download, ExternalLink, FolderPlus, Info, Layers, Link2, Loader2, Mail, MessageSquare, MoreHorizontal, Paperclip, Pencil, Plus, Receipt, RefreshCw, Stamp, Trash2, Undo2, User, X } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -24,6 +24,7 @@ import { go, routes } from "@/lib/router"
 import { LaunchCard, LaunchItemPanel, LaunchReportPage, useLaunchRefresh } from "@/components/project/LaunchCheck"
 import { RedirectCard, RedirectsPage } from "@/components/project/Redirects"
 import { InventoryCard, InventoryPage } from "@/components/project/Inventory"
+import { StatusPageDialog } from "@/components/project/StatusPage"
 import { ShiftDialog, shiftPlan } from "@/components/project/ShiftDialog"
 import { TemplateUpdateDialog, updateFromTemplate } from "@/components/project/TemplateUpdate"
 
@@ -36,6 +37,8 @@ export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Ta
   const [p, setP] = React.useState<Project | null>(null)
   const [missing, setMissing] = React.useState<null | "gone" | string>(null)
   const [editing, setEditing] = React.useState(false)
+  const [statusOpen, setStatusOpen] = React.useState(false)
+  React.useEffect(() => { const on = () => setStatusOpen(true); window.addEventListener("gw:status-page", on); return () => window.removeEventListener("gw:status-page", on) }, [])
   const [removing, setRemoving] = React.useState(false)
   // A project that's been deleted says so; anything else (the app restarting, a bad file) can be retried.
   const load = React.useCallback(() => api.project(id).then((x) => { setP(x); setMissing(null) }).catch((e: Error) => setMissing(/doesn’t exist|not found/i.test(e.message) ? "gone" : e.message)), [id])
@@ -69,6 +72,7 @@ export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Ta
             {!audit && <DropdownMenuItem onClick={shiftPlan}><CalendarDays /> Move dates…</DropdownMenuItem>}
             {!audit && <DropdownMenuItem onClick={updateFromTemplate}><RefreshCw /> Update from the template…{p.templateChanged && <span className="ml-auto size-1.5 rounded-full bg-foreground/60" />}</DropdownMenuItem>}
             {audit && <DropdownMenuItem onClick={() => newProject({ name: p.name, old: p.sites.live || p.url || "" })}><FolderPlus /> Start a project for this site…</DropdownMenuItem>}
+            {!audit && <DropdownMenuItem onClick={() => setStatusOpen(true)}><FileText /> Client status page…</DropdownMenuItem>}
             <DropdownMenuItem onClick={() => { const a = document.createElement("a"); a.href = `/api/projects/${p.id}/export`; a.download = ""; a.click(); toast("Exporting the project", { description: "Its checklist, files, scans and plans, as one zip another Groundwork can import." }) }}><Download /> Export project…</DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem variant="destructive" onClick={() => setRemoving(true)}><Trash2 /> {audit ? "Delete audit…" : "Delete project…"}</DropdownMenuItem>
@@ -115,6 +119,7 @@ export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Ta
         {tab === "inventory" && <InventoryPage p={p} reload={load} />}
       </div>
       <EditDialog p={p} open={editing} onClose={() => setEditing(false)} onSaved={(x) => { setP(x); refreshProjects() }} />
+      {!audit && <StatusPageDialog p={p} open={statusOpen} onClose={() => setStatusOpen(false)} />}
       <ShiftDialog p={p} onDone={(x) => { setP(x); refreshProjects() }} />
       <TemplateUpdateDialog p={p} onDone={(x) => { setP(x); refreshProjects() }} />
       <AlertDialog open={removing} onOpenChange={setRemoving}>
@@ -753,6 +758,7 @@ function ClientTab({ p, setItem, setP, mode }: { p: Project; setItem: SetItem; s
           </div>
           <span className="text-[12px] text-muted-foreground">{rewritten ? <>Rewritten by AI. <button onClick={() => setAi(null)} className="underline underline-offset-2 hover:text-foreground">Back to the plain version</button></> : "Optional: rewrites it in your voice with Claude or ChatGPT. It sends this message and nothing else."}</span>
         </div>
+        {kind === "update" && <button onClick={() => window.dispatchEvent(new Event("gw:status-page"))} className="flex items-center gap-1.5 text-left text-[12.5px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"><FileText className="size-3.5" />Or send a status page as a PDF</button>}
         {kind === "update" && <label className="flex items-start gap-2 text-[13px]"><Checkbox checked={record} onCheckedChange={(v) => setRecord(!!v)} className="mt-0.5" /><span>Record it as sent today <span className="text-muted-foreground">(the next one is due in a week)</span></span></label>}
         {kind === "ask" && chosen.length > 0 && <label className="flex items-start gap-2 text-[13px]"><Checkbox checked={record} onCheckedChange={(v) => setRecord(!!v)} className="mt-0.5" /><span>Record it as sent today <span className="text-muted-foreground">({[fresh.length ? `${fresh.length} asked` : "", chosen.length - fresh.length ? `${chosen.length - fresh.length} nudged` : ""].filter(Boolean).join(", ")})</span></span></label>}
         <Button onClick={copy} disabled={!text}><Copy />Copy message</Button>

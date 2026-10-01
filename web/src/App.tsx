@@ -1,6 +1,7 @@
 import * as React from "react"
 import { Toaster } from "@/components/ui/sonner"
 import { Button } from "@/components/ui/button"
+import { sendFeedback } from "@/components/common/Feedback"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { AppShell } from "@/components/shell/AppShell"
 import { AppProvider } from "@/hooks/useApp"
@@ -27,7 +28,7 @@ class PageBoundary extends React.Component<{ children: React.ReactNode }, { erro
         <div className="max-w-md">
           <p className="text-lg font-medium">Something went wrong on this page</p>
           <p className="mt-1.5 text-sm text-muted-foreground">Your data is safe. Reload to try again, and if it keeps happening, please report it with this message: {e.message}</p>
-          <div className="mt-4 flex justify-center gap-2"><Button variant="outline" onClick={() => { location.hash = "#/"; location.reload() }}>Go home</Button><Button onClick={() => location.reload()}>Reload</Button></div>
+          <div className="mt-4 flex justify-center gap-2"><Button variant="outline" onClick={() => { location.hash = "#/"; location.reload() }}>Go home</Button><Button variant="outline" onClick={() => sendFeedback(`This page crashed: ${e.message}\n\nWhat I was doing: `)}>Report it</Button><Button onClick={() => location.reload()}>Reload</Button></div>
         </div>
       </div>
     )

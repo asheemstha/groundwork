@@ -34,6 +34,23 @@ const setSiteName = (host, name) => { const all = readJson(sitesFile, {}); name 
 // Projects and templates (lib/projects.js). A project links to a site's scans and plans by its host.
 const allRuns = () => fs.readdirSync(RUNS).map(id => loadRun(id)).filter(Boolean);
 const assist = require('./lib/assist');
+const statusPage = require('./lib/status-page');
+
+// A page as a PDF: the app's own Chromium when running inside Groundwork, else the scan browser.
+async function htmlToPdf(html) {
+  const letter = /-(US|CA|MX|PH)\b/.test(Intl.DateTimeFormat().resolvedOptions().locale);
+  if (process.versions.electron) {
+    const { BrowserWindow } = require('electron');
+    const w = new BrowserWindow({ show: false, webPreferences: { sandbox: true, javascript: false } });
+    try {
+      await w.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
+      return await w.webContents.printToPDF({ pageSize: letter ? 'Letter' : 'A4', printBackground: true, margins: { top: 0.6, bottom: 0.6, left: 0.6, right: 0.6 } });
+    } finally { w.destroy(); }
+  }
+  const ctx = await crawl.newContext();
+  try { const page = await ctx.newPage(); await page.setContent(html, { waitUntil: 'load' }); return await page.pdf({ format: letter ? 'Letter' : 'A4', printBackground: true, margin: { top: '15mm', bottom: '15mm', left: '15mm', right: '15mm' } }); }
+  finally { await ctx.close().catch(() => {}); }
+}
 const SK = require('./lib/skills')({ DATA, BUILTIN: H.SKILL_DIR, readJson, writeJson, seoRules: SEO.RULES });
 const P = require('./lib/projects')({ DATA, readJson, writeJson, allRuns, hostOf: u => hostOf(/^https?:\/\//i.test(u) ? u : 'https://' + u) });
 const ICON_EXT = { 'image/svg+xml': 'svg', 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif' };
@@ -104,8 +121,11 @@ async function startScan(rawUrl, name, { projectId = null, site = null } = {}) {
   return run;
 }
 // Errors people can act on, in place of the browser's or the engine's codes.
+// The last errors people saw, kept in memory for "Copy app details" (feedback from testers).
+const recentErrors = [];
 const friendly = e => {
   const m = String(e && e.message || e);
+  recentErrors.push({ at: Date.now(), m: m.split('\n')[0].slice(0, 300) }); if (recentErrors.length > 15) recentErrors.shift();
   if (/ERR_INTERNET_DISCONNECTED|ENETUNREACH|EAI_AGAIN/.test(m)) return 'This Mac seems to be offline. Check the internet connection and try again.';
   if (/ERR_NAME_NOT_RESOLVED|ENOTFOUND/.test(m)) return 'We couldn’t find that site. Check the address for typos.';
   if (/ERR_CONNECTION|ECONNREFUSED|ECONNRESET/.test(m)) return 'The site didn’t respond. Check that it’s online, then try again.';
@@ -709,6 +729,28 @@ const server = http.createServer(async (req, res) => {
     if (p === '/api/home' && M === 'GET') return json(res, P.home());
     if (p === '/api/projects' && M === 'GET') return json(res, P.list());
     if (p === '/api/items' && M === 'GET') return json(res, P.searchItems());
+    // App details for a bug report: versions, the Mac, the browser and AI tools (never the account), counts and the
+    // last errors. Shown to the person before they send it anywhere.
+    if (p === '/api/diagnostics' && M === 'GET') {
+      const os = require('os');
+      let mac = ''; try { mac = require('child_process').execFileSync('/usr/bin/sw_vers', ['-productVersion'], { encoding: 'utf8', timeout: 2000 }).trim(); } catch {}
+      const st = statusCache || {}, e = st.engines || {};
+      const projects = P.listRaw(), runs = allRuns();
+      const eng = k => { const x = e[k] || {}; return x.installed ? `${x.version || 'installed'}, ${x.loggedIn ? 'signed in' : 'not signed in'}${x.billing ? ', ' + x.billing : ''}${k === 'claude' && x.restricted ? ', confined to the run folder' : ''}` : 'not installed'; };
+      let log = [];
+      try { log = fs.readFileSync(path.join(DATA, '..', 'main.log'), 'utf8').split('\n').filter(l => /uncaught|failed|error|couldn/i.test(l)).slice(-8); } catch {}
+      const redact = t => String(t).replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, '[email]').replace(new RegExp(os.homedir().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), '~');
+      const lines = [
+        `Groundwork ${VERSION}${process.versions.electron ? ` (app ${require('electron').app.getVersion()}, shell ${readJson(path.join(ROOT, 'package.json'), {}).gwShell || 1}, Electron ${process.versions.electron})` : ' (from source)'}`,
+        `macOS ${mac || os.release()} on ${os.arch()}`,
+        `Browser for scans: ${st.browser ? (st.browser.ok ? st.browser.name : 'none, ' + st.browser.error) : 'not checked yet'}`,
+        `Claude Code: ${eng('claude')}`, `Codex: ${eng('codex')}`,
+        `Projects: ${projects.filter(x => x.kind !== 'audit').length}, audits: ${projects.filter(x => x.kind === 'audit').length}, scans: ${runs.length}`,
+        ...(recentErrors.length ? ['', 'Recent errors:', ...recentErrors.slice(-8).map(x => `${new Date(x.at).toISOString().slice(0, 16).replace('T', ' ')} ${x.m}`)] : []),
+        ...(log.length ? ['', 'From the app log:', ...log] : []),
+      ];
+      return json(res, { text: redact(lines.join('\n')) });
+    }
     if (p === '/api/calendar.ics' && M === 'GET') { res.writeHead(200, { 'content-type': 'text/calendar; charset=utf-8', 'content-disposition': 'inline; filename="groundwork.ics"' }); return res.end(P.calendar({ items: u.searchParams.get('items') === '1' })); }
     // Short AI jobs: set up a project from a brief, rewrite a message in your voice. Without an AI account the brief is
     // read for addresses and dates only.
@@ -798,6 +840,20 @@ const server = http.createServer(async (req, res) => {
           if (!url) return json(res, { error: 'Add the site’s address to the project first.' }, 400);
           const run = await startScan(url, raw.name, { projectId: id, site });
           return json(res, { runId: run.id });
+        }
+        // The client status page, as HTML (a preview, or a file to send) or a PDF.
+        if (sub === '/status-page' && M === 'GET') {
+          const v = P.get(id); if (!v) return json(res, { error: 'That project doesn’t exist any more.' }, 404);
+          const q = u.searchParams, prefs = getSettings().prefs || {};
+          const opts = { done: q.get('done') !== '0', next: q.get('next') !== '0', waiting: q.get('waiting') !== '0', days: q.get('days') === '7' ? 7 : 14, note: String(q.get('note') || '').slice(0, 2000), agency: q.has('agency') ? String(q.get('agency')).slice(0, 80) : prefs.agency || '', yourName: prefs.appliedBy || '' };
+          const html = statusPage.render(v, opts);
+          const base = `${v.name.replace(/[^\w .()-]+/g, '').trim() || 'Project'} status ${new Date().toISOString().slice(0, 10)}`;
+          if (q.get('format') === 'pdf') {
+            try { const pdf = await htmlToPdf(html); res.writeHead(200, { 'content-type': 'application/pdf', 'content-disposition': `attachment; filename="${base}.pdf"` }); return res.end(pdf); }
+            catch (e) { return json(res, { error: 'Couldn’t make the PDF: ' + friendly(e) }, 500); }
+          }
+          res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', ...(q.has('download') ? { 'content-disposition': `attachment; filename="${base}.html"` } : {}) });
+          return res.end(html);
         }
         if (sub === '/export' && M === 'GET') {
           const { file, name } = await exportProject(id);

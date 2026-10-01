@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Switch } from "@/components/ui/switch"
 import { morningLine } from "@/hooks/useMorningNotice"
+import { sendFeedback } from "@/components/common/Feedback"
 import { store } from "@/lib/store"
 import { useTheme } from "@/components/theme-provider"
 import { Bar, Dot, Tag, TopBar } from "@/components/common/bits"
@@ -15,7 +16,7 @@ import { api, type EngineId } from "@/lib/api"
 import { ago, cap, clock, pct } from "@/lib/format"
 import { SkillsSection } from "@/components/settings/Skills"
 
-const SECTIONS = [["you", "You"], ["reminders", "Reminders and calendar"], ["engines", "AI accounts"], ["privacy", "Data and privacy"], ["skills", "AI rules"], ["updates", "Updates"], ["scanning", "Scanning"]] as const
+const SECTIONS = [["you", "You"], ["reminders", "Reminders and calendar"], ["engines", "AI accounts"], ["privacy", "Data and privacy"], ["skills", "AI rules"], ["updates", "Updates"], ["scanning", "Scanning"], ["help", "Help and feedback"]] as const
 
 export function SettingsPage({ focus }: { focus?: EngineId | "privacy" }) {
   const { status } = useApp()
@@ -61,6 +62,7 @@ export function SettingsPage({ focus }: { focus?: EngineId | "privacy" }) {
                 <div className="flex items-center gap-3 bg-card p-4 text-sm"><Globe className="size-4" /><span className="flex-1">Browser for scans</span>{status.browser.ok ? <span className="flex items-center gap-2"><Dot tone="ink" />{status.browser.name}</span> : <span className="text-brand">{status.browser.error}</span>}</div>
               </div>
             </Section>
+            <Section id="help" title="Help and feedback"><Help /></Section>
           </div>
         </div>
       </div>
@@ -88,6 +90,21 @@ function Privacy() {
       {row("What the AI sees", <>The heading plan and the SEO plan send the pages you chose from a scan (their public text, headings, current titles and descriptions, and a screenshot when a layout is unclear), your notes and the rules they follow to Anthropic (Claude Code) or OpenAI (Codex), through your own account, so that provider’s privacy terms apply. Groundwork runs the AI in that scan’s folder only. {status?.engines.claude.restricted ? "Claude Code is confined to it, so it can’t open your projects, client details, messages, sign-off files or other scans." : "Update Claude Code to confine it to that folder."} Codex (Beta) is pointed at the folder but not confined to it. A few small jobs are optional: reading a project brief you paste in, rewriting a client message in your voice, and suggesting the content inventory’s calls from the old site’s page list (addresses, titles, H1s, word counts and each page’s first lines). Each sends only that text, from an empty folder.</>)}
       {row("Scans and checks", "The site scan, launch check (with its accessibility and speed tests) and redirect tests run in a browser on this Mac. They only visit the addresses you give them, and they don’t use AI. After launch, the live site is checked again on days 3, 7 and 30 while the app is open.")}
       {row("Other connections", "Groundwork checks GitHub for new versions a few times a day. The usage bars ask Claude for your plan’s limits when you refresh them.")}
+    </div>
+  )
+}
+
+/** Where to read more, how to report a problem, and the app details a report needs. */
+function Help() {
+  const copyDetails = async () => { try { const d = await api.diagnostics(); navigator.clipboard.writeText(d.text); toast("Copied the app details", { description: "Check them before you send them. Error messages can include a site’s address." }) } catch (e) { toast.error((e as Error).message) } }
+  const row = (title: string, desc: string, action: React.ReactNode) => (
+    <div className="grid gap-3 bg-card p-4 text-sm sm:grid-cols-[1fr_auto] sm:items-center"><span><span className="block font-medium">{title}</span><span className="text-muted-foreground">{desc}</span></span>{action}</div>
+  )
+  return (
+    <div className="grid gap-px overflow-hidden rounded-2xl border bg-border">
+      {row("Send feedback", "What happened, what got in the way, or what you’d change. Groundwork doesn’t collect anything on its own.", <Button size="sm" variant="outline" onClick={() => sendFeedback()}>Send feedback</Button>)}
+      {row("App details", "Versions, macOS, the scan browser and recent errors, for a bug report. No project data.", <Button size="sm" variant="outline" onClick={copyDetails}><Copy />Copy</Button>)}
+      {row("Guide for testers", "What to try in your first week, and what’s most useful to report.", <Button size="sm" variant="outline" onClick={() => window.open("https://github.com/asheemstha/groundwork/blob/main/TESTING.md")}><ExternalLink />Open</Button>)}
     </div>
   )
 }
@@ -229,6 +246,14 @@ function Preferences() {
   const { theme, setTheme } = useTheme()
   const [name, setName] = React.useState(prefs.appliedBy || "")
   React.useEffect(() => setName(prefs.appliedBy || ""), [prefs.appliedBy])
+  const [agency, setAgency] = React.useState(prefs.agency || "")
+  React.useEffect(() => setAgency(prefs.agency || ""), [prefs.agency])
+  const saveAgency = async () => {
+    if ((prefs.agency || "") === agency.trim()) return
+    await api.savePrefs({ agency: agency.trim() })
+    setPrefs({ agency: agency.trim() })
+    toast.success("Saved")
+  }
   const save = async () => {
     if ((prefs.appliedBy || "") === name.trim()) return
     await api.savePrefs({ appliedBy: name.trim() })
@@ -240,6 +265,10 @@ function Preferences() {
       <label className="grid gap-3 bg-card p-4 text-sm sm:grid-cols-[1fr_260px] sm:items-center">
         <span><span className="block font-medium">Your name</span><span className="text-muted-foreground">Signs your client messages, and shows on exported guides as the person who applies the changes.</span></span>
         <Input value={name} placeholder="e.g. Alex" onChange={(e) => setName(e.target.value)} onBlur={save} onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()} />
+      </label>
+      <label className="grid gap-3 bg-card p-4 text-sm sm:grid-cols-[1fr_260px] sm:items-center">
+        <span><span className="block font-medium">Studio or agency name</span><span className="text-muted-foreground">Shows at the top of client status pages.</span></span>
+        <Input value={agency} placeholder="e.g. Northwind Studio" onChange={(e) => setAgency(e.target.value)} onBlur={saveAgency} onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()} />
       </label>
       <div className="grid gap-3 bg-card p-4 text-sm sm:grid-cols-[1fr_260px] sm:items-center">
         <span className="font-medium">Theme</span>

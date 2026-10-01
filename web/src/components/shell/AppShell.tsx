@@ -6,6 +6,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useApp } from "@/hooks/useApp"
 import { useMorningNotice } from "@/hooks/useMorningNotice"
+import { FeedbackDialog } from "@/components/common/Feedback"
 import { go, routes, useRoute } from "@/lib/router"
 import { api, type ProjectSummary, type RunSummary } from "@/lib/api"
 import { NewProjectDialog, newProject } from "@/components/project/NewProjectDialog"
@@ -56,6 +57,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="relative flex h-full bg-canvas" data-sidebar={sidebar ? "open" : "closed"}>
       <NewProjectDialog />
+      <FeedbackDialog />
       <QuickFind />
       {sidebar ? (
         <Sidebar />
