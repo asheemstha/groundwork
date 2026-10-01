@@ -316,7 +316,13 @@ export interface Project {
   paid: { amount: number; currency: Currency; mixed: boolean } | null
   /** The live domain's SSL certificate and registration, checked once a day. */
   renewals: Renewals | null
+  /** Who owns each account the work depends on, for the handoff. */
+  accounts: Account[]
+  /** CSV exports from Search Console, GA4 or Google Ads, newest first. */
+  traffic: TrafficImport[] | null
 }
+export interface TrafficImport { id: string; at: number; name: string; source: string; metric: "clicks" | "sessions" | "views" | "users"; total: number; pages: number; before: boolean; top: { path: string; n: number }[] }
+export interface Account { id: string; kind: string; name: string; where: string; owner: "" | "client" | "us" | "none"; login: string; access: boolean; revoke: boolean; note: string }
 export interface Renewals {
   host: string; at: number; hosted: boolean
   ssl: { expires?: string; issuer?: string; trusted?: boolean; auto?: boolean; error?: string }
@@ -337,7 +343,9 @@ export interface RedirectMap { built: number; oldHost: string; oldRunId: string;
 export type ListProblem = "error" | "missing" | "dead-end" | "loop" | "offsite" | "wrong" | "home" | "temporary" | "chain"
 export interface ListResult { input: string; url: string; path: string; ok: boolean; problem: ListProblem | null; status: number; final: string; finalStatus: number; hops: number; mapped: string | null }
 export interface RedirectList { at: number; url: string; total: number; ok: number; results: ListResult[] }
-export interface RedirectState { map: RedirectMap | null; list: RedirectList | null; job: { kind: "build" | "test" | "list"; progress: { step: string; done: number; total: number }; started: number } | null; error: string | null }
+export interface RedirectState { map: RedirectMap | null; list: RedirectList | null; job: { kind: "build" | "test" | "list"; progress: { step: string; done: number; total: number }; started: number } | null; error: string | null
+  /** Clicks for each old URL from the newest export before launch, keyed like the map's paths. */
+  traffic: { source: string; metric: string; at: number; total: number; by: Record<string, number> } | null }
 export interface CompareChange { what: "page" | "title" | "description" | "h1" | "canonical"; kind: "missing" | "gone" | "changed" | "added" | "elsewhere"; before?: string; after?: string }
 export interface Compare {
   old: { runId: string; host: string; at: number }; new: { runId: string; host: string; site: SiteKey; at: number } | null
@@ -542,6 +550,10 @@ export const api = {
   saveInvoice: (id: string, d: InvoiceDraft) => req<{ invoice: InvoiceSummary; project: Project }>("POST", `/api/projects/${id}/invoices`, d),
   setInvoice: (id: string, invId: string, b: { paid: boolean }) => req<Project>("POST", `/api/projects/${id}/invoices/${invId}`, b),
   removeInvoice: (id: string, invId: string) => req<Project>("DELETE", `/api/projects/${id}/invoices/${invId}`),
+  /** A Search Console, GA4 or Google Ads CSV export, read on this Mac. */
+  importTraffic: (id: string, name: string, text: string) => req<Project>("POST", `/api/projects/${id}/traffic`, { name, text }),
+  removeTraffic: (id: string, impId: string) => req<Project>("DELETE", `/api/projects/${id}/traffic/${impId}`),
+  setAccounts: (id: string, accounts: Account[]) => req<Project>("POST", `/api/projects/${id}/accounts`, { accounts }),
   /** Reads the live domain's SSL certificate and domain expiry now. */
   checkRenewals: (id: string) => req<Project>("POST", `/api/projects/${id}/renewals`),
 }

@@ -25,6 +25,9 @@ import { LaunchCard, LaunchItemPanel, LaunchReportPage, useLaunchRefresh } from 
 import { RedirectCard, RedirectsPage } from "@/components/project/Redirects"
 import { InventoryCard, InventoryPage } from "@/components/project/Inventory"
 import { StatusPageDialog } from "@/components/project/StatusPage"
+import { HandoffDialog } from "@/components/project/HandoffDoc"
+import { AccountsSection } from "@/components/project/Accounts"
+import { TrafficCard } from "@/components/project/Traffic"
 import { ShiftDialog, shiftPlan } from "@/components/project/ShiftDialog"
 import { TemplateUpdateDialog, updateFromTemplate } from "@/components/project/TemplateUpdate"
 import { AddTime, EditTimeDialog, PlayButton, useRunningOn } from "@/components/time/TimeBits"
@@ -43,6 +46,7 @@ export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Ta
   const [missing, setMissing] = React.useState<null | "gone" | string>(null)
   const [editing, setEditing] = React.useState(false)
   const [statusOpen, setStatusOpen] = React.useState(false)
+  const [handoffOpen, setHandoffOpen] = React.useState(false)
   React.useEffect(() => { const on = () => setStatusOpen(true); window.addEventListener("gw:status-page", on); return () => window.removeEventListener("gw:status-page", on) }, [])
   const [removing, setRemoving] = React.useState(false)
   // A project that's been deleted says so; anything else (the app restarting, a bad file) can be retried.
@@ -80,6 +84,7 @@ export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Ta
             {!audit && <DropdownMenuItem onClick={updateFromTemplate}><RefreshCw /> Update from the template…{p.templateChanged && <span className="ml-auto size-1.5 rounded-full bg-foreground/60" />}</DropdownMenuItem>}
             {audit && <DropdownMenuItem onClick={() => newProject({ name: p.name, old: p.sites.live || p.url || "" })}><FolderPlus /> Start a project for this site…</DropdownMenuItem>}
             {!audit && <DropdownMenuItem onClick={() => setStatusOpen(true)}><FileText /> Client status page…</DropdownMenuItem>}
+            {!audit && p.website && <DropdownMenuItem onClick={() => setHandoffOpen(true)}><FileText /> Handoff document…</DropdownMenuItem>}
             {!audit && <DropdownMenuItem onClick={() => makeInvoice({ projectId: p.id, kind: "hours" })}><Receipt /> Invoice hours…</DropdownMenuItem>}
             <DropdownMenuItem onClick={() => { const a = document.createElement("a"); a.href = `/api/projects/${p.id}/export`; a.download = ""; a.click(); toast("Exporting the project", { description: "Its checklist, files, scans and plans, as one zip another Groundwork can import." }) }}><Download /> Export project…</DropdownMenuItem>
             <DropdownMenuSeparator />
@@ -126,7 +131,8 @@ export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Ta
         )}
         {tab === "checklist" && <ChecklistTab p={p} setItem={setItem} setP={setP} reload={load} openItem={item} openPhase={sub} />}
         {tab === "client" && <ClientTab key={sub || ""} p={p} setItem={setItem} setP={setP} mode={sub === "remind" || sub === "update" ? sub : undefined} />}
-        {tab === "tools" && <ToolsTab p={p} reload={load} onEdit={() => setEditing(true)} />}
+        {tab === "client" && <AccountsSection p={p} setP={setP} />}
+        {tab === "tools" && <ToolsTab p={p} setP={setP} reload={load} onEdit={() => setEditing(true)} />}
         </div>
         {tab === "launch" && <LaunchReportPage key={sub || ""} p={p} sub={sub} reload={load} />}
         {tab === "redirects" && <RedirectsPage p={p} reload={load} />}
@@ -134,6 +140,7 @@ export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Ta
       </div>
       <EditDialog p={p} open={editing} onClose={() => setEditing(false)} onSaved={(x) => { setP(x); refreshProjects() }} />
       {!audit && <StatusPageDialog p={p} open={statusOpen} onClose={() => setStatusOpen(false)} />}
+      {!audit && <HandoffDialog p={p} open={handoffOpen} onClose={() => setHandoffOpen(false)} />}
       <ShiftDialog p={p} onDone={(x) => { setP(x); refreshProjects() }} />
       <TemplateUpdateDialog p={p} onDone={(x) => { setP(x); refreshProjects() }} />
       <AlertDialog open={removing} onOpenChange={setRemoving}>
@@ -868,7 +875,7 @@ type Run = Project["tools"]["runs"][number]
 const DONE = (s?: string | null) => s === "done" || s === "partial"
 const countsOf = (r: Run) => { const c = r.progress?.now || r.progress?.all || r.progress?.live; return c ? `${c.done} of ${c.tasks} tag fixes done` : "Ready" }
 
-function ToolsTab({ p, reload, onEdit }: { p: Project; reload: () => void; onEdit: () => void }) {
+function ToolsTab({ p, setP, reload, onEdit }: { p: Project; setP: (x: Project) => void; reload: () => void; onEdit: () => void }) {
   const { refreshRuns, status } = useApp()
   const [busy, setBusy] = React.useState<SiteKey | null>(null)
   const audit = p.kind === "audit"
@@ -890,6 +897,7 @@ function ToolsTab({ p, reload, onEdit }: { p: Project; reload: () => void; onEdi
       <LaunchCard p={p} reload={reload} />
       {!audit && <RedirectCard p={p} onEdit={onEdit} />}
       {!audit && <InventoryCard p={p} />}
+      {!audit && <TrafficCard p={p} setP={setP} />}
       {p.tools.runs.length > 0 && (
         <section className="mt-4">
           <h2 className="mb-2 text-[13px] font-medium text-muted-foreground">History</h2>

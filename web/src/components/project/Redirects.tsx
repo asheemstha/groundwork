@@ -154,12 +154,18 @@ function MapView({ p, st, map, head, setSt, load, rebuild, busy }: { p: Project;
   const launched = !!p.launch && today() >= p.launch
   const [testUrl, setTestUrl] = React.useState(launched && p.sites.live ? p.sites.live : map.newUrl)
   const testing = st.job?.kind === "test" || st.job?.kind === "list"
+  // With a Search Console or analytics export, the URLs that bring the most clicks come first.
+  const clicks = st.traffic?.by || null
+  const clickOf = (r: RedirectRow) => (clicks ? clicks[key(r.from)] || 0 : 0)
+  const withClicks = clicks ? rows.filter((r) => clickOf(r) > 0) : []
+  const topShare = clicks && st.traffic!.total ? Math.round((100 * [...withClicks].sort((a, b) => clickOf(b) - clickOf(a)).slice(0, 20).reduce((n, r) => n + clickOf(r), 0)) / st.traffic!.total) : 0
   const list = rows.filter((r) => (filter === "all" || (filter === "review" ? !r.sure : filter === "moves" ? moves(r) : filter === "same" ? !moves(r) : !!results[r.from] && !results[r.from]!.ok)) && (!q || (r.from + " " + r.to + " " + r.title).toLowerCase().includes(q.toLowerCase())))
   // The folders most of the list sits in, so a whole section can be sent somewhere at once.
+  if (clicks) list.sort((a, b) => clickOf(b) - clickOf(a))
   const folders = Object.entries(list.reduce<Record<string, number>>((a, r) => { const f = "/" + (r.from.split("/")[1] || ""); if (r.from.split("/").length > 2) a[f] = (a[f] || 0) + 1; return a }, {})).sort((x, y) => y[1] - x[1]).slice(0, 5)
   const change = async (b: { to?: Record<string, string>; checked?: Record<string, boolean> }) => { try { setSt(await api.setRedirects(p.id, b)) } catch (e) { toast.error((e as Error).message) } }
   const runTest = async () => { try { setSt(await api.testRedirects(p.id, testUrl)); load() } catch (e) { toast.error((e as Error).message) } }
-  const cols = "grid-cols-[18px_minmax(0,1fr)_14px_minmax(0,1fr)_120px_150px_28px]"
+  const cols = clicks ? "grid-cols-[18px_minmax(0,1fr)_14px_minmax(0,1fr)_72px_120px_150px_28px]" : "grid-cols-[18px_minmax(0,1fr)_14px_minmax(0,1fr)_120px_150px_28px]"
   return (
     <div className="grid mx-auto w-full max-w-6xl gap-5 px-12 pt-8 pb-10">
       <div className="flex min-h-8 flex-wrap items-center gap-2">
@@ -171,6 +177,7 @@ function MapView({ p, st, map, head, setSt, load, rebuild, busy }: { p: Project;
       <div>
         <h1 className="text-[24px] leading-tight font-medium">{review.length ? `${review.length} ${review.length === 1 ? "match" : "matches"} to look at` : "Redirect map"}</h1>
         <p className="mt-1.5 text-sm text-muted-foreground">{rows.length} URLs from the current site ({map.oldHost}), matched to {map.newPages.length} pages on {hostOf(map.newUrl)}. Built {when(map.built)}.{!map.oldLive && " The current site didn’t answer, so the map uses the scan’s list."}</p>
+        {clicks && <p className="mt-1 text-sm text-muted-foreground">Sorted by {st.traffic!.metric} from the {st.traffic!.source} export of {new Date(st.traffic!.at).toLocaleDateString([], { month: "short", day: "numeric" })}: {withClicks.length} of these URLs had {st.traffic!.metric}{withClicks.length > 20 ? `, and the top 20 brought ${topShare}% of them. Check those first.` : "."}</p>}
       </div>
       <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border bg-border sm:grid-cols-4">
         {([[counts.moves, counts.moves === 1 ? "redirect" : "redirects"], [counts.same, "kept as they are"], [counts.review, "to look at"], [map.test ? `${map.test.ok} of ${map.test.total}` : "Not yet", map.test ? `worked in the ${when(map.test.at)} test` : "tested"]] as [React.ReactNode, string][]).map(([v, l]) => (
@@ -205,8 +212,8 @@ function MapView({ p, st, map, head, setSt, load, rebuild, busy }: { p: Project;
         </div>
       )}
       <section className="overflow-hidden rounded-xl border bg-card">
-        <div className={cn("grid h-9 items-center gap-3 border-b px-4 text-[12.5px] text-muted-foreground", cols)}><span /><span>Current URL</span><span /><span>New URL</span><span>Match</span><span>Last test</span><span /></div>
-        {list.slice(0, limit).map((r) => <Row key={r.from} r={r} res={results[r.from]} map={map} cols={cols} change={change} />)}
+        <div className={cn("grid h-9 items-center gap-3 border-b px-4 text-[12.5px] text-muted-foreground", cols)}><span /><span>Current URL</span><span /><span>New URL</span>{clicks && <span className="text-right capitalize">{st.traffic!.metric}</span>}<span>Match</span><span>Last test</span><span /></div>
+        {list.slice(0, limit).map((r) => <Row key={r.from} r={r} res={results[r.from]} map={map} cols={cols} change={change} clicks={clicks ? clickOf(r) : null} />)}
         {!list.length && <p className="px-4 py-8 text-center text-sm text-muted-foreground">{filter === "review" ? "Every match looks right." : filter === "failed" ? "Nothing failed in the last test." : filter === "moves" ? `No redirects needed. All ${rows.length} URLs stay the same.` : "No URLs in this list."}</p>}
         {list.length > limit && <button onClick={() => setLimit(limit + 300)} className="w-full border-t py-2.5 text-[13px] text-muted-foreground hover:text-foreground">Show {Math.min(300, list.length - limit)} more of {list.length - limit}</button>}
       </section>
@@ -356,7 +363,7 @@ function BeforeAfter({ p }: { p: Project }) {
   )
 }
 
-function Row({ r, res, map, cols, change }: { r: RedirectRow; res?: RedirectResult; map: RedirectMap; cols: string; change: (b: { to?: Record<string, string>; checked?: Record<string, boolean> }) => void }) {
+function Row({ r, res, map, cols, change, clicks }: { r: RedirectRow; res?: RedirectResult; map: RedirectMap; cols: string; change: (b: { to?: Record<string, string>; checked?: Record<string, boolean> }) => void; clicks: number | null }) {
   const moving = moves(r)
   return (
     <div className={cn("group grid min-h-12 items-center gap-3 border-b border-border/60 px-4 py-2 last:border-b-0", cols)}>
@@ -364,6 +371,7 @@ function Row({ r, res, map, cols, change }: { r: RedirectRow; res?: RedirectResu
       <span className="grid min-w-0 gap-0.5"><span className="truncate text-[13.5px]">{r.from}</span>{r.title && <span className="truncate text-xs text-muted-foreground">{r.title}</span>}</span>
       <ArrowRight className={cn("size-3.5", moving ? "text-muted-foreground" : "text-muted-foreground/30")} />
       <Target r={r} map={map} onPick={(to) => change({ to: { [r.from]: to } })} />
+      {clicks != null && <span className={cn("text-right text-[12.5px] tabular", clicks ? "text-foreground" : "text-muted-foreground/60")}>{clicks ? clicks.toLocaleString() : "0"}</span>}
       <span className={cn("text-[12.5px]", r.sure ? "text-muted-foreground" : "text-foreground")}>{HOW[r.how](r)}</span>
       <span className="text-[12.5px]">{res ? (res.ok ? <span className="text-muted-foreground">{moving ? "Redirects" : "Loads"}</span> : <span className="text-destructive" title={res.final ? `Ends at ${res.final} (HTTP ${res.finalStatus})` : undefined}>{PROBLEM[res.problem!]}{res.problem === "wrong" ? `: ${res.final}` : res.problem === "temporary" ? ` (${res.status})` : ""}</span>) : <span className="text-muted-foreground/60">Not tested</span>}</span>
       {!r.sure ? <Button variant="ghost" size="icon-xs" onClick={() => change({ checked: { [r.from]: true } })} aria-label="This match looks right" title="Looks right"><Check /></Button> : <span />}

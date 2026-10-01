@@ -862,6 +862,10 @@ const server = http.createServer(async (req, res) => {
         }
         if (sub === '/inventory/rows' && M === 'POST') return json(res, P.setInventory(id, await body(req)));
         if (sub === '/inventory/apply' && M === 'POST') return json(res, { changed: P.applyInventory(id) });
+        if (sub === '/traffic' && M === 'POST') { P.importTraffic(id, await body(req)); return json(res, P.get(id)); }
+        const trm = sub.match(/^\/traffic\/([a-z0-9]+)$/);
+        if (trm && M === 'DELETE') { P.removeTraffic(id, trm[1]); return json(res, P.get(id)); }
+        if (sub === '/accounts' && M === 'POST') { const b = await body(req); P.setAccounts(id, b.accounts); return json(res, P.get(id)); }
         if (sub === '/renewals' && M === 'POST') { try { await P.checkRenewals(id); } catch (e) { return json(res, { error: e.message }, 400); } return json(res, P.get(id)); }
         if (sub === '/scan' && M === 'POST') {
           // Scan one of the project's sites: the old one, staging or live.
@@ -909,6 +913,23 @@ const server = http.createServer(async (req, res) => {
         }
         if (im && M === 'POST') { P.setInvoice(id, im[1], await body(req)); return json(res, P.get(id)); }
         if (im && M === 'DELETE') { const inv = P.removeInvoice(id, im[1]); if (inv) T.unmarkInvoice(inv.id); return json(res, P.get(id)); }
+        // The handoff document: what's installed, who owns which account, the launch check, redirects and renewals.
+        if (sub === '/handoff' && M === 'GET') {
+          const v = P.get(id), raw = P.readRaw(id), q = u.searchParams, pr = getSettings().prefs || {};
+          // The latest finished check of the live domain, else the latest one of staging.
+          const done = (raw.checks || []).filter(c => c.status === 'done' && !c.oldSite);
+          const pick = done.find(c => !c.staging) || done[0];
+          const report = pick ? P.getLaunch(id, pick.id) : null;
+          const pf = require('./lib/platforms').byId(v.platform);
+          const html = require('./lib/handoff-doc').render(v, report, { studio: q.has('agency') ? String(q.get('agency')).slice(0, 80) : pr.agency || '', yourName: pr.appliedBy || '', note: String(q.get('note') || '').slice(0, 2000), platform: pf ? pf.name : '' });
+          const base = `${v.name.replace(/[^\w .()-]+/g, '').trim() || 'Project'} handoff ${new Date().toISOString().slice(0, 10)}`;
+          if (q.get('format') === 'pdf') {
+            try { const pdf = await htmlToPdf(html); res.writeHead(200, { 'content-type': 'application/pdf', 'content-disposition': `attachment; filename="${base}.pdf"` }); return res.end(pdf); }
+            catch (e) { return json(res, { error: 'Couldn’t make the PDF: ' + friendly(e) }, 500); }
+          }
+          res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', ...(q.has('download') ? { 'content-disposition': `attachment; filename="${base}.html"` } : {}) });
+          return res.end(html);
+        }
         if (sub === '/export' && M === 'GET') {
           const { file, name } = await exportProject(id);
           res.writeHead(200, { 'content-type': 'application/zip', 'content-disposition': `attachment; filename="${name.replace(/[^\w .()-]+/g, '')} - Groundwork project.zip"` });

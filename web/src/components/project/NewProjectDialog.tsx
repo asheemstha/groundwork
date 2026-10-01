@@ -20,7 +20,7 @@ export const newProject = (detail?: Detail) => window.dispatchEvent(new CustomEv
 
 const addDays = (n: number) => { const d = new Date(); d.setDate(d.getDate() + n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}` }
 // Optional parts that start switched off. "existing", "moving" and "domain" follow the site fields instead.
-const OFF_BY_DEFAULT = ["languages", "payments", "existing", "local", "moving", "domain"]
+const OFF_BY_DEFAULT = ["languages", "payments", "existing", "local", "moving", "domain", "ads"]
 const hostOf = (u: string) => { try { return new URL(/^https?:/i.test(u) ? u : "https://" + u.trim()).hostname.replace(/^www\./, "") } catch { return "" } }
 
 export function NewProjectDialog() {
