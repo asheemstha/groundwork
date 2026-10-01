@@ -55,6 +55,25 @@ const SK = require('./lib/skills')({ DATA, BUILTIN: H.SKILL_DIR, readJson, write
 const P = require('./lib/projects')({ DATA, readJson, writeJson, allRuns, hostOf: u => hostOf(/^https?:\/\//i.test(u) ? u : 'https://' + u), timeOf: (id, from) => T.forProject(id, from), userAgent: `Groundwork/${readJson(path.join(ROOT, 'package.json'), {}).version || '0'} (+https://github.com/asheemstha/groundwork)` });
 // The work log, the running timer and the day's tasks (lib/time.js). Entries are signed with your name from Settings.
 const T = require('./lib/time')({ DATA, readJson, writeJson, newId: () => P.newId(), who: () => (getSettings().prefs || {}).appliedBy || '', projectOf: id => P.readRaw(id), itemOf: (id, itemId) => P.itemRef(id, itemId), extraOf: (id, extraId) => P.extraRef(id, extraId) });
+// Search Console and GA4 with the user's own Google sign-in (lib/google.js). A dev copy can point it at a local stand-in.
+const GOOGLE = require('./lib/google')({ DATA, readJson, writeJson, port: () => PORT, fake: (process.env.GW_DEV_DATA && process.env.GW_GOOGLE_FAKE) || null, keychain: process.platform === 'darwin' && !process.env.GW_DEV_DATA });
+/** Reads a project's Search Console clicks or GA4 sessions for a range of days, and saves them like an imported CSV. */
+async function googlePull(id, source, kind) {
+  const raw = P.readRaw(id); if (!raw) throw new Error('That project doesn’t exist any more.');
+  const g = raw.google || {}, { from, to } = P.googleRange(raw, kind);
+  try {
+    let imp;
+    if (source === 'gsc') { if (!g.gsc) throw new Error('Pick the Search Console property first.'); imp = P.addTraffic(id, { source: 'Search Console', metric: 'clicks', rows: await GOOGLE.pages(g.gsc, from, to), from, to, kind }); }
+    else { if (!g.ga4) throw new Error('Pick the GA4 property first.'); imp = P.addTraffic(id, { source: 'GA4', metric: 'sessions', rows: await GOOGLE.landing(g.ga4, from, to), from, to, kind }); }
+    if (g.error) P.setGoogle(id, { error: null });
+    return imp;
+  } catch (e) { P.setGoogle(id, { error: e.message }); throw e; }
+}
+// The page the browser shows when Google sends the person back after signing in.
+const oauthPage = r => `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Groundwork</title>
+<style>html{background:#fafaf9}body{margin:0;min-height:100vh;display:grid;place-items:center;font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;color:#161716}main{max-width:440px;padding:32px;text-align:center}h1{font-size:20px;font-weight:500;margin:0 0 8px}p{margin:0;color:#6f6e6a}</style></head>
+<body><main><h1>${r.ok ? 'Signed in' : 'Not signed in'}</h1><p>${String(r.text).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))}</p></main></body></html>`;
+let googleLists = { at: 0 };
 const ICON_EXT = { 'image/svg+xml': 'svg', 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif' };
 function saveFavicon(run, fav) {
   if (!fav) return;
@@ -670,6 +689,20 @@ const server = http.createServer(async (req, res) => {
       setTimeout(async () => { server.close(); await Promise.race([crawl.closeBrowser(), new Promise(r => setTimeout(r, 2000))]); process.exit(75); }, 300);
       return;
     }
+    // Google: the user's own OAuth client, the sign-in in their browser, and the properties it can read.
+    if (p === '/oauth/google' && M === 'GET') { const r = await GOOGLE.finish(u.searchParams).catch(e => ({ ok: false, text: 'The sign-in didn’t finish: ' + e.message })); res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); return res.end(oauthPage(r)); }
+    if (p === '/api/google' && M === 'GET') return json(res, GOOGLE.status());
+    if (p === '/api/google' && M === 'DELETE') { await GOOGLE.forget(); googleLists = { at: 0 }; return json(res, GOOGLE.status()); }
+    if (p === '/api/google/client' && M === 'POST') { try { GOOGLE.setClient((await body(req)).text); googleLists = { at: 0 }; return json(res, GOOGLE.status()); } catch (e) { return json(res, { error: e.message }, 400); } }
+    if (p === '/api/google/signin' && M === 'POST') { try { return json(res, { url: GOOGLE.signInUrl() }); } catch (e) { return json(res, { error: e.message }, 400); } }
+    if (p === '/api/google/signout' && M === 'POST') { await GOOGLE.signOut(); googleLists = { at: 0 }; return json(res, GOOGLE.status()); }
+    if (p === '/api/google/lists' && M === 'GET') {
+      // Both lists at once, kept for five minutes; one of them can fail on its own (an API not turned on).
+      if (!u.searchParams.has('fresh') && Date.now() - googleLists.at < 5 * 60e3) return json(res, googleLists);
+      const [sc, ga] = await Promise.allSettled([GOOGLE.sites(), GOOGLE.properties()]);
+      googleLists = { at: Date.now(), sites: sc.status === 'fulfilled' ? sc.value : null, sitesError: sc.status === 'rejected' ? sc.reason.message : null, properties: ga.status === 'fulfilled' ? ga.value : null, propertiesError: ga.status === 'rejected' ? ga.reason.message : null };
+      return json(res, googleLists);
+    }
     // Connected data: which of Google's and Meta's official connectors the user's Claude Code has. Checked when asked.
     if (p === '/api/connectors' && M === 'GET') return json(res, readJson(path.join(DATA, 'connectors.json'), null));
     if (p === '/api/connectors/check' && M === 'POST') { const r = await require('./lib/connectors').check(); writeJson(path.join(DATA, 'connectors.json'), r); return json(res, r); }
@@ -880,6 +913,13 @@ const server = http.createServer(async (req, res) => {
         const exm = sub.match(/^\/extras\/([a-z0-9]+)$/);
         if (exm && M === 'POST') { P.setExtra(id, exm[1], await body(req)); return json(res, P.get(id)); }
         if (exm && M === 'DELETE') { P.setExtra(id, exm[1], { remove: true }); return json(res, P.get(id)); }
+        // Search Console and GA4: the properties the project reads, and a pull of a range of days.
+        if (sub === '/google' && M === 'POST') { try { return json(res, P.setGoogle(id, await body(req))); } catch (e) { return json(res, { error: e.message }, 400); } }
+        if (sub === '/google/pull' && M === 'POST') {
+          const b = await body(req);
+          try { const imp = await googlePull(id, b.source === 'ga4' ? 'ga4' : 'gsc', ['before', 'since', 'month', 'last28'].includes(b.kind) ? b.kind : 'last28'); return json(res, { ...P.get(id), pulled: { source: imp.source, metric: imp.metric, total: imp.total, pages: imp.rows.length, name: imp.name } }); }
+          catch (e) { return json(res, { error: e.message }, 400); }
+        }
         // Files from the client: the requests, the folder they land in, and a look in it now.
         if (sub === '/requests' && M === 'POST') { try { return json(res, P.setRequests(id, await body(req))); } catch (e) { return json(res, { error: e.message }, 400); } }
         if (sub === '/requests/scan' && M === 'POST') { const n = P.scanRequests(id); return json(res, { ...P.get(id), came: n }); }
@@ -959,7 +999,9 @@ const server = http.createServer(async (req, res) => {
           const checks = (raw.checks || []).filter(c => c.status === 'done' && !c.oldSite && !c.staging && c.at >= start && c.at < end);
           const all = v.phases.flatMap(ph => [...ph.groups.flatMap(g => g.items), ...ph.handoff.items]);
           const imports = P.trafficOf(id).imports || [];
-          const traffic = imports.find(x => x.at >= start && x.at < end) || null;
+          // Search Console clicks first, else whatever was imported or pulled in the month; compared with the one before it.
+          const inMonth = imports.filter(x => x.at >= start && x.at < end);
+          const traffic = inMonth.find(x => x.source === 'Search Console') || inMonth[0] || null;
           // The hours logged in the plan's month: from the month's start day to its report day (or today).
           const day = t => { const x = new Date(t); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; };
           const mins = T.list({ projectId: id, from: from || day(start), to: to || undefined }).reduce((n, e) => n + e.mins, 0);
@@ -967,7 +1009,7 @@ const server = http.createServer(async (req, res) => {
           const html = require('./lib/care-report').render(v, {
             month, report: checks[0] ? P.getLaunch(id, checks[0].id) : null, up: P.uptimeIn(id, start, end), mins, plan: raw.planHours || null,
             done: past ? past.items || [] : all.filter(x => x.status === 'done' && (x.at || 0) >= start).map(x => ({ title: x.title, at: x.at })).sort((a, b) => a.at - b.at),
-            traffic, before: traffic ? imports.find(x => x.at < traffic.at) || null : null,
+            traffic, before: traffic ? imports.find(x => x.at < traffic.at && x.source === traffic.source && x.metric === traffic.metric) || null : null,
           }, { studio: q.has('agency') ? String(q.get('agency')).slice(0, 80) : pr.agency || '', yourName: pr.appliedBy || '', note: String(q.get('note') || '').slice(0, 2000) });
           const base = `${v.name.replace(/[^\w .()-]+/g, '').trim() || 'Project'} care report ${month}`;
           if (q.get('format') === 'pdf') {
@@ -1198,6 +1240,16 @@ Promise.all([import('./shared/checks.mjs'), import('./shared/seo.mjs')]).then(([
     const up = async () => { for (const id of P.upDue()) { try { await P.upCheck(id); } catch (e) { console.log('up check failed', id, e.message); } } };
     setTimeout(up, 20e3).unref?.();
     setInterval(up, 60 * 60e3).unref?.();
+    // Search Console and GA4, for projects with a property picked: before launch, after launch, and each care month.
+    const pulls = async () => {
+      if (!GOOGLE.ready()) return;
+      for (const j of P.googleDue().slice(0, 4)) {
+        try { const imp = await googlePull(j.id, j.source, j.kind); console.log('google', j.kind, j.id, imp.total); }
+        catch (e) { console.log('google pull failed', j.id, e.message); if (/sign in/i.test(e.message)) break; }
+      }
+    };
+    setTimeout(pulls, 3 * 60e3).unref?.();
+    setInterval(pulls, 60 * 60e3).unref?.();
     // Files from the client: each project's folder, every two minutes, for files that fit what's still to come.
     const files = () => { try { const n = P.requestsTick(); if (n) console.log('files from clients', n); } catch (e) { console.log('files check failed', e.message); } };
     setTimeout(files, 30e3).unref?.();

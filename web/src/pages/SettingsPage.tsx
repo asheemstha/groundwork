@@ -24,7 +24,12 @@ export function SettingsPage({ focus }: { focus?: EngineId | "privacy" | "connec
   const { status } = useApp()
   const [at, setAt] = React.useState<string>("you")
   const scroller = React.useRef<HTMLDivElement>(null)
-  React.useEffect(() => { if (focus) document.getElementById(focus === "privacy" || focus === "connectors" ? "s-" + focus : "engine-" + focus)?.scrollIntoView({ behavior: "smooth" }) }, [focus, status])
+  // Once more after a moment, in case the sections above were still filling in and pushed it down.
+  React.useEffect(() => {
+    if (!focus) return
+    const to = (behavior: ScrollBehavior) => document.getElementById(focus === "privacy" || focus === "connectors" ? "s-" + focus : "engine-" + focus)?.scrollIntoView({ behavior })
+    to("smooth"); const t = setTimeout(() => to("auto"), 700); return () => clearTimeout(t)
+  }, [focus, status])
   // The nav follows the section you've scrolled to.
   React.useEffect(() => {
     const el = scroller.current; if (!el) return
@@ -50,7 +55,7 @@ export function SettingsPage({ focus }: { focus?: EngineId | "privacy" | "connec
             <Section id="engines" title="AI accounts" desc={<>Optional. The heading and SEO plans run Claude Code or Codex on this computer, signed in to <b className="font-medium text-foreground">your own account</b>, and count toward your Claude or ChatGPT subscription’s limits. Groundwork never sees your password, and nothing goes through a Groundwork server.</>}>
               <div className="grid gap-4"><EngineCard k="claude" highlight={focus === "claude"} /><EngineCard k="codex" highlight={focus === "codex"} /></div>
             </Section>
-            <Section id="connectors" title="Connected data" desc="Optional. Ask Claude Code about a client’s traffic, conversions and ads, through the connectors Google and Meta publish. You set them up once in your own Claude Code; each project then has questions ready to paste in."><ConnectorsSection /></Section>
+            <Section id="connectors" title="Connected data" desc="Optional. Read a client’s Search Console and Analytics numbers in Groundwork, or ask Claude Code about their traffic, conversions and ads. Both use your own accounts, set up once."><ConnectorsSection /></Section>
             <Section id="privacy" title="Data and privacy"><Privacy /></Section>
             <Section id="skills" title="AI rules" desc="The rules each AI plan follows, packaged as a skill (a folder with a SKILL.md). The built-in rules are always here. Add your own to change them, and pick which one each plan uses."><SkillsSection /></Section>
             <Section id="updates" title="Updates"><Updates /></Section>
@@ -98,7 +103,7 @@ function Privacy() {
       </div>
       {row("What the AI sees", <>The heading plan and the SEO plan send the pages you chose from a scan (their public text, headings, current titles and descriptions, and a screenshot when a layout is unclear), your notes and the rules they follow to Anthropic (Claude Code) or OpenAI (Codex), through your own account, so that provider’s privacy terms apply. Groundwork runs the AI in that scan’s folder only. {status?.engines.claude.restricted ? "Claude Code is confined to it, so it can’t open your projects, client details, messages, sign-off files or other scans." : "Update Claude Code to confine it to that folder."} Codex (Beta) is pointed at the folder but not confined to it. A few small jobs are optional: reading a project brief you paste in, rewriting a client message in your voice, and suggesting the content inventory’s calls from the old site’s page list (addresses, titles, H1s, word counts and each page’s first lines). Each sends only that text, from an empty folder.</>)}
       {row("Scans and checks", "The site scan, launch check (with its accessibility, speed and tracking tests) and redirect tests run in a browser on this Mac. They only visit the addresses you give them, and they don’t use AI. The data analytics and ad tags try to send during a scan or check is blocked, so Groundwork never shows up in a client’s reports. A search traffic CSV you import is read on this Mac. After launch, the live site is checked again on days 3, 7 and 30 while the app is open.")}
-      {row("Connected data", "Groundwork doesn’t connect to Google or Meta. The connectors you add to Claude Code run there, with your access, and Groundwork only writes the questions you paste in. Checking which ones you have runs “claude mcp list” when you ask.")}
+      {row("Connected data", "Only if you sign in to Google in Connected data: Groundwork then reads Search Console clicks and GA4 sessions by page for the properties you pick, through your own Google Cloud project, and keeps them on this Mac. It never writes to them. It doesn’t connect to Meta. Connectors you add to Claude Code run there, with your access; Groundwork only writes the questions, and checking which ones you have runs “claude mcp list” when you ask.")}
       {row("Other connections", "Groundwork checks GitHub for new versions a few times a day. Every hour while it’s open, it loads the home page of each launched site and care plan to see that it answers. Once a day it reads each project’s live SSL certificate, and asks the public domain registry lookup (RDAP, through rdap.org) when the domain expires. The usage bars ask Claude for your plan’s limits when you refresh them.")}
     </div>
   )

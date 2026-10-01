@@ -335,10 +335,16 @@ export interface Project {
   traffic: TrafficImport[] | null
   /** Files to get from the client, ticked off as they land in the project's folder. */
   requests: Requests
+  /** The Search Console and GA4 properties the project reads, and the last pull's error. */
+  google: { gsc?: string | null; ga4?: string | null; ga4Name?: string | null; error?: string | null; errorAt?: number | null } | null
 }
 export interface FileRequest { id: string; title: string; kind: "content" | "brand" | "other"; match: string[]; path: string | null; status: "waiting" | "in"; file: { name: string; at: number } | null; in: number | null; at: number }
 export interface Requests { folder: string | null; folderOk: boolean; due: string | null; rows: FileRequest[]; total: number; in: number; waiting: number; late: boolean }
-export interface TrafficImport { id: string; at: number; name: string; source: string; metric: "clicks" | "sessions" | "views" | "users"; total: number; pages: number; before: boolean; top: { path: string; n: number }[] }
+export interface TrafficImport { id: string; at: number; name: string; source: string; metric: "clicks" | "sessions" | "views" | "users"; total: number; pages: number; before: boolean; top: { path: string; n: number }[]; from: string | null; to: string | null; via: "csv" | "google" }
+/** The Google sign-in Groundwork uses to read Search Console and GA4, through the user's own OAuth client. */
+export interface GoogleStatus { client: { id: string; project: string } | null; signedIn: boolean; email: string | null; at: number | null; error: string | null; searchConsole: boolean; analytics: boolean; keychain: boolean }
+export interface GoogleLists { at: number; sites: string[] | null; sitesError: string | null; properties: { id: string; name: string; account: string }[] | null; propertiesError: string | null }
+export type GoogleRange = "before" | "since" | "month" | "last28"
 export interface Account { id: string; kind: string; name: string; where: string; owner: "" | "client" | "us" | "none"; login: string; access: boolean; revoke: boolean; note: string }
 export interface Renewals {
   host: string; at: number; hosted: boolean
@@ -464,6 +470,14 @@ export const api = {
   status: (fresh = false) => req<AppStatus>("GET", "/api/status" + (fresh ? "?fresh" : "")),
   prefs: () => req<Partial<Settings>>("GET", "/api/prefs"),
   diagnostics: () => req<{ text: string }>("GET", "/api/diagnostics"),
+  google: () => req<GoogleStatus>("GET", "/api/google"),
+  googleClient: (text: string) => req<GoogleStatus>("POST", "/api/google/client", { text }),
+  googleSignIn: () => req<{ url: string }>("POST", "/api/google/signin"),
+  googleSignOut: () => req<GoogleStatus>("POST", "/api/google/signout"),
+  googleForget: () => req<GoogleStatus>("DELETE", "/api/google"),
+  googleLists: (fresh = false) => req<GoogleLists>("GET", `/api/google/lists${fresh ? "?fresh=1" : ""}`),
+  setGoogle: (id: string, b: { gsc?: string | null; ga4?: string | null; ga4Name?: string | null }) => req<Project>("POST", `/api/projects/${id}/google`, b),
+  googlePull: (id: string, source: "gsc" | "ga4", kind: GoogleRange) => req<Project & { pulled: { source: string; metric: string; total: number; pages: number; name: string } }>("POST", `/api/projects/${id}/google/pull`, { source, kind }),
   connectors: () => req<ConnectorCheck | null>("GET", "/api/connectors"),
   checkConnectors: () => req<ConnectorCheck>("POST", "/api/connectors/check"),
   savePrefs: (p: Partial<Settings>) => req<Partial<Settings>>("POST", "/api/prefs", p),

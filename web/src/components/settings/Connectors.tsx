@@ -8,6 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { useApp } from "@/hooks/useApp"
 import { api, type ConnectorCheck, type ConnectorId } from "@/lib/api"
 import { ago } from "@/lib/format"
+import { GoogleSignIn } from "@/components/settings/GoogleSignIn"
 
 /** A command to run in Terminal, with a copy button. */
 export function Command({ cmd, note }: { cmd: string; note?: string }) {
@@ -68,6 +69,10 @@ export function ConnectorsSection() {
   )
   return (
     <div className="grid gap-4">
+      <h3 className="text-[13.5px] font-medium">In Groundwork</h3>
+      <GoogleSignIn />
+      <h3 className="mt-4 text-[13.5px] font-medium">In Claude Code</h3>
+      <p className="-mt-2 text-[13px] text-muted-foreground">For questions Groundwork doesn’t answer, like key events, ad spend and conversions. Add Google’s and Meta’s own connectors to your Claude Code; each project’s ⋯ menu then has questions ready to paste in.</p>
       <div className="flex flex-wrap items-center gap-3 text-[13px] text-muted-foreground">
         <span className="flex-1">{!chk ? "Not checked yet." : !chk.installed ? "Claude Code isn’t installed on this Mac." : `Checked ${ago(chk.at)}.`}{chk?.error && ` ${chk.error}`}</span>
         <Button size="sm" variant="outline" onClick={check} disabled={busy}>{busy ? <Loader2 className="animate-spin" /> : <RefreshCw />}{busy ? "Checking, this can take a minute" : "Check Claude Code"}</Button>
@@ -91,7 +96,7 @@ export function ConnectorsSection() {
         <Step n={2}>In Claude Code, type /mcp, pick meta-ads and sign in with Facebook.</Step>
       </Card>
 
-      <Card title="Search Console" by="No connector from Google" what="Google doesn’t publish one for Search Console. Import a Search Console export on a project’s Tools tab: the redirect map and the care report use it." state={found("gsc")?.state} plain />
+      <Card title="Search Console" by="No connector from Google" what="Google doesn’t publish one for Search Console. Groundwork reads it itself once you sign in to Google above, or import an export on a project’s Tools tab." state={found("gsc")?.state} plain />
 
       <p className="text-[12.5px] leading-relaxed text-muted-foreground">The connectors run inside Claude Code on this Mac, with your access to the client’s accounts, and Anthropic’s, Google’s and Meta’s terms apply. Groundwork doesn’t connect to Google or Meta and never sees the data: it writes the questions, in each project’s ⋯ menu under Ask Claude Code. Checking runs “claude mcp list”, which starts each connector you’ve added to see that it answers.</p>
     </div>
