@@ -24,7 +24,7 @@ export function Dashboard() {
     <div className="flex h-full flex-col">
       <TopBar><span className="px-1.5 text-[14px]">Home</span><span className="flex-1" /><Button size="sm" onClick={() => newProject()}><Plus />New project</Button></TopBar>
       <div className="scrollbar-thin flex-1 overflow-auto">
-        <div className="flex max-w-5xl flex-col gap-9 px-12 pt-10 pb-12">
+        <div className="flex mx-auto w-full max-w-5xl flex-col gap-9 px-12 pt-10 pb-12">
           <div>
             <div className="text-[13px] text-muted-foreground">{today}</div>
             <h1 className="mt-1 text-[32px] leading-tight font-medium">{work.length ? `${work.length} ${work.length === 1 ? "project" : "projects"} in progress` : "Welcome to Groundwork"}</h1>

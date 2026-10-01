@@ -109,7 +109,7 @@ export function RedirectsPage({ p, reload }: { p: Project; reload: () => void })
   if (st.job?.kind === "build") {
     const at = BUILD_STEPS.findIndex((s) => s.id === st.job!.progress.step)
     return (
-      <div className="grid max-w-4xl gap-5 px-12 pt-8 pb-10">
+      <div className="grid mx-auto w-full max-w-4xl gap-5 px-12 pt-8 pb-10">
         {head}
         <div className="flex items-start gap-3"><div className="flex-1"><h1 className="text-[24px] leading-tight font-medium">Building the redirect map</h1><p className="mt-1.5 text-sm text-muted-foreground">It reads both sites with plain requests. A few hundred pages take a minute or two.</p></div><Button variant="outline" size="sm" onClick={() => api.cancelRedirects(p.id).then(() => toast("Stopping…")).catch(() => {})}>Stop</Button></div>
         <section className="grid gap-2.5 rounded-xl border bg-card p-4">
@@ -125,13 +125,13 @@ export function RedirectsPage({ p, reload }: { p: Project; reload: () => void })
     )
   }
   if (!p.sites.old) return (
-    <div className="grid max-w-4xl gap-3 px-12 pt-8 pb-10">
+    <div className="grid mx-auto w-full max-w-4xl gap-3 px-12 pt-8 pb-10">
       <h1 className="text-[24px] leading-tight font-medium">Redirect map</h1>
       <p className="text-sm text-muted-foreground">Redirects are only needed when a project replaces an old site. Add the old site’s address in the project details (the ⋯ menu, Edit details), scan it, and the map starts from its URLs.</p>
     </div>
   )
   if (!st.map) return (
-    <div className="grid max-w-4xl gap-5 px-12 pt-8 pb-10">
+    <div className="grid mx-auto w-full max-w-4xl gap-5 px-12 pt-8 pb-10">
       {head}
       <div><h1 className="text-[24px] leading-tight font-medium">Redirect map</h1><p className="mt-1.5 text-sm text-muted-foreground">{st.error ? st.error : p.tools.oldScan ? `Matches the ${p.tools.oldScan.urls} URLs the scan found on ${oldHost(p)} to the new site’s pages. Enter the new site’s address, usually its staging one.` : "Scan the current site first. The map starts from its list of URLs."}</p></div>
       {p.tools.oldScan && <div className="flex gap-2"><Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder={stagingExample(p.platform)} /><Button onClick={() => build(url)} disabled={busy || !url.trim()}>{busy ? <Loader2 className="animate-spin" /> : <Play />}Build the map</Button></div>}
@@ -161,7 +161,7 @@ function MapView({ p, st, map, head, setSt, load, rebuild, busy }: { p: Project;
   const runTest = async () => { try { setSt(await api.testRedirects(p.id, testUrl)); load() } catch (e) { toast.error((e as Error).message) } }
   const cols = "grid-cols-[18px_minmax(0,1fr)_14px_minmax(0,1fr)_120px_150px_28px]"
   return (
-    <div className="grid max-w-6xl gap-5 px-12 pt-8 pb-10">
+    <div className="grid mx-auto w-full max-w-6xl gap-5 px-12 pt-8 pb-10">
       <div className="flex min-h-8 flex-wrap items-center gap-2">
         {head}
         <span className="flex-1" />

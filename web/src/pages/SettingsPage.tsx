@@ -47,7 +47,7 @@ export function SettingsPage({ focus }: { focus?: EngineId | "privacy" }) {
           ))}
         </nav>
         <div ref={scroller} className="scrollbar-thin flex-1 overflow-auto">
-          <div className="max-w-3xl px-12 pt-10 pb-16">
+          <div className="mx-auto w-full max-w-3xl px-12 pt-10 pb-16">
             <h1 className="mb-8 text-[32px] leading-tight font-medium">Settings</h1>
             <Section id="you" title="You"><Preferences /></Section>
             <Section id="reminders" title="Reminders and calendar"><Reminders /></Section>

@@ -77,7 +77,7 @@ function Thread({ tool }: { tool: PlanTool | null }) {
         <SiteMenu onRescan={rescan} onReshoot={busy ? undefined : reshoot} onDelete={() => setConfirm("delete")}><Button variant="ghost" size="icon-sm" aria-label="Scan options"><MoreHorizontal /></Button></SiteMenu>
       </TopBar>
       <div className="scrollbar-thin min-h-0 flex-1 overflow-auto">
-        <div className="grid max-w-4xl gap-4 px-12 pt-8 pb-10">
+        <div className="grid mx-auto w-full max-w-4xl gap-4 px-12 pt-8 pb-10">
           {run.status === "scan_failed" ? <FailedBlock run={run} onRetry={rescan} /> : <ScanBlock run={run} progress={run.status === "scanning" ? progress : null} />}
           {!tool && run.status === "scanned" && <NextBlock runId={run.id} />}
           {run.status !== "scanning" && run.status !== "scan_failed" && <PagesBlock key={run.id + (run.settings ? "p" : "") + (tool || "")} run={run} selected={selected} setSelected={setSelected} browse={!tool} locked={run.status === "running" || seoRunning} />}

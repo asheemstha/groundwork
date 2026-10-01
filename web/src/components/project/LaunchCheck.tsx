@@ -161,7 +161,7 @@ export function LaunchReportPage({ p, sub, reload }: { p: Project; sub?: string;
   const head = null
 
   if (!checkId || missing) return (
-    <div className="grid max-w-4xl gap-5 px-12 pt-8 pb-10">
+    <div className="grid mx-auto w-full max-w-4xl gap-5 px-12 pt-8 pb-10">
       {head}
       <div><h1 className="text-[24px] leading-tight font-medium">Launch check</h1><p className="mt-1.5 text-sm text-muted-foreground">{missing ? "That report isn’t on this Mac any more." : `Not run for ${p.name} yet.`} Use the staging address before launch and the live one after.</p></div>
       <div className="flex gap-2"><Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder={stagingExample(p.platform)} /><Button onClick={() => run(url)} disabled={busy || !url.trim()}>{busy ? <Loader2 className="animate-spin" /> : <Play />}Run the check</Button></div>
@@ -171,7 +171,7 @@ export function LaunchReportPage({ p, sub, reload }: { p: Project; sub?: string;
   if (!r) return <div className="grid h-full place-items-center py-24"><Spinner /></div>
 
   if (r.status === "running") return (
-    <div className="grid max-w-4xl gap-5 px-12 pt-8 pb-10">
+    <div className="grid mx-auto w-full max-w-4xl gap-5 px-12 pt-8 pb-10">
       {head}
       <div className="flex items-start gap-3">
         <div className="flex-1"><h1 className="text-[24px] leading-tight font-medium">Checking {hostOf(r.url)}</h1><p className="mt-1.5 text-sm text-muted-foreground">Up to 60 pages, then every link on them{r.speed !== false ? ", then a speed test of three key pages" : ""}. It usually takes {r.speed !== false ? "three to five minutes" : "a minute or two"}. You can leave this page, the check keeps going.</p></div>
@@ -182,7 +182,7 @@ export function LaunchReportPage({ p, sub, reload }: { p: Project; sub?: string;
   )
 
   if (r.status === "failed" || r.status === "cancelled") return (
-    <div className="grid max-w-4xl gap-5 px-12 pt-8 pb-10">
+    <div className="grid mx-auto w-full max-w-4xl gap-5 px-12 pt-8 pb-10">
       {head}
       <div><h1 className="text-[24px] leading-tight font-medium">{r.status === "cancelled" ? "The check was stopped" : "The check didn’t finish"}</h1><p className="mt-1.5 text-sm text-muted-foreground">{hostOf(r.url)}, {when(r.started)}. {r.error}</p>{isCloudflare(r.error) && <CloudflareHelp open className="mt-3" />}</div>
       <div><Button onClick={() => run(r.url)} disabled={busy}>{busy ? <Loader2 className="animate-spin" /> : <RotateCw />}Try again</Button></div>
@@ -204,7 +204,7 @@ function Report({ p, r, focus, busy, onRun, head, speed, setSpeed }: { p: Projec
   const info = r.info!
   const year = new Date().getFullYear()
   return (
-    <div className="grid max-w-4xl gap-5 px-12 pt-8 pb-10">
+    <div className="grid mx-auto w-full max-w-4xl gap-5 px-12 pt-8 pb-10">
       <div className="flex min-h-8 flex-wrap items-center gap-2">
         {head}
         <span className="flex-1" />

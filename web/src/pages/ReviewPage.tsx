@@ -136,7 +136,7 @@ export function ReviewPage({ view }: { view: string }) {
 }
 
 function Scroll({ children }: { children: React.ReactNode }) {
-  return <div className="scrollbar-thin h-full overflow-auto"><div className="max-w-5xl px-12 pt-8 pb-10">{children}</div></div>
+  return <div className="scrollbar-thin h-full overflow-auto"><div className="mx-auto w-full max-w-5xl px-12 pt-8 pb-10">{children}</div></div>
 }
 
 /** Client approval for the rewrites. Shared by the page view and the sign-off view. */

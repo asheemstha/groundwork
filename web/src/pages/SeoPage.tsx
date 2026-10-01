@@ -104,7 +104,7 @@ export function SeoPage({ view }: { view: string }) {
       </TopBar>
       {removeScan.dialog}
       <div className="scrollbar-thin min-h-0 flex-1 overflow-auto">
-        <div className="max-w-5xl px-12 pt-8 pb-10">
+        <div className="mx-auto w-full max-w-5xl px-12 pt-8 pb-10">
           <Header />
           <div className="mt-8 mb-3 flex items-center gap-3">
             <div role="group" aria-label="Show" className="inline-flex gap-0.5 rounded-lg bg-muted p-0.5">

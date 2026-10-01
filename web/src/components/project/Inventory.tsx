@@ -54,7 +54,7 @@ export function InventoryPage({ p, reload }: { p: Project; reload: () => void })
   if (inv === undefined) return <div className="grid place-items-center py-24"><Spinner /></div>
   const aiNote = <p className="text-[12.5px] leading-relaxed text-muted-foreground">{aiReady ? "With AI, the list of pages (addresses, titles, H1s, word counts and the first lines of each page) goes to Anthropic (Claude) or OpenAI (ChatGPT) through your own account, and nothing else does." : "Sign in to Claude Code or Codex in Settings to have AI make the calls instead."}</p>
   if (!inv) return (
-    <div className="grid max-w-4xl gap-4 px-12 pt-8 pb-10">
+    <div className="grid mx-auto w-full max-w-4xl gap-4 px-12 pt-8 pb-10">
       <div><h1 className="text-[24px] leading-tight font-medium">Content inventory</h1><p className="mt-1.5 text-sm text-muted-foreground">{p.tools.oldScan ? `Every page the scan found on the old site (${p.tools.oldScan.urls}), with a call on each: keep, rewrite, merge into another page, or remove. The rules look at how much is on a page, whether it’s in the menu, pages with the same title, and pages that don’t load. You make the final call.` : "Scan the old site first in the Tools tab. The inventory starts from its pages."}</p></div>
       {p.tools.oldScan && <div className="flex flex-wrap gap-2"><Button onClick={() => build(false)} disabled={!!busy}>{busy === "rules" ? <Loader2 className="animate-spin" /> : <Play />}Make the inventory</Button>{aiReady && <Button variant="outline" onClick={() => build(true)} disabled={!!busy}>{busy === "ai" ? <Loader2 className="animate-spin" /> : <Sparkles />}Make it with AI</Button>}</div>}
       {p.tools.oldScan && aiNote}
@@ -67,7 +67,7 @@ export function InventoryPage({ p, reload }: { p: Project; reload: () => void })
   const list = rows.filter((r) => (filter === "all" || (filter === "review" ? !r.sure : r.decision === filter)) && (!q || (r.path + " " + r.title).toLowerCase().includes(q.toLowerCase())))
   const cols = "grid-cols-[minmax(0,1fr)_64px_128px_minmax(0,1fr)_28px]"
   return (
-    <div className="grid max-w-6xl gap-5 px-12 pt-8 pb-10">
+    <div className="grid mx-auto w-full max-w-6xl gap-5 px-12 pt-8 pb-10">
       <div className="flex min-h-8 flex-wrap items-center gap-2">
         <span className="flex-1" />
         <Button variant="outline" size="sm" onClick={() => build(false)} disabled={!!busy}>{busy === "rules" && <Loader2 className="animate-spin" />}Suggest again</Button>
