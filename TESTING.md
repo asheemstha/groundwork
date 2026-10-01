@@ -11,7 +11,7 @@ Follow [Install (Mac)](README.md#install-mac) in the README. The app isn't signe
 ## Your first hour
 
 1. **Explore the sample project** (5 minutes). On Today, click **Explore a sample project**. Tick a few items, open one, look at the Client tab. Delete it when you're done.
-2. **Audit a site you know** (10 minutes). **New project**, then **Audit a site**. Scan it, then run the launch check from the Tools tab. Does what it finds match what you know about the site?
+2. **Audit a site you know** (10 minutes). **New project**, then **Audit a site**. Scan it, then run the launch check from its Site tab. Does what it finds match what you know about the site?
 3. **Start a real project** (15 minutes). Pick the checklist that fits, paste the brief or your kickoff notes, and add the websites and dates. If it's a redesign, scan the old site.
 4. **Ask the client for something** (5 minutes). In the Client tab, tick what you need, copy the message and send it the way you normally would.
 
@@ -19,16 +19,18 @@ Follow [Install (Mac)](README.md#install-mac) in the README. The app isn't signe
 
 Run one real project in Groundwork from start to finish, or as far as it gets. Along the way, try:
 
+- Each project's Overview: does its first sentence say where things really stand?
+
 - Today each morning: plan your tasks, start a timer on each, and send the messages it lists.
 - The Time page at the end of the week: does it match what you'd have written in a timesheet? Export the CSV.
 - The weekly update, or a client status page (the project's ⋯ menu) instead of writing one from scratch.
 - Recording a sign-off with the client's approval, then making the invoice for its payment (add your payment details in Settings, Invoices first).
 - At launch: fill in Accounts and access on the Client tab, then make the handoff document from the project’s ⋯ menu. Would you send it as it is?
-- On a redesign: import a Search Console Pages export on the Tools tab, then open the redirect map.
+- On a redesign: import a Search Console Pages export, or sign in to Google, under Site, Moving from the old site, then open the redirect map.
 - Point Files from the client (the Client tab) at the folder your client shares with you, add the usual asks, and copy the list for them. Did the files tick off as they came in?
 - Log the next “could you also…” as an extra request on the Money tab, time it, and invoice it when it’s done.
 - If you run care plans: set the plan’s hours in the project details, then send the month’s care report (the project’s ⋯ menu) with the invoice.
-- If you can make a Google Cloud project: sign in to Google in Settings, Connected data, pick a client's Search Console and GA4 properties on the project's Tools tab, and get the numbers. How long did the setup take, and where did you get stuck?
+- If you can make a Google Cloud project: sign in to Google in Settings, Connected data, pick a client's Search Console and GA4 properties on the project's Site tab, and get the numbers. How long did the setup take, and where did you get stuck?
 - If you have Google Analytics access for a client: set up the connector in Settings, Connected data, then paste a question from the project's ⋯ menu, Ask Claude Code about traffic, into Claude Code. Was the answer worth the setup?
 - If you sell more than websites, a brand, SEO, ads or social project from Other client work.
 - For a redesign: the content inventory, the redirect map and the redirect test.

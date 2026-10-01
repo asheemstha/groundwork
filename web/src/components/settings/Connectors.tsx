@@ -96,7 +96,7 @@ export function ConnectorsSection() {
         <Step n={2}>In Claude Code, type /mcp, pick meta-ads and sign in with Facebook.</Step>
       </Card>
 
-      <Card title="Search Console" by="No connector from Google" what="Google doesn’t publish one for Search Console. Groundwork reads it itself once you sign in to Google above, or import an export on a project’s Tools tab." state={found("gsc")?.state} plain />
+      <Card title="Search Console" by="No connector from Google" what="Google doesn’t publish one for Search Console. Groundwork reads it itself once you sign in to Google above, or import an export on a project’s Site tab." state={found("gsc")?.state} plain />
 
       <p className="text-[12.5px] leading-relaxed text-muted-foreground">The connectors run inside Claude Code on this Mac, with your access to the client’s accounts, and Anthropic’s, Google’s and Meta’s terms apply. Groundwork doesn’t connect to Google or Meta and never sees the data: it writes the questions, in each project’s ⋯ menu under Ask Claude Code. Checking runs “claude mcp list”, which starts each connector you’ve added to see that it answers.</p>
     </div>

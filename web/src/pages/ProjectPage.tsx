@@ -17,19 +17,20 @@ import { newProject } from "@/components/project/NewProjectDialog"
 import { DateField } from "@/components/common/DateField"
 import { Chip } from "@/pages/Dashboard"
 import { useApp } from "@/hooks/useApp"
-import { api, invoiceUrl, proofUrl, type MessageTemplate, type PItem, type PPhase, type Project, type SiteKey, type TemplateSummary } from "@/lib/api"
-import { SITE_KEYS, SITE_NAME, dayOf, dueLabel, fmtDay, hostOfUrl, renderMessage, subName, today, waited, weeklyUpdate } from "@/lib/project"
+import { api, invoiceUrl, proofUrl, type MessageTemplate, type PItem, type PPhase, type Project, type TemplateSummary } from "@/lib/api"
+import { SITE_KEYS, SITE_NAME, dayOf, dueLabel, fmtDay, hostOfUrl, renderMessage, today, waited, weeklyUpdate } from "@/lib/project"
 import { ago } from "@/lib/format"
-import { go, routes } from "@/lib/router"
-import { LaunchCard, LaunchItemPanel, LaunchReportPage, useLaunchRefresh } from "@/components/project/LaunchCheck"
-import { RedirectCard, RedirectsPage } from "@/components/project/Redirects"
-import { InventoryCard, InventoryPage } from "@/components/project/Inventory"
+import { go, routes, type ProjectTab } from "@/lib/router"
+import { LaunchItemPanel, LaunchReportPage, useLaunchRefresh } from "@/components/project/LaunchCheck"
+import { RedirectsPage } from "@/components/project/Redirects"
+import { InventoryPage } from "@/components/project/Inventory"
 import { StatusPageDialog } from "@/components/project/StatusPage"
 import { HandoffDialog } from "@/components/project/HandoffDoc"
 import { AccountsSection } from "@/components/project/Accounts"
 import { FilesSection } from "@/components/project/Files"
-import { TrafficCard } from "@/components/project/Traffic"
 import { CareReportDialog } from "@/components/project/CareReport"
+import { OverviewTab, PhaseStrip, standLine } from "@/components/project/Overview"
+import { SiteTab } from "@/components/project/SiteTab"
 import { AskClaudeDialog } from "@/components/project/AskClaude"
 import { MoneyTab } from "@/components/project/Money"
 import { ShiftDialog, shiftPlan } from "@/components/project/ShiftDialog"
@@ -40,7 +41,7 @@ import { useTimeChanged, useTimer } from "@/hooks/useTimer"
 import { clockOf, fmtMins, parseDur, timeOf } from "@/lib/time"
 import type { TimeEntry } from "@/lib/api"
 
-type Tab = "checklist" | "client" | "tools" | "money" | "launch" | "redirects" | "inventory"
+type Tab = ProjectTab
 type SetItem = (itemId: string, b: Parameters<typeof api.setItem>[2]) => Promise<void>
 
 export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Tab; sub?: string; item?: string }) {
@@ -72,42 +73,13 @@ export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Ta
   if (missing && !p) return <div className="grid h-full place-items-center p-8 text-center"><div><p className="text-lg font-medium">Couldn’t open this project</p><p className="mt-1.5 max-w-md text-sm text-muted-foreground">{missing}</p><Button className="mt-4" variant="outline" onClick={load}>Try again</Button></div></div>
   if (!p) return <div className="grid h-full place-items-center"><Spinner /></div>
   const audit = p.kind === "audit"
-  // An audit has no checklist, so it only has the Tools page.
-  if (audit && (tab === "checklist" || tab === "client" || tab === "money")) tab = "tools"
+  // An audit has no checklist, so it only has the Site tab; a project without a website has no Site tab.
+  if (audit && (tab === "overview" || tab === "checklist" || tab === "client" || tab === "money")) tab = "site"
+  if (!audit && !p.website && tab === "site") tab = "overview"
   const open = p.client.late.length + p.client.soon.length
-
-  return (
-    <div className="flex h-full flex-col">
-      <TopBar className="gap-1.5 text-[14px]">
-        <Crumbs projectId={id} label={sub_label(tab) || undefined} />
-        <span className="flex-1" />
-        <span className="text-[12.5px] text-muted-foreground">Edited {ago(p.updated || p.created)}</span>
-        <DropdownMenu>
-          <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label="Project options" />}><MoreHorizontal /></DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuItem onClick={() => setEditing(true)}><Pencil /> Edit details…</DropdownMenuItem>
-            {!audit && <DropdownMenuItem onClick={shiftPlan}><CalendarDays /> Move dates…</DropdownMenuItem>}
-            {!audit && <DropdownMenuItem onClick={updateFromTemplate}><RefreshCw /> Update from the template…{p.templateChanged && <span className="ml-auto size-1.5 rounded-full bg-foreground/60" />}</DropdownMenuItem>}
-            {audit && <DropdownMenuItem onClick={() => newProject({ name: p.name, old: p.sites.live || p.url || "" })}><FolderPlus /> Start a project for this site…</DropdownMenuItem>}
-            {!audit && <DropdownMenuItem onClick={() => setStatusOpen(true)}><FileText /> Client status page…</DropdownMenuItem>}
-            {!audit && p.repeat && <DropdownMenuItem onClick={() => setCareOpen(true)}><FileText /> Care report…</DropdownMenuItem>}
-            {!audit && p.website && !p.repeat && <DropdownMenuItem onClick={() => setHandoffOpen(true)}><FileText /> Handoff document…</DropdownMenuItem>}
-            {!audit && <DropdownMenuItem onClick={() => setAskOpen(true)}><BarChart3 /> Ask Claude Code about traffic…</DropdownMenuItem>}
-            {!audit && <DropdownMenuItem onClick={() => makeInvoice({ projectId: p.id, kind: "hours" })}><Receipt /> Invoice hours…</DropdownMenuItem>}
-            <DropdownMenuItem onClick={() => { const a = document.createElement("a"); a.href = `/api/projects/${p.id}/export`; a.download = ""; a.click(); toast("Exporting the project", { description: "Its checklist, files, scans and plans, as one zip another Groundwork can import." }) }}><Download /> Export project…</DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem variant="destructive" onClick={() => setRemoving(true)}><Trash2 /> {audit ? "Delete audit…" : "Delete project…"}</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </TopBar>
-      <div className="scrollbar-thin min-h-0 flex-1 overflow-auto">
-        {/* The project's own pages share one centred column; the tool pages below centre themselves at their own widths. */}
-        <div className="mx-auto w-full max-w-6xl">
-        {!sub_label(tab) && (
-          <header className="px-12 pt-7">
-            <SiteIcon runId={p.tools.iconRun || undefined} name={p.name} className="size-10 rounded-lg text-lg" />
-            <h1 className="mt-2.5 text-[32px] leading-tight font-medium">{p.name}</h1>
-            <dl className={cn("mt-4 grid max-w-2xl gap-y-0.5 text-[14px] [--prop-w:130px] lg:max-w-5xl lg:grid-flow-col lg:grid-cols-2 lg:gap-x-12", audit ? "lg:grid-rows-2" : "lg:grid-rows-5")}>
+  // The project's addresses and dates, at the bottom of the Overview.
+  const details = (
+            <dl className={cn("grid max-w-2xl gap-y-0.5 text-[14px] [--prop-w:130px] lg:max-w-5xl lg:grid-flow-col lg:grid-cols-2 lg:gap-x-12", audit ? "lg:grid-rows-2" : "lg:grid-rows-5")}>
               {p.website ? <>
               {(audit ? (["live"] as const) : SITE_KEYS).map((k) => (
                 <Prop key={k} icon={<Link2 className="size-3.5" />} label={audit ? "Site" : SITE_NAME[k]}>{p.sites[k] ? <a href={p.sites[k]!} target="_blank" rel="noreferrer" className="hover:underline">{hostOfUrl(p.sites[k])}</a> : <button onClick={() => setEditing(true)} className="text-muted-foreground hover:text-foreground">Empty</button>}</Prop>
@@ -123,26 +95,77 @@ export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Ta
               <Prop icon={<Layers className="size-3.5" />} label="Template"><span>{p.templateName}</span>{p.templateChanged && <button onClick={updateFromTemplate} className="ml-2 inline-flex items-center gap-1.5 text-[12.5px] text-muted-foreground underline underline-offset-2 hover:text-foreground">Template updated. Review changes</button>}</Prop>
               </>}
             </dl>
+  )
+
+  return (
+    <div className="flex h-full flex-col">
+      <TopBar className="gap-1.5 text-[14px]">
+        <Crumbs projectId={id} label={sub_label(tab) || undefined} />
+        <span className="flex-1" />
+        <span className="text-[12.5px] text-muted-foreground">Edited {ago(p.updated || p.created)}</span>
+        {!audit && (
+          <DropdownMenu>
+            <DropdownMenuTrigger render={<Button variant="outline" size="sm" className="ml-1" />}>Send to client<ChevronDown /></DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-60">
+              <DropdownMenuItem onClick={() => go(routes.clientUpdate(p.id))}><Mail /> Weekly update…</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setStatusOpen(true)}><FileText /> Status page…</DropdownMenuItem>
+              {p.website && !p.repeat && <DropdownMenuItem onClick={() => setHandoffOpen(true)}><FileText /> Handoff document…</DropdownMenuItem>}
+              {p.repeat && <DropdownMenuItem onClick={() => setCareOpen(true)}><FileText /> Care report…</DropdownMenuItem>}
+              <DropdownMenuItem onClick={() => makeInvoice({ projectId: p.id, kind: "hours" })}><Receipt /> Invoice for hours…</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+        <DropdownMenu>
+          <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label="Project options" />}><MoreHorizontal /></DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuItem onClick={() => setEditing(true)}><Pencil /> Edit details…</DropdownMenuItem>
+            {!audit && <DropdownMenuItem onClick={shiftPlan}><CalendarDays /> Move dates…</DropdownMenuItem>}
+            {!audit && <DropdownMenuItem onClick={updateFromTemplate}><RefreshCw /> Update from the template…{p.templateChanged && <span className="ml-auto size-1.5 rounded-full bg-foreground/60" />}</DropdownMenuItem>}
+            {audit && <DropdownMenuItem onClick={() => newProject({ name: p.name, old: p.sites.live || p.url || "" })}><FolderPlus /> Start a project for this site…</DropdownMenuItem>}
+            {!audit && <DropdownMenuItem onClick={() => setAskOpen(true)}><BarChart3 /> Ask Claude Code about traffic…</DropdownMenuItem>}
+            <DropdownMenuItem onClick={() => { const a = document.createElement("a"); a.href = `/api/projects/${p.id}/export`; a.download = ""; a.click(); toast("Exporting the project", { description: "Its checklist, files, scans and plans, as one zip another Groundwork can import." }) }}><Download /> Export project…</DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem variant="destructive" onClick={() => setRemoving(true)}><Trash2 /> {audit ? "Delete audit…" : "Delete project…"}</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </TopBar>
+      <div className="scrollbar-thin min-h-0 flex-1 overflow-auto">
+        {/* The project's own pages share one centred column; the tool pages below centre themselves at their own widths. */}
+        <div className="mx-auto w-full max-w-6xl">
+        {!sub_label(tab) && (
+          <header className="px-12 pt-7">
+            {tab === "overview" && <>
+              <SiteIcon runId={p.tools.iconRun || undefined} name={p.name} className="size-10 rounded-lg text-lg" />
+              <h1 className="mt-2.5 text-[32px] leading-tight font-medium">{p.name}</h1>
+              <p className="mt-2 max-w-3xl text-[16px] leading-normal">{standLine(p)}</p>
+              <div className="mt-2.5"><PhaseStrip p={p} /></div>
+            </>}
             {audit ? (
-              <div className="mt-6 flex flex-wrap items-center gap-x-3 gap-y-2 border-b pb-4 text-[14px]">
-                <span className="min-w-0 flex-1 text-muted-foreground">An audit: scans and checks for one site, with no checklist. Redesigning it? Start a project and this audit’s scans move into it.</span>
-                <Button size="sm" variant="outline" onClick={() => newProject({ name: p.name, old: p.sites.live || p.url || "" })}><FolderPlus />Start a project</Button>
-              </div>
+              <>
+                <SiteIcon runId={p.tools.iconRun || undefined} name={p.name} className="size-10 rounded-lg text-lg" />
+                <h1 className="mt-2.5 text-[32px] leading-tight font-medium">{p.name}</h1>
+                <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 border-b pb-4 text-[14px]">
+                  <span className="min-w-0 flex-1 text-muted-foreground">A site check: scans and checks for one site, with no checklist. Redesigning it? Start a project and this check’s scans move into it.</span>
+                  <Button size="sm" variant="outline" onClick={() => newProject({ name: p.name, old: p.sites.live || p.url || "" })}><FolderPlus />Start a project</Button>
+                </div>
+              </>
             ) : (
-              <nav aria-label="Project" className="mt-5 flex gap-1 border-b pb-2">
-                <TabLink on={tab === "checklist"} onClick={() => go(routes.project(id))}>Checklist</TabLink>
-                <TabLink on={tab === "client"} onClick={() => go(routes.project(id, "client"))}>Client <span className="text-xs text-muted-foreground tabular">{open}</span>{p.client.late.length > 0 && <span className="size-1.5 rounded-full bg-destructive" aria-label={`${p.client.late.length} late`} />}</TabLink>
-                {p.website && <TabLink on={tab === "tools"} onClick={() => go(routes.project(id, "tools"))}>Tools</TabLink>}
+              <nav aria-label="Project" className={cn("flex gap-1 border-b pb-2", tab === "overview" ? "mt-6" : "mt-0")}>
+                <TabLink on={tab === "overview"} onClick={() => go(routes.project(id))}>Overview</TabLink>
+                <TabLink on={tab === "checklist"} onClick={() => go(routes.project(id, "checklist"))}>Checklist</TabLink>
+                <TabLink on={tab === "client"} onClick={() => go(routes.project(id, "client"))}>Client {open > 0 && <span className="text-xs text-muted-foreground tabular">{open}</span>}{p.client.late.length > 0 && <span className="size-1.5 rounded-full bg-destructive" aria-label={`${p.client.late.length} late`} />}</TabLink>
+                {p.website && <TabLink on={tab === "site"} onClick={() => go(routes.project(id, "site"))}>Site{p.tools.launch && Object.values(p.tools.launch.checks).some((c) => c && !c.ok) && <span className="size-1.5 rounded-full bg-foreground/50" aria-label="Checks to fix" />}</TabLink>}
                 <TabLink on={tab === "money"} onClick={() => go(routes.project(id, "money"))}>Money{p.money && p.money.toInvoice > 0 && <span className="size-1.5 rounded-full bg-foreground/50" aria-label="Something to invoice" />}</TabLink>
               </nav>
             )}
           </header>
         )}
+        {tab === "overview" && <OverviewTab p={p} setItem={(itemId, b) => setItem(itemId, b)} details={details} />}
         {tab === "checklist" && <ChecklistTab p={p} setItem={setItem} setP={setP} reload={load} openItem={item} openPhase={sub} />}
         {tab === "client" && <ClientTab key={sub || ""} p={p} setItem={setItem} setP={setP} mode={sub === "remind" || sub === "update" ? sub : undefined} />}
         {tab === "client" && <FilesSection p={p} setP={setP} focus={sub === "files"} />}
         {tab === "client" && <AccountsSection p={p} setP={setP} />}
-        {tab === "tools" && <ToolsTab p={p} setP={setP} reload={load} onEdit={() => setEditing(true)} />}
+        {tab === "site" && <SiteTab p={p} setP={setP} reload={load} onEdit={() => setEditing(true)} view={sub} />}
         {tab === "money" && !audit && <MoneyTab p={p} setP={setP} />}
         </div>
         {tab === "launch" && <LaunchReportPage key={sub || ""} p={p} sub={sub} reload={load} />}
@@ -536,10 +559,10 @@ function ItemSheet({ p, it, onClose, setItem, reload, order, onMove }: { p: Proj
                       ? <div className="flex gap-2"><Button size="sm" onClick={() => go(x.tool === "headings" ? routes.review(t.runId!) : x.tool === "seo" ? routes.seo(t.runId!) : routes.run(t.runId!))}>{x.tool === "headings" ? "Open the to-do list" : x.tool === "seo" ? "Open the SEO plan" : "Open the scan"}</Button></div>
                       : x.tool === "requests" ? <div className="flex gap-2"><Button size="sm" variant={p.requests.total ? "default" : "outline"} onClick={() => go(routes.clientFiles(p.id))}>{p.requests.total ? "Open the file requests" : "Ask for files"}</Button></div>
                       : x.tool === "inventory" ? <div className="flex gap-2"><Button size="sm" variant={p.tools.inventory ? "default" : "outline"} onClick={() => go(routes.project(p.id, "inventory"))}>{p.tools.inventory ? "Open the inventory" : "Make the inventory"}</Button></div>
-                      : x.tool === "redirects" ? <div className="flex gap-2"><Button size="sm" variant={p.tools.redirects ? "default" : "outline"} onClick={() => go(p.tools.redirects ? routes.project(p.id, "redirects") : routes.project(p.id, "tools"))}>{p.tools.redirects ? "Open the redirect map" : "Go to Tools"}</Button></div>
+                      : x.tool === "redirects" ? <div className="flex gap-2"><Button size="sm" variant={p.tools.redirects ? "default" : "outline"} onClick={() => go(p.tools.redirects ? routes.project(p.id, "redirects") : routes.project(p.id, "site"))}>{p.tools.redirects ? "Open the redirect map" : "Go to the Site tab"}</Button></div>
                       : x.tool === "seo" && p.tools.seoRunning ? <div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => go(routes.run(p.tools.seoRunning!, "seo"))}><Loader2 className="animate-spin" />Planning now</Button></div>
                       : x.tool === "seo" && p.tools.scan ? <div className="flex gap-2"><Button size="sm" onClick={() => go(routes.run(p.tools.plan?.runId || p.tools.scan!.runId, "seo"))}>Plan SEO</Button></div>
-                      : <div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => go(routes.project(p.id, "tools"))}>Go to Tools</Button></div>)}
+                      : <div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => go(routes.project(p.id, "site"))}>Go to the Site tab</Button></div>)}
                     <p className="text-[12.5px] leading-relaxed text-muted-foreground">{!t.ready ? "When this tool is ready, it will do or check this item for you." : x.tool === "headings" ? "This item ticks itself once every tag fix in the plan is done. You can also tick it yourself." : x.tool === "inventory" ? "This item ticks itself once every old page has a keep, rewrite, merge or remove call you’re happy with." : x.tool === "requests" ? `This item ticks itself once every ${x.check === "brand" ? "brand file" : x.check === "content" ? "copy request" : "file request"} is in. Files tick off as they land in the project’s folder.` : x.tool === "launch" ? (x.check === "indexing" || x.check === "https" ? "This item ticks itself when a check of the live domain passes. A staging check shows the issues but doesn’t tick it." : "This item ticks itself when the check passes. You can also tick it yourself.") : x.tool === "redirects" ? (x.check === "map" ? "This item ticks itself when every old URL has a match you’re happy with." : x.check === "after" ? "This item ticks itself when a test of the live domain after launch day passes." : "This item ticks itself when a test of the live domain passes: every redirect is one 301 to the right page.") : x.tool === "seo" ? (x.check === "plan" ? "This item ticks itself once an SEO plan covers every page the scan read. Plan staging, so it describes the new site." : "Counts the plan’s titles, descriptions and URLs as they go live. This item also covers OG images, alt text, schema and the 404 page, so you tick it yourself. The launch check covers several of those.") : (x.check === "recrawl" ? "This item ticks itself when the old site is scanned in the 10 days before launch day. Rebuild the redirect map afterwards, so new pages get redirects too." : "This item ticks itself when the scan finishes.")}</p>
                   </section>
                 )}
@@ -885,131 +908,6 @@ function ClientTab({ p, setItem, setP, mode }: { p: Project; setItem: SetItem; s
 }
 
 // ---------- tools ----------
-type Run = Project["tools"]["runs"][number]
-const DONE = (s?: string | null) => s === "done" || s === "partial"
-const countsOf = (r: Run) => { const c = r.progress?.now || r.progress?.all || r.progress?.live; return c ? `${c.done} of ${c.tasks} tag fixes done` : "Ready" }
-
-function ToolsTab({ p, setP, reload, onEdit }: { p: Project; setP: (x: Project) => void; reload: () => void; onEdit: () => void }) {
-  const { refreshRuns, status } = useApp()
-  const [busy, setBusy] = React.useState<SiteKey | null>(null)
-  const audit = p.kind === "audit"
-  const scan = async (site: SiteKey) => {
-    setBusy(site)
-    try { const { runId } = await api.scanProject(p.id, site); await refreshRuns(); reload(); go(routes.run(runId)) } catch (e) { toast.error((e as Error).message); setBusy(null) }
-  }
-  const keys: SiteKey[] = audit ? ["live"] : SITE_KEYS
-  const label = (r: Run) => (DONE(r.status) ? (r.output === "live" ? "Heading plan (tags only)" : "Heading plan (tags and rewrites)") : r.status === "scanning" ? "Scanning" : r.status === "running" ? "Planning headings" : r.status === "scan_failed" ? "Scan failed" : r.status === "failed" ? "Heading plan failed" : "Scan") + (r.seo && DONE(r.seo.status) ? ", SEO plan" : r.seo?.status === "running" ? ", planning SEO" : "")
-  return (
-    <div className="grid gap-3 px-12 pt-6 pb-10">
-      <p className="text-[14px] text-muted-foreground">{audit ? `Groundwork’s tools for ${p.name}.` : `Groundwork’s tools for ${p.name}. Their results tick checklist items for you.`}</p>
-      <h2 className="mt-2 text-[13px] font-medium text-muted-foreground">{audit ? "Site" : "Websites"}</h2>
-      <div className="overflow-hidden rounded-xl border bg-card">
-        {keys.map((k) => <SiteTools key={k} p={p} k={k} label={audit ? "Site" : SITE_NAME[k]} busy={busy === k} onScan={() => scan(k)} onEdit={onEdit} reload={reload} />)}
-      </div>
-      <p className="text-[12.5px] text-muted-foreground">Scans run on your Mac with no AI. The heading and SEO plans use your {subName(status)} subscription.</p>
-      <h2 className="mt-4 text-[13px] font-medium text-muted-foreground">Checks</h2>
-      <LaunchCard p={p} reload={reload} />
-      {!audit && <RedirectCard p={p} onEdit={onEdit} />}
-      {!audit && <InventoryCard p={p} />}
-      {!audit && <TrafficCard p={p} setP={setP} />}
-      {p.tools.runs.length > 0 && (
-        <section className="mt-4">
-          <h2 className="mb-2 text-[13px] font-medium text-muted-foreground">History</h2>
-          <div className="overflow-hidden rounded-xl border bg-card">
-            {p.tools.runs.map((r) => (
-              <div key={r.id} className="grid min-h-11 grid-cols-[minmax(0,1fr)_84px_96px_64px] items-center gap-3 border-t px-4 py-2 text-[13.5px] first:border-t-0">
-                <button onClick={() => go(DONE(r.status) ? routes.review(r.id) : r.seo && DONE(r.seo.status) ? routes.seo(r.id) : r.status === "running" ? routes.run(r.id, "headings") : r.seo?.status === "running" ? routes.run(r.id, "seo") : routes.run(r.id))} className="grid min-w-0 gap-0.5 text-left hover:underline">
-                  <span className={cn(r.error && "text-destructive")}>{label(r)}</span>
-                  {r.error && <span className="truncate text-xs text-muted-foreground">{r.error}</span>}
-                </button>
-                <span className="truncate text-muted-foreground">{r.site ? (audit ? "Site" : SITE_NAME[r.site]) : ""}</span>
-                <span className="text-muted-foreground tabular">{r.pages} found</span>
-                <span className="text-muted-foreground">{new Date(r.created).toLocaleDateString([], { month: "short", day: "numeric" })}</span>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-    </div>
-  )
-}
-
-/** One website on the Tools tab: its latest scan, and the heading and SEO plans made from its scans. */
-function SiteTools({ p, k, label, busy, onScan, onEdit, reload }: { p: Project; k: SiteKey; label: string; busy: boolean; onScan: () => void; onEdit: () => void; reload: () => void }) {
-  const url = p.sites[k]
-  const runs = p.tools.runs.filter((r) => r.site === k)
-  const scanning = runs.find((r) => r.status === "scanning")
-  const failed = runs[0]?.status === "scan_failed" ? runs[0] : null
-  const scan = runs.find((r) => r.pages > 0 && r.status !== "scanning" && r.status !== "scan_failed")
-  const heading = runs.find((r) => DONE(r.status) || r.status === "running")
-  const seo = runs.find((r) => r.seo && (DONE(r.seo.status) || r.seo.status === "running"))
-  const date = (r: Run) => new Date(r.created).toLocaleDateString([], { month: "short", day: "numeric" })
-  // One grid for the site and its tools, so the addresses and statuses line up.
-  const Row = ({ name, status, children }: { name: string; status: React.ReactNode; children?: React.ReactNode }) => (
-    <div className="grid min-h-10 grid-cols-[110px_minmax(0,1fr)_auto] items-center gap-3 text-[13.5px]">
-      <span className="text-muted-foreground">{name}</span>
-      <span className="min-w-0 truncate text-muted-foreground">{status}</span>
-      <span className="flex items-center gap-1.5">{children}</span>
-    </div>
-  )
-  // In a same-domain redesign the live domain shows the old site until launch day, so there's nothing new to scan yet.
-  const sameAsOld = k === "live" && !!url && !!p.sites.old && hostOfUrl(p.sites.old) === hostOfUrl(url) && !(p.launch && today() >= p.launch)
-  if (sameAsOld) return (
-    <div className="grid grid-cols-[110px_minmax(0,1fr)] items-center gap-3 border-t px-4 py-3 text-[13.5px] first:border-t-0">
-      <span className="font-medium">{label}</span>
-      <span className="min-w-0 text-muted-foreground"><a href={url} target="_blank" rel="noreferrer" className="text-foreground hover:underline">{hostOfUrl(url)}</a>, the same address as the old site. It shows the old site until launch day{p.launch ? ` (${fmtDay(p.launch)})` : ""}, so scan and check it from then on.</span>
-    </div>
-  )
-  if (!url) return (
-    <div className="grid grid-cols-[110px_minmax(0,1fr)_auto] items-center gap-3 border-t px-4 py-3 text-[13.5px] first:border-t-0">
-      <span className="font-medium">{label}</span>
-      <span className="text-muted-foreground">{k === "old" ? "Only for redesigns: the site being replaced." : k === "staging" ? `The new site before launch, like ${stagingExample(p.platform)}.` : "Where the site launches."}</span>
-      <Button size="xs" variant="ghost" onClick={onEdit}>Add</Button>
-    </div>
-  )
-  return (
-    <div className="grid gap-0.5 border-t px-4 py-3 first:border-t-0">
-      <div className="grid min-h-9 grid-cols-[110px_minmax(0,1fr)_auto] items-center gap-3 text-[13.5px]">
-        <span className="font-medium">{label}</span>
-        <a href={url} target="_blank" rel="noreferrer" className="min-w-0 truncate hover:underline">{hostOfUrl(url)}</a>
-        {scanning ? <Button size="sm" variant="outline" onClick={() => go(routes.run(scanning.id))}><Loader2 className="animate-spin" />Scanning</Button>
-          : <Button size="sm" variant="outline" onClick={onScan} disabled={busy}>{busy && <Loader2 className="animate-spin" />}{failed ? "Retry the scan" : scan ? "Scan again" : "Scan"}</Button>}
-      </div>
-      <Row name="Scan" status={failed && !scanning ? <span className="text-destructive">Failed: {failed.error || "the site didn’t load"}</span> : scan ? <>{scan.pages} pages found, {scan.scanned} read, {ago(scan.created)}</> : scanning ? "Scanning now" : "Not scanned yet"}>
-        {scan && <Button size="xs" variant="ghost" onClick={() => go(routes.run(scan.id))}>Open</Button>}
-      </Row>
-      <Row name="Heading plan" status={heading ? <>{heading.status === "running" ? "Planning now" : countsOf(heading)}{scan && heading.id !== scan.id ? `, from the ${date(heading)} scan` : ""}</> : scan ? "Not planned yet" : "Scan first"}>
-        {heading && <Button size="xs" variant="ghost" onClick={() => go(heading.status === "running" ? routes.run(heading.id, "headings") : routes.review(heading.id))}>Open</Button>}
-        {scan && (!heading || heading.id !== scan.id) && <Button size="xs" variant="outline" onClick={() => go(routes.run(scan.id, "headings"))}>{heading ? "Plan the latest scan" : "Plan headings"}</Button>}
-      </Row>
-      <Row name="SEO plan" status={seo ? <>{seo.seo!.status === "running" ? "Planning now" : seo.seo!.progress ? `${seo.seo!.progress.done} of ${seo.seo!.progress.tasks} changes done` : "Ready"}{scan && seo.id !== scan.id ? `, from the ${date(seo)} scan` : ""}</> : scan ? "Not planned yet" : "Scan first"}>
-        {seo && <Button size="xs" variant="ghost" onClick={() => go(seo.seo!.status === "running" ? routes.run(seo.id, "seo") : routes.seo(seo.id))}>Open</Button>}
-        {scan && (!seo || seo.id !== scan.id) && <Button size="xs" variant="outline" onClick={() => go(routes.run(scan.id, "seo"))}>{seo ? "Plan the latest scan" : "Plan SEO"}</Button>}
-      </Row>
-      {k === "live" && <RenewalsRow p={p} reload={reload} />}
-      {k === "live" && p.uptime && <Row name="Up" status={<>{p.uptime.last.ok ? <>Answered {ago(p.uptime.last.at)} in {(p.uptime.last.ms / 1000).toFixed(1)} s</> : <span className="text-destructive">Didn’t answer {ago(p.uptime.last.at)}{p.uptime.last.status ? ` (HTTP ${p.uptime.last.status})` : p.uptime.last.error ? `: ${p.uptime.last.error}` : ""}</span>}. {p.uptime.down.length ? `${p.uptime.down.length} of ${p.uptime.checks} checks in 30 days failed.` : `${p.uptime.checks} ${p.uptime.checks === 1 ? "check" : "checks"} in 30 days, none failed.`} Checked hourly while Groundwork is open, not around the clock.</>} />}
-    </div>
-  )
-}
-
-/** When the live domain's SSL certificate and registration run out, read once a day. */
-function RenewalsRow({ p, reload }: { p: Project; reload: () => void }) {
-  const [busy, setBusy] = React.useState(false)
-  const r = p.renewals
-  const long = (d?: string | null) => (d ? new Date(d + "T00:00").toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" }) : "")
-  const check = async () => { setBusy(true); try { await api.checkRenewals(p.id); reload() } catch (e) { toast.error((e as Error).message) } finally { setBusy(false) } }
-  const warn = (what: "ssl" | "domain") => r?.warnings.find((w) => w.what === what)
-  const ssl = !r ? null : r.ssl.error ? <span>SSL: {r.ssl.error}</span> : <span className={cn(warn("ssl")?.late && "text-destructive", warn("ssl") && !warn("ssl")!.late && "text-foreground")}>SSL until {long(r.ssl.expires)}{r.ssl.auto || r.hosted ? " (renews itself)" : r.ssl.issuer ? ` (${r.ssl.issuer})` : ""}</span>
-  const dom = !r ? null : r.domain.error ? <span>Domain: {r.domain.error}</span> : r.domain.expires ? <span className={cn(warn("domain")?.late && "text-destructive", warn("domain") && !warn("domain")!.late && "text-foreground")}>Domain until {long(r.domain.expires)}{r.domain.registrar ? ` (${r.domain.registrar})` : ""}</span> : <span>The registry doesn’t publish {r.domain.domain}’s expiry date</span>
-  return (
-    <div className="grid min-h-10 grid-cols-[110px_minmax(0,1fr)_auto] items-center gap-3 text-[13.5px]">
-      <span className="text-muted-foreground">Renewals</span>
-      <span className="min-w-0 truncate text-muted-foreground" title={r ? `Checked ${ago(r.at)}` : undefined}>{r ? <>{ssl} · {dom}</> : "Not checked yet"}</span>
-      <span className="flex items-center gap-1.5"><Button size="xs" variant="ghost" onClick={check} disabled={busy}>{busy && <Loader2 className="animate-spin" />}Check now</Button></span>
-    </div>
-  )
-}
-
 // ---------- edit details ----------
 function EditDialog({ p, open, onClose, onSaved }: { p: Project; open: boolean; onClose: () => void; onSaved: (x: Project) => void }) {
   const audit = p.kind === "audit"

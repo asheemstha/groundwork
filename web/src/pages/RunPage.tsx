@@ -50,7 +50,7 @@ function Thread({ tool }: { tool: PlanTool | null }) {
 
   const seoRunning = run.seo?.status === "running"
   const busy = run.status === "running" || run.status === "scanning" || seoRunning
-  const back = () => go(run.projectId ? routes.project(run.projectId, "tools") : routes.home)
+  const back = () => go(run.projectId ? routes.project(run.projectId, "site") : routes.home)
   const rescan = async () => { const { id } = await api.rescan(run.id); await app.refreshRuns(); go(routes.run(id, tool || undefined)) }
   const reshoot = async () => {
     const t = toast.loading("Retaking screenshots…", { description: "Runs on your Mac. No AI." })
@@ -239,7 +239,7 @@ export function useRemoveScan(run: Run | null) {
   const remove = async () => {
     if (!run) return
     await api.remove(run.id); await app.refreshRuns(); toast("Removed the scan")
-    go(run.projectId ? routes.project(run.projectId, "tools") : routes.home)
+    go(run.projectId ? routes.project(run.projectId, "site") : routes.home)
   }
   const dialog = (
     <AlertDialog open={open} onOpenChange={setOpen}>

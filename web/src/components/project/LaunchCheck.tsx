@@ -24,11 +24,11 @@ const STEPS = [
   { id: "speed", label: "Speed test of three key pages on a phone" },
 ] as const
 /** Whether the next check runs the speed test. It adds a minute or two, so quick re-runs can skip it. */
-const useSpeedOption = () => {
+export const useSpeedOption = () => {
   const [speed, set] = React.useState(() => store.get("launchSpeed", true))
   return [speed, (v: boolean) => { store.set("launchSpeed", v); set(v) }] as const
 }
-function SpeedOption({ speed, setSpeed }: { speed: boolean; setSpeed: (v: boolean) => void }) {
+export function SpeedOption({ speed, setSpeed }: { speed: boolean; setSpeed: (v: boolean) => void }) {
   return <label className="flex items-center gap-2 text-[12.5px] text-muted-foreground"><Checkbox checked={speed} onCheckedChange={(v) => setSpeed(!!v)} />Include the speed test (adds a minute or two; without it, the last result is kept)</label>
 }
 
@@ -36,7 +36,7 @@ const when = (at: number) => new Date(at).toLocaleString([], { month: "short", d
 const day = (at: number) => new Date(at).toLocaleDateString([], { month: "short", day: "numeric" })
 const hostOf = (u: string) => { try { return new URL(/^https?:/i.test(u) ? u : "https://" + u).hostname } catch { return u } }
 /** On staging, indexing and redirects are meant to fail, so they wait for a check of the live domain. */
-const LATER: LaunchCheckId[] = ["indexing", "https"]
+export const LATER: LaunchCheckId[] = ["indexing", "https"]
 const counted = (s: Pick<LaunchSummary, "checks" | "staging">) => (Object.entries(s.checks) as [LaunchCheckId, { ok: boolean }][]).filter(([id]) => !(s.staging && LATER.includes(id)))
 const passed = (s: Pick<LaunchSummary, "checks" | "staging">) => counted(s).filter(([, c]) => c.ok).length
 const total = (s: Pick<LaunchSummary, "checks" | "staging">) => counted(s).length
@@ -45,7 +45,7 @@ const itemsOf = (p: Project) => p.phases.flatMap((ph) => [...ph.groups.flatMap((
  * The address to check next. Before launch day that's staging; from launch day on, the live domain. In a same-domain
  * redesign the live domain still shows the old site before launch, so it isn't offered then.
  */
-const defaultUrl = (p: Project) => {
+export const defaultUrl = (p: Project) => {
   const launched = !!p.launch && today() >= p.launch
   const liveIsOld = !!p.sites.old && !!p.sites.live && hostOfUrl(p.sites.old) === hostOfUrl(p.sites.live) && !launched
   const live = liveIsOld ? null : p.sites.live
@@ -91,7 +91,7 @@ function CheckMark({ ok, size = 18 }: { ok: boolean; size?: number }) {
 }
 
 const clock = (ms: number) => { const s = Math.max(0, Math.round(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}` }
-function Progress({ r }: { r: LaunchReport }) {
+export function Progress({ r }: { r: LaunchReport }) {
   const steps = STEPS.filter((s) => s.id !== "speed" || r.speed !== false)
   const at = steps.findIndex((s) => s.id === r.progress.step)
   const { done, total: all, times = {}, stepAt } = r.progress
@@ -113,7 +113,7 @@ function Progress({ r }: { r: LaunchReport }) {
   )
 }
 
-// ---------- Tools tab card ----------
+// ---------- Site tab card ----------
 export function LaunchCard({ p, reload }: { p: Project; reload: () => void }) {
   const [url, setUrl] = React.useState(defaultUrl(p))
   const [speed, setSpeed] = useSpeedOption()
@@ -336,7 +336,7 @@ function Fixed({ r }: { r: LaunchReport }) {
     </section>
   )
 }
-const CHECK_NAMES: Record<LaunchCheckId, string> = { indexing: "Google can index the site", placeholders: "No placeholder text or dummy links", links: "Links work", seo: "Titles, descriptions, H1s, alt text, OG images, favicon", a11y: "Accessibility basics (WCAG 2.2 AA)", speed: "Speed on a phone (Core Web Vitals)", tracking: "Tracking: tags, cookie consent and ad clicks", canonicals: "Canonicals point to the live domain", legal: "Legal pages linked", https: "SSL and redirects" }
+export const CHECK_NAMES: Record<LaunchCheckId, string> = { indexing: "Google can index the site", placeholders: "No placeholder text or dummy links", links: "Links work", seo: "Titles, descriptions, H1s, alt text, OG images, favicon", a11y: "Accessibility basics (WCAG 2.2 AA)", speed: "Speed on a phone (Core Web Vitals)", tracking: "Tracking: tags, cookie consent and ad clicks", canonicals: "Canonicals point to the live domain", legal: "Legal pages linked", https: "SSL and redirects" }
 
 // ---------- tracking ----------
 /** What's installed, and what the home page did with no cookie choice, after Reject and after Accept. */
@@ -509,7 +509,7 @@ export function LaunchItemPanel({ p, it, reload }: { p: Project; it: PItem; relo
           ? <Button size="sm" variant="outline" onClick={() => go(routes.launch(p.id, running.id))}><Loader2 className="animate-spin" />Checking now</Button>
           : url
             ? <Button size="sm" variant={t.runId ? "outline" : "default"} disabled={busy} onClick={async () => { setBusy(true); await startLaunch(p, url, reload); setBusy(false) }}>{busy ? <Loader2 className="animate-spin" /> : t.runId ? <RotateCw /> : <Play />}{t.runId ? "Run again" : `Check ${hostOf(url)}`}</Button>
-            : <Button size="sm" variant="outline" onClick={() => go(routes.project(p.id, "tools"))}>Go to Tools</Button>}
+            : <Button size="sm" variant="outline" onClick={() => go(routes.project(p.id, "site"))}>Go to the Site tab</Button>}
       </div>
     </>
   )

@@ -196,7 +196,7 @@ function ProjectRow({ p, active }: { p: ProjectSummary; active: boolean }) {
     <button onClick={() => go(routes.project(p.id))} className={cn("grid h-[30px] w-full grid-cols-[20px_minmax(0,1fr)_auto_14px] items-center gap-2 rounded-md px-2 text-left text-[14px] text-foreground/85 hover:bg-sidebar-accent", active && "bg-sidebar-accent text-foreground")}>
       <SiteIcon runId={p.iconRun || undefined} name={p.name} className="size-5 rounded-[5px] text-[10px]" />
       <span className="truncate">{p.name}</span>
-      <span className="text-[11px] text-muted-foreground">Audit</span>
+      <span />
       <span className="grid place-items-center" title={p.running ? `${p.running} running` : undefined}>{p.running ? <Spinner className="size-3" /> : null}</span>
     </button>
   )
@@ -218,7 +218,8 @@ function Sidebar({ floating, open, onHover, panelRef }: { floating?: boolean; op
   // A scan or plan page belongs to its project, so the project stays highlighted there.
   const cur = route.name === "run" || route.name === "review" || route.name === "seo" ? route.id : null
   const curProject = cur ? runs.find((r) => r.id === cur)?.projectId : null
-  const work = projects.filter((p) => p.kind !== "audit"), audits = projects.filter((p) => p.kind === "audit")
+  // Grouped by where each one is: in progress, in care, and site checks.
+  const groups = ([["progress", "In progress"], ["care", "In care"], ["check", "Site checks"]] as const).map(([k, label]) => ({ k, label, list: projects.filter((p) => (p.stage || (p.kind === "audit" ? "check" : "progress")) === k) })).filter((g) => g.list.length)
   return (
     <aside
       ref={panelRef}
@@ -243,9 +244,13 @@ function Sidebar({ floating, open, onHover, panelRef }: { floating?: boolean; op
         <NavItem icon={LayoutTemplate} label="Templates" active={route.name === "templates" || route.name === "template"} onClick={() => go(routes.templates)} />
       </nav>
       <div className="scrollbar-thin mt-4 min-h-0 flex-1 overflow-auto">
-        <div className="px-2 pb-1 text-[12px] font-medium text-muted-foreground">Projects</div>
-        {!projects.length && <p className="px-2 py-1 text-[13px] text-muted-foreground">Projects you start show up here.</p>}
-        {[...work, ...audits].map((p) => <ProjectRow key={p.id} p={p} active={(route.name === "project" && route.id === p.id) || curProject === p.id} />)}
+        {!projects.length && <><div className="px-2 pb-1 text-[12px] font-medium text-muted-foreground">Projects</div><p className="px-2 py-1 text-[13px] text-muted-foreground">Projects you start show up here.</p></>}
+        {groups.map((g) => (
+          <div key={g.k} className="mb-3">
+            <div className="px-2 pb-1 text-[12px] font-medium text-muted-foreground">{g.label}</div>
+            {g.list.map((p) => <ProjectRow key={p.id} p={p} active={(route.name === "project" && route.id === p.id) || curProject === p.id} />)}
+          </div>
+        ))}
       </div>
       <UpdateCard />
       {status && <UsageCard />}

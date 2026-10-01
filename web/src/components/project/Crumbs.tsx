@@ -7,7 +7,7 @@ const Sep = () => <span className="text-muted-foreground/60">/</span>
 
 /**
  * Where a page sits in its project, Notion style: "Projects / Project" on the project's own pages, and
- * "Project / Tools / Heading plan" deeper in. Every scan and plan belongs to a project, so they share this trail.
+ * "Project / Site / Heading plan" deeper in. Every scan and plan belongs to a project, so they share this trail.
  */
 export function Crumbs({ projectId, label, children }: { projectId: string | null; label?: React.ReactNode; children?: React.ReactNode }) {
   const { projects } = useApp()
@@ -24,7 +24,7 @@ export function Crumbs({ projectId, label, children }: { projectId: string | nul
           </button>
         </>
       )}
-      {p && label && p.kind !== "audit" && <><Sep /><button onClick={() => go(routes.project(p.id, "tools"))} className="shrink-0 rounded-md px-1.5 py-0.5 text-muted-foreground hover:bg-muted/70 hover:text-foreground">Tools</button></>}
+      {p && label && p.kind !== "audit" && <><Sep /><button onClick={() => go(routes.project(p.id, "site"))} className="shrink-0 rounded-md px-1.5 py-0.5 text-muted-foreground hover:bg-muted/70 hover:text-foreground">Site</button></>}
       {label && <><Sep /><span className="shrink-0 px-1.5">{label}</span></>}
       {children}
     </div>

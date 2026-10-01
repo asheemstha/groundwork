@@ -1,6 +1,6 @@
 import * as React from "react"
 
-/** Every tool on the Tools tab looks the same: name and what it costs, one status line, one main button. */
+/** Every tool on the Site tab looks the same: name and what it costs, one status line, one main button. */
 export function ToolCard({ title, cost, status, action, children }: { title: string; cost: string; status: React.ReactNode; action?: React.ReactNode; children?: React.ReactNode }) {
   return (
     <section className="grid gap-3 rounded-xl border bg-card px-4 py-3.5">

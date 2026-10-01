@@ -2,7 +2,7 @@ import { useSyncExternalStore } from "react"
 
 export type Route =
   | { name: "home" }
-  | { name: "project"; id: string; tab: "checklist" | "client" | "tools" | "money" | "launch" | "redirects" | "inventory"; sub?: string; item?: string }
+  | { name: "project"; id: string; tab: ProjectTab; sub?: string; item?: string }
   | { name: "time"; project?: string }
   | { name: "templates" }
   | { name: "template"; id: string }
@@ -11,10 +11,14 @@ export type Route =
   | { name: "review"; id: string; view: string }
   | { name: "seo"; id: string; view: string }
 
+export type ProjectTab = "overview" | "checklist" | "client" | "site" | "money" | "launch" | "redirects" | "inventory"
+const TABS: ProjectTab[] = ["overview", "checklist", "client", "site", "money", "launch", "redirects", "inventory"]
+
 function parse(): Route {
   const parts = (location.hash.slice(1) || "/").split("/").filter(Boolean).map(decodeURIComponent)
   if (parts[0] === "project" && parts[1] && parts[2] === "item") return { name: "project", id: parts[1], tab: "checklist", item: parts[3] }
-  if (parts[0] === "project" && parts[1]) return { name: "project", id: parts[1], tab: parts[2] === "client" || parts[2] === "tools" || parts[2] === "money" || parts[2] === "launch" || parts[2] === "redirects" || parts[2] === "inventory" ? parts[2] : "checklist", sub: parts[3] }
+  // A project opens on its Overview. "tools" is the Site tab's old name, kept for links saved before.
+  if (parts[0] === "project" && parts[1]) { const t = parts[2] === "tools" ? "site" : parts[2]; return { name: "project", id: parts[1], tab: TABS.includes(t as ProjectTab) ? (t as ProjectTab) : parts[2] ? "checklist" : "overview", sub: parts[3] } }
   if (parts[0] === "time") return { name: "time", project: parts[1] }
   if (parts[0] === "templates") return parts[1] ? { name: "template", id: parts[1] } : { name: "templates" }
   if (parts[0] === "settings") return { name: "settings", engine: parts[1] === "codex" || parts[1] === "claude" || parts[1] === "privacy" || parts[1] === "connectors" ? parts[1] : undefined }
@@ -47,7 +51,9 @@ export const go = (path: string) => {
 }
 export const routes = {
   home: "/",
-  project: (id: string, tab?: "client" | "tools" | "money" | "redirects" | "inventory") => `/project/${id}${tab ? "/" + tab : ""}`,
+  project: (id: string, tab?: "checklist" | "client" | "site" | "money" | "redirects" | "inventory") => `/project/${id}${tab ? "/" + tab : ""}`,
+  /** The Site tab, at its checks or at "Moving from the old site". */
+  site: (id: string, view?: "moving") => `/project/${id}/site${view ? "/" + view : ""}`,
   /** A checklist item, opened in the side panel. */
   item: (id: string, itemId: string) => `/project/${id}/item/${itemId}`,
   /** A phase of the checklist, scrolled to its sign-off. */

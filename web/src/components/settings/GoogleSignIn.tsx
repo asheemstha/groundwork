@@ -51,7 +51,7 @@ export function GoogleSignIn() {
           <>
             <p className="flex items-center gap-2"><Check className="size-4 shrink-0" />Signed in{s.email ? ` as ${s.email}` : ""}{s.at ? `, ${ago(s.at)}` : ""}.</p>
             {missing.length > 0 && <p className="text-destructive">Google wasn’t allowed to share {missing.join(" or ")}. Sign out, sign in again and tick every box on Google’s page.</p>}
-            <p className="text-[12.5px] text-muted-foreground">Pick each project’s properties on its Tools tab, under Search traffic. {s.keychain ? "The sign-in is kept in your Mac’s Keychain, so it isn’t in Groundwork’s backups." : ""}</p>
+            <p className="text-[12.5px] text-muted-foreground">Pick each project’s properties on its Site tab, under Search traffic. {s.keychain ? "The sign-in is kept in your Mac’s Keychain, so it isn’t in Groundwork’s backups." : ""}</p>
             <div className="flex gap-2"><Button size="sm" variant="outline" onClick={async () => setS(await api.googleSignOut())}>Sign out</Button></div>
           </>
         ) : (

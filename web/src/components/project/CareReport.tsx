@@ -50,7 +50,7 @@ export function CareReportDialog({ p, open, onClose }: { p: Project; open: boole
               <Button onClick={() => save("pdf")}><FileDown />Save as PDF</Button>
               <Button variant="outline" onClick={() => save("html")}><FileText />Save as a web page</Button>
             </div>
-            <p className="text-[12.5px] leading-relaxed text-muted-foreground">The health check runs once a month on its own while Groundwork is open. Import a Search Console export on the Tools tab to add search traffic.</p>
+            <p className="text-[12.5px] leading-relaxed text-muted-foreground">The health check runs once a month on its own while Groundwork is open. Import a Search Console export on the Site tab, or sign in to Google in Settings, to add search traffic.</p>
           </div>
           <div className="bg-muted/40 p-4">
             <iframe key={url()} src={url()} title="Preview" sandbox="" className="h-[62vh] w-full rounded-lg border bg-white" />

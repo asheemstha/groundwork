@@ -130,7 +130,7 @@ export function NewProjectDialog() {
       if (!audit) { setPrefs({ template: tid }); api.savePrefs({ template: tid }).catch(() => {}) }
       await refreshRuns()
       setOpen(false)
-      go(routes.project(r.id, audit ? "tools" : undefined))
+      go(routes.project(r.id, audit ? "site" : undefined))
       if (r.runId) toast(audit ? "Scanning the site" : "Scanning the old site", { description: audit ? "Runs on your Mac. Plans and checks start from the scan." : "The “Crawl the current site” item ticks itself when it’s done." })
     } catch (e) { toast.error((e as Error).message); setBusy(false) }
   }

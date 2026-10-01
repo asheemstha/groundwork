@@ -296,7 +296,7 @@ export type Sites = Record<SiteKey, string | null>
 export interface ProjectRun { id: string; site: SiteKey | null; status: RunStatus; created: number; pages: number; scanned: number; output: Output | null; progress: RunProgress | null; hasIcon: boolean; seo: { status: SeoStatus; progress: Counts | null } | null; error: string | null; url: string }
 export interface Project {
   id: string; kind: "project" | "audit"; name: string; url: string | null; host: string | null; sites: Sites; platform: PlatformId | null;
-  /** The project has a website (or its kind of work does): it shows the site details and the Tools tab. */
+  /** The project has a website (or its kind of work does): it shows the site details and the Site tab. */
   website: boolean
   labels: DateLabels | null; repeat: "monthly" | null; cycle: number; cycles: { at: number; kickoff: string | null; launch: string | null; done: number; total: number }[]; sample: boolean; lastUpdate: number | null; remindEvery: number; created: number; updated: number; kickoff: string | null; launch: string | null
   clientName: string; templateId: string; templateName: string; parts: string[]
@@ -415,6 +415,8 @@ export interface ProjectSummary {
   current: { index: number; id: string; name: string; done: number; total: number; ready: boolean; needs: "us" | "client"; handoffTitle: string } | null
   phases: { state: PPhase["state"]; done: number; total: number }[]
   clientOpen: number; clientLate: number; behind: Behind
+  /** Where it is in its life: in progress, in care (a monthly plan), or a site check. */
+  stage: "progress" | "care" | "check"
   /** What's running for the project now ("Launch check", "SEO plan"…), or null. */
   running: string | null
 }

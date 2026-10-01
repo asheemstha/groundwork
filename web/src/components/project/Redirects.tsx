@@ -65,7 +65,7 @@ function useRedirects(p: Project, reload: () => void) {
 const stagingGuess = (p: Project) => p.sites.staging || p.tools.launchHistory.find((h) => h.staging)?.url || ""
 const oldHost = (p: Project) => hostOfUrl(p.sites.old) || p.host
 
-// ---------- Tools tab card ----------
+// ---------- Site tab card ----------
 export function RedirectCard({ p, onEdit }: { p: Project; onEdit: () => void }) {
   const r = p.tools.redirects
   const old = p.tools.oldScan
@@ -327,7 +327,7 @@ function BeforeAfter({ p }: { p: Project }) {
       <button onClick={() => setOpen(!open)} className="flex h-8 items-center gap-2 text-sm font-medium"><ChevronRight className={cn("size-3.5 text-muted-foreground transition-transform", open && "rotate-90")} />Before and after<span className="text-[12.5px] font-normal text-muted-foreground">titles, descriptions and H1s, old site against new</span></button>
       {open && !c && <div className="py-6"><Spinner /></div>}
       {open && c && (!c.new ? (
-        <p className="text-[13px] text-muted-foreground">Scan the new site (staging before launch, the live domain after) in the Tools tab, then compare it here with the {c.old.host} scan.</p>
+        <p className="text-[13px] text-muted-foreground">Scan the new site (staging before launch, the live domain after) on the Site tab, then compare it here with the {c.old.host} scan.</p>
       ) : (
         <div className="grid gap-2.5">
           <div className="flex flex-wrap items-center gap-2 text-[13px]">

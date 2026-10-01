@@ -190,7 +190,7 @@ const KIND: Record<NextUp["kind"], (n: NextUp) => React.ReactNode> = {
 function NextRow({ n }: { n: NextUp }) {
   const { now } = useTimer()
   const running = useRunningOn({ projectId: n.projectId, itemId: n.itemId })
-  const open = () => go(n.kind === "renewal" || n.kind === "down" ? routes.project(n.projectId, "tools") : n.kind === "watch" && n.checkId ? routes.launch(n.projectId, n.checkId) : n.kind === "client" || n.kind === "ask" ? routes.project(n.projectId, "client") : n.kind === "files" ? routes.clientFiles(n.projectId) : n.itemId ? routes.item(n.projectId, n.itemId) : routes.project(n.projectId))
+  const open = () => go(n.kind === "renewal" || n.kind === "down" ? routes.project(n.projectId, "site") : n.kind === "watch" && n.checkId ? routes.launch(n.projectId, n.checkId) : n.kind === "client" || n.kind === "ask" ? routes.project(n.projectId, "client") : n.kind === "files" ? routes.clientFiles(n.projectId) : n.itemId ? routes.item(n.projectId, n.itemId) : routes.project(n.projectId))
   const due = n.kind === "down" ? "Now" : n.kind === "watch" ? fmtDay(n.due) : n.kind === "signoff" && n.ready ? "Ready" : n.kind === "ask" ? (n.due ? `due ${fmtDay(n.due)}` : "") : dueLabel({ due: n.due, late: n.late, status: "todo" })
   const ours = n.kind === "item" && !!n.itemId
   const addTask = async (e: React.MouseEvent) => { e.stopPropagation(); try { await api.addTask({ title: n.title, projectId: n.projectId, itemId: n.itemId }); toast("Added to my tasks"); timeChanged() } catch (err) { toast((err as Error).message) } }
