@@ -17,7 +17,7 @@ import { newProject } from "@/components/project/NewProjectDialog"
 import { DateField } from "@/components/common/DateField"
 import { Chip } from "@/pages/Dashboard"
 import { useApp } from "@/hooks/useApp"
-import { api, proofUrl, type MessageTemplate, type PItem, type PPhase, type Project, type SiteKey, type TemplateSummary } from "@/lib/api"
+import { api, invoiceUrl, proofUrl, type MessageTemplate, type PItem, type PPhase, type Project, type SiteKey, type TemplateSummary } from "@/lib/api"
 import { SITE_KEYS, SITE_NAME, dayOf, dueLabel, fmtDay, hostOfUrl, renderMessage, subName, today, waited, weeklyUpdate } from "@/lib/project"
 import { ago } from "@/lib/format"
 import { go, routes } from "@/lib/router"
@@ -28,6 +28,7 @@ import { StatusPageDialog } from "@/components/project/StatusPage"
 import { ShiftDialog, shiftPlan } from "@/components/project/ShiftDialog"
 import { TemplateUpdateDialog, updateFromTemplate } from "@/components/project/TemplateUpdate"
 import { AddTime, EditTimeDialog, PlayButton, useRunningOn } from "@/components/time/TimeBits"
+import { makeInvoice } from "@/components/project/InvoiceDialog"
 import { useTimeChanged, useTimer } from "@/hooks/useTimer"
 import { clockOf, fmtMins, parseDur, timeOf } from "@/lib/time"
 import type { TimeEntry } from "@/lib/api"
@@ -79,6 +80,7 @@ export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Ta
             {!audit && <DropdownMenuItem onClick={updateFromTemplate}><RefreshCw /> Update from the template…{p.templateChanged && <span className="ml-auto size-1.5 rounded-full bg-foreground/60" />}</DropdownMenuItem>}
             {audit && <DropdownMenuItem onClick={() => newProject({ name: p.name, old: p.sites.live || p.url || "" })}><FolderPlus /> Start a project for this site…</DropdownMenuItem>}
             {!audit && <DropdownMenuItem onClick={() => setStatusOpen(true)}><FileText /> Client status page…</DropdownMenuItem>}
+            {!audit && <DropdownMenuItem onClick={() => makeInvoice({ projectId: p.id, kind: "hours" })}><Receipt /> Invoice hours…</DropdownMenuItem>}
             <DropdownMenuItem onClick={() => { const a = document.createElement("a"); a.href = `/api/projects/${p.id}/export`; a.download = ""; a.click(); toast("Exporting the project", { description: "Its checklist, files, scans and plans, as one zip another Groundwork can import." }) }}><Download /> Export project…</DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem variant="destructive" onClick={() => setRemoving(true)}><Trash2 /> {audit ? "Delete audit…" : "Delete project…"}</DropdownMenuItem>
@@ -93,10 +95,12 @@ export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Ta
             <SiteIcon runId={p.tools.iconRun || undefined} name={p.name} className="size-10 rounded-lg text-lg" />
             <h1 className="mt-2.5 text-[32px] leading-tight font-medium">{p.name}</h1>
             <dl className={cn("mt-4 grid max-w-2xl gap-y-0.5 text-[14px] [--prop-w:130px] lg:max-w-5xl lg:grid-flow-col lg:grid-cols-2 lg:gap-x-12", audit ? "lg:grid-rows-2" : "lg:grid-rows-5")}>
+              {p.website ? <>
               {(audit ? (["live"] as const) : SITE_KEYS).map((k) => (
                 <Prop key={k} icon={<Link2 className="size-3.5" />} label={audit ? "Site" : SITE_NAME[k]}>{p.sites[k] ? <a href={p.sites[k]!} target="_blank" rel="noreferrer" className="hover:underline">{hostOfUrl(p.sites[k])}</a> : <button onClick={() => setEditing(true)} className="text-muted-foreground hover:text-foreground">Empty</button>}</Prop>
               ))}
               <Prop icon={<Layers className="size-3.5" />} label="Built with">{platformOf(p.platform) ? <button onClick={() => setEditing(true)} className="hover:underline">{platformOf(p.platform)!.name}</button> : <button onClick={() => setEditing(true)} className="text-muted-foreground hover:text-foreground">Not known yet</button>}</Prop>
+              </> : <Prop icon={<Link2 className="size-3.5" />} label="Website"><button onClick={() => setEditing(true)} className="text-muted-foreground hover:text-foreground">None. Add one if the work includes a site</button></Prop>}
               {!audit && <>
               <Prop icon={<User className="size-3.5" />} label="Client">{p.clientName ? <button onClick={() => setEditing(true)} className="hover:underline">{p.clientName}</button> : <button onClick={() => setEditing(true)} className="text-muted-foreground hover:text-foreground">Empty</button>}</Prop>
               <Prop icon={<CalendarDays className="size-3.5" />} label={p.labels?.kickoff || "Kickoff"}><DateField value={p.kickoff} placeholder="Empty" icon={false} className="-ml-2" onChange={async (v) => { try { setP(await api.updateProject(id, { kickoff: v })); refreshProjects() } catch (e) { toast.error((e as Error).message) } }} /></Prop>
@@ -115,7 +119,7 @@ export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Ta
               <nav aria-label="Project" className="mt-5 flex gap-1 border-b pb-2">
                 <TabLink on={tab === "checklist"} onClick={() => go(routes.project(id))}>Checklist</TabLink>
                 <TabLink on={tab === "client"} onClick={() => go(routes.project(id, "client"))}>Client <span className="text-xs text-muted-foreground tabular">{open}</span>{p.client.late.length > 0 && <span className="size-1.5 rounded-full bg-destructive" aria-label={`${p.client.late.length} late`} />}</TabLink>
-                <TabLink on={tab === "tools"} onClick={() => go(routes.project(id, "tools"))}>Tools</TabLink>
+                {p.website && <TabLink on={tab === "tools"} onClick={() => go(routes.project(id, "tools"))}>Tools</TabLink>}
               </nav>
             )}
           </header>
@@ -406,7 +410,8 @@ function PaymentRow({ p, ph, setP }: { p: Project; ph: PPhase; setP: (x: Project
     </div>
   )
   const late = pay.invoiced && !pay.paid && Date.now() - pay.invoiced >= 14 * 864e5
-  const state = pay.paid ? `Paid ${fmtDay(dayOf(pay.paid))}` : pay.invoiced ? `Invoiced ${fmtDay(dayOf(pay.invoiced))}, waiting on payment` : ph.signoff ? "Ready to invoice" : "Invoice when this phase is signed off"
+  const inv = p.invoices.find((x) => x.phaseId === ph.id) || null
+  const state = pay.paid ? `Paid ${fmtDay(dayOf(pay.paid))}` : pay.invoiced ? `${inv ? `Invoice ${inv.number} sent` : "Invoiced"} ${fmtDay(dayOf(pay.invoiced))}, waiting on payment` : ph.signoff ? "Ready to invoice" : "Invoice when this phase is signed off"
   return (
     <div className="grid grid-cols-[18px_minmax(0,1fr)_auto] items-center gap-3 border-t px-3.5 py-2">
       <Receipt className="size-4 text-muted-foreground" />
@@ -414,12 +419,15 @@ function PaymentRow({ p, ph, setP }: { p: Project; ph: PPhase; setP: (x: Project
       <div className="flex items-center gap-1.5">
         {pay.paid ? <Button size="sm" variant="ghost" className="text-muted-foreground" onClick={() => save({ paid: false })}><Undo2 />Undo</Button>
           : pay.invoiced ? <><Button size="sm" variant="ghost" onClick={remind}><Copy />Copy a reminder</Button><Button size="sm" variant="outline" onClick={() => save({ paid: true })}>Mark paid</Button></>
-          : ph.signoff ? <Button size="sm" variant="outline" onClick={() => save({ invoiced: true })}>Mark invoiced</Button> : null}
+          : ph.signoff ? <Button size="sm" variant="outline" onClick={() => makeInvoice({ projectId: p.id, kind: "milestone", phaseId: ph.id })}><Receipt />Make the invoice</Button> : null}
         <DropdownMenu>
           <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label="Payment options" />}><MoreHorizontal /></DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem onClick={edit}><Pencil />Edit</DropdownMenuItem>
-            {pay.invoiced && !pay.paid && <DropdownMenuItem onClick={() => save({ invoiced: false })}><Undo2 />Not invoiced yet</DropdownMenuItem>}
+            {inv && <DropdownMenuItem onClick={() => { const a = document.createElement("a"); a.href = invoiceUrl(p.id, inv.id); a.download = ""; a.click() }}><Download />Download invoice {inv.number}</DropdownMenuItem>}
+            {!pay.invoiced && ph.signoff && <DropdownMenuItem onClick={() => save({ invoiced: true })}><Check />Mark invoiced, invoice made elsewhere</DropdownMenuItem>}
+            {pay.invoiced && !pay.paid && !inv && <DropdownMenuItem onClick={() => save({ invoiced: false })}><Undo2 />Not invoiced yet</DropdownMenuItem>}
+            {inv && !pay.paid && <DropdownMenuItem onClick={async () => { try { setP(await api.removeInvoice(p.id, inv.id)); toast("Removed the invoice", { description: "The payment is ready to invoice again." }) } catch (e) { toast.error((e as Error).message) } }}><Trash2 />Remove invoice {inv.number}</DropdownMenuItem>}
             {!pay.invoiced && !pay.paid && <DropdownMenuItem onClick={() => save({ paid: true })}><Check />Mark paid</DropdownMenuItem>}
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => save({ remove: true })}><Trash2 />Remove the payment</DropdownMenuItem>
@@ -963,13 +971,13 @@ function SiteTools({ p, k, label, busy, onScan, onEdit }: { p: Project; k: SiteK
 // ---------- edit details ----------
 function EditDialog({ p, open, onClose, onSaved }: { p: Project; open: boolean; onClose: () => void; onSaved: (x: Project) => void }) {
   const audit = p.kind === "audit"
-  const init = () => ({ name: p.name, clientName: p.clientName, platform: (p.platform || "") as PlatformId | "", old: p.sites.old || "", staging: p.sites.staging || "", live: p.sites.live || "", kickoff: p.kickoff || "", launch: p.launch || "" })
+  const init = () => ({ name: p.name, clientName: p.clientName, platform: (p.platform || "") as PlatformId | "", old: p.sites.old || "", staging: p.sites.staging || "", live: p.sites.live || "", kickoff: p.kickoff || "", launch: p.launch || "", rate: p.rate || "" })
   const [f, setF] = React.useState(init)
   React.useEffect(() => { if (open) setF(init()) }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
   const save = async () => {
     try {
       const sites = audit ? { live: f.live.trim() } : { old: f.old.trim(), staging: f.staging.trim(), live: f.live.trim() }
-      onSaved(await api.updateProject(p.id, audit ? { name: f.name, sites, platform: f.platform || null } : { name: f.name, clientName: f.clientName, kickoff: f.kickoff || null, launch: f.launch || null, sites, platform: f.platform || null }))
+      onSaved(await api.updateProject(p.id, audit ? { name: f.name, sites, platform: f.platform || null } : { name: f.name, clientName: f.clientName, kickoff: f.kickoff || null, launch: f.launch || null, sites, platform: f.platform || null, rate: f.rate }))
       onClose()
     } catch (e) { toast.error((e as Error).message) }
   }
@@ -996,6 +1004,7 @@ function EditDialog({ p, open, onClose, onSaved }: { p: Project; open: boolean; 
               <div className="grid gap-1.5 text-[13px] font-medium">Kickoff<DateField boxed clearable value={f.kickoff} onChange={(v) => setF({ ...f, kickoff: v || "" })} placeholder="Not set" /></div>
               <div className="grid gap-1.5 text-[13px] font-medium">Launch<DateField boxed clearable value={f.launch} onChange={(v) => setF({ ...f, launch: v || "" })} placeholder="Not set" /></div>
             </div>
+            <label className="grid gap-1.5 text-[13px] font-medium"><span>Hourly rate <span className="font-normal text-muted-foreground">(if different from Settings)</span></span><Input value={f.rate} onChange={(e) => setF({ ...f, rate: e.target.value })} placeholder="e.g. $90" className="font-normal" /></label>
           </>}
         </div>
         <DialogFooter><Button variant="outline" onClick={onClose}>Cancel</Button><Button onClick={save}>Save</Button></DialogFooter>

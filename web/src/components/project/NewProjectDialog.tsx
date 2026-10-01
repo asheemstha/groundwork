@@ -149,6 +149,15 @@ export function NewProjectDialog() {
     }
     r.readAsDataURL(f)
   }
+  const card = (t: TemplateSummary) => (
+    <button key={t.id} onClick={() => { setAudit(false); setTid(t.id); setStep("details") }} className="grid content-start gap-1 rounded-xl border bg-card px-4 py-3.5 text-left hover:border-foreground/25 hover:bg-muted/30 focus-visible:border-foreground/40">
+      <span className="flex items-center gap-2 font-medium">{t.name}{t.id === prefs.template && <span className="tag-label">Last used</span>}</span>
+      {t.desc && <span className="line-clamp-2 text-[12.5px] leading-snug text-muted-foreground">{t.desc}</span>}
+      <span className="mt-1 truncate text-[12px] text-muted-foreground/80">{t.items} items{t.repeat ? ", repeats monthly" : ""}{t.basedOn?.[0]?.url ? ` · Based on ${t.basedOn[0].label.replace(/:.*/, "")}` : ""}</span>
+    </button>
+  )
+  // Work with no website (a brand, an ad setup) skips the site fields; a site can be added from the project later.
+  const noSite = tpl?.website === false
   const site = (k: "old" | "staging" | "live", label: string, hint: string, placeholder: string) => (
     <label className="grid content-start gap-1.5 text-[13px] font-medium">
       <span>{label} <span className="font-normal text-muted-foreground">{hint}</span></span>
@@ -166,17 +175,13 @@ export function NewProjectDialog() {
               <DialogDescription>Each checklist is written from public guidance and works on any platform. You can change anything once the project exists.</DialogDescription>
             </DialogHeader>
             <div className="scrollbar-thin grid max-h-[66vh] grid-cols-1 gap-2.5 overflow-auto px-6 py-5 sm:grid-cols-2">
-              {list.map((t) => (
-                <button key={t.id} onClick={() => { setAudit(false); setTid(t.id); setStep("details") }} className="grid content-start gap-1 rounded-xl border bg-card px-4 py-3.5 text-left hover:border-foreground/25 hover:bg-muted/30 focus-visible:border-foreground/40">
-                  <span className="flex items-center gap-2 font-medium">{t.name}{t.id === prefs.template && <span className="tag-label">Last used</span>}</span>
-                  {t.desc && <span className="line-clamp-2 text-[12.5px] leading-snug text-muted-foreground">{t.desc}</span>}
-                  <span className="mt-1 truncate text-[12px] text-muted-foreground/80">{t.items} items{t.repeat ? ", repeats monthly" : ""}{t.basedOn?.[0]?.url ? ` · Based on ${t.basedOn[0].label.replace(/:.*/, "")}` : ""}</span>
-                </button>
-              ))}
+              {list.filter((t) => t.website !== false).map(card)}
               <button onClick={() => { setAudit(true); setStep("details") }} className="grid content-start gap-1 rounded-xl border border-dashed px-4 py-3.5 text-left hover:border-foreground/25 hover:bg-muted/30">
                 <span className="font-medium">Audit a site</span>
                 <span className="text-[12.5px] leading-snug text-muted-foreground">Scan one site and check it, with no checklist. Turns into a project if the redesign is won.</span>
               </button>
+              {list.some((t) => t.website === false) && <h3 className="mt-3 text-[13px] font-medium text-muted-foreground sm:col-span-2">Other client work <span className="font-normal">· no website needed, add one later if the work includes a site</span></h3>}
+              {list.filter((t) => t.website === false).map(card)}
             </div>
             <div className="flex items-center gap-2 border-t px-6 py-3.5 text-[13px] text-muted-foreground">
               <span className="flex-1">Moving a project from another Mac?</span>
@@ -223,6 +228,7 @@ export function NewProjectDialog() {
               <label className="grid gap-1.5 text-[13px] font-medium">Client or project name<Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Northwind Dental" autoFocus className="font-normal" /></label>
               <label className="grid gap-1.5 text-[13px] font-medium"><span>Client contact <span className="font-normal text-muted-foreground">(for messages)</span></span><Input value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Dana Whitfield" className="font-normal" /></label>
             </div>
+            {!noSite && <>
             <div className="grid gap-2">
               <div className="grid grid-cols-3 gap-3">
                 {site("old", "Old site", tid === "website-new" ? "(if there is one)" : "(if replacing one)", "old-site.com")}
@@ -237,6 +243,7 @@ export function NewProjectDialog() {
                 {PLATFORMS.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
             </label>
+            </>}
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5 text-[13px] font-medium">{tpl?.labels?.kickoff || "Kickoff"}<DateField boxed value={kickoff} onChange={(v) => v && setKickoff(v)} /></div>
               <div className="grid gap-1.5 text-[13px] font-medium">{tpl?.labels?.launch || "Target launch"}<DateField boxed value={launch} onChange={(v) => v && setLaunch(v)} /></div>
@@ -282,8 +289,8 @@ export function NewProjectDialog() {
             {counts && (
               <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1 rounded-lg bg-muted/60 px-3.5 py-2.5 text-[13px] text-muted-foreground">
                 <span><b className="font-medium text-foreground tabular">{counts.total + (found?.items.filter((_, i) => keep.has(i)).length || 0)}</b> items in {counts.phases} phases</span><span className="h-3.5 w-px bg-input" />
-                <span><b className="font-medium text-foreground tabular">{counts.client}</b> from the client</span><span className="h-3.5 w-px bg-input" />
-                <span><b className="font-medium text-foreground tabular">{counts.tools}</b> Groundwork can help with</span>
+                <span><b className="font-medium text-foreground tabular">{counts.client}</b> from the client</span>
+                {counts.tools > 0 && <><span className="h-3.5 w-px bg-input" /><span><b className="font-medium text-foreground tabular">{counts.tools}</b> Groundwork can help with</span></>}
               </div>
             )}
           </div>

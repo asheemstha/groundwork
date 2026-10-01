@@ -885,6 +885,29 @@ const server = http.createServer(async (req, res) => {
           res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', ...(q.has('download') ? { 'content-disposition': `attachment; filename="${base}.html"` } : {}) });
           return res.end(html);
         }
+        // Invoices: a draft to look over, then saved; the PDF is made from the saved invoice each time.
+        if (sub === '/invoice-draft' && M === 'GET') {
+          const q = u.searchParams, pr = getSettings().prefs || {};
+          return json(res, P.invoiceDraft(id, { kind: q.get('kind'), phaseId: q.get('phase'), from: q.get('from'), to: q.get('to'), rate: q.get('rate') }, { entries: T.list({ projectId: id }), rate: pr.rate, number: pr.invoiceNext || 'INV-0001', payDays: pr.payDays || 14 }));
+        }
+        if (sub === '/invoices' && M === 'POST') {
+          const inv = P.saveInvoice(id, await body(req));
+          if (inv.kind === 'hours') T.markInvoiced(inv.entryIds, inv.id);
+          setSettings({ prefs: { ...(getSettings().prefs || {}), invoiceNext: P.nextNumber(inv.number) } });
+          return json(res, { invoice: inv, project: P.get(id) });
+        }
+        const im = sub.match(/^\/invoices\/([a-z0-9]+)$/);
+        if (im && M === 'GET') {
+          const inv = P.getInvoice(id, im[1]); if (!inv) return json(res, { error: 'That invoice doesn’t exist any more.' }, 404);
+          const pr = getSettings().prefs || {}, raw = P.readRaw(id);
+          const html = require('./lib/invoice').render(inv, { studio: pr.agency || '', yourName: pr.appliedBy || '', details: pr.bizDetails || '', payLink: pr.payLink || '', payDetails: pr.payDetails || '', client: raw.client && raw.client.name });
+          const base = `Invoice ${inv.number} ${raw.name}`.replace(/[^\w .()-]+/g, '').trim();
+          if (u.searchParams.get('format') === 'html') { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); return res.end(html); }
+          try { const pdf = await htmlToPdf(html); res.writeHead(200, { 'content-type': 'application/pdf', 'content-disposition': `attachment; filename="${base}.pdf"` }); return res.end(pdf); }
+          catch (e) { return json(res, { error: 'Couldn’t make the PDF: ' + friendly(e) }, 500); }
+        }
+        if (im && M === 'POST') { P.setInvoice(id, im[1], await body(req)); return json(res, P.get(id)); }
+        if (im && M === 'DELETE') { const inv = P.removeInvoice(id, im[1]); if (inv) T.unmarkInvoice(inv.id); return json(res, P.get(id)); }
         if (sub === '/export' && M === 'GET') {
           const { file, name } = await exportProject(id);
           res.writeHead(200, { 'content-type': 'application/zip', 'content-disposition': `attachment; filename="${name.replace(/[^\w .()-]+/g, '')} - Groundwork project.zip"` });

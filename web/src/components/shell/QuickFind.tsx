@@ -50,8 +50,8 @@ export function QuickFind() {
                 <CommandItem value={`${p.name} ${p.host || ""} checklist`} onSelect={() => run(() => go(routes.project(p.id)))}><SiteIcon runId={p.iconRun || undefined} name={p.name} className="size-4 rounded text-[8px]" />{p.name}<span className="text-muted-foreground">{p.kind === "audit" ? "Audit" : p.current ? `${p.current.name}, ${p.current.done} of ${p.current.total}` : ""}</span></CommandItem>
                 {p.kind !== "audit" && <>
                 <CommandItem value={`${p.name} client waiting`} onSelect={() => run(() => go(routes.project(p.id, "client")))}><Users /><span className="text-muted-foreground">{p.name} /</span> Client</CommandItem>
-                <CommandItem value={`${p.name} tools`} onSelect={() => run(() => go(routes.project(p.id, "tools")))}><Wrench /><span className="text-muted-foreground">{p.name} /</span> Tools</CommandItem>
-                <CommandItem value={`${p.name} launch check report`} onSelect={() => run(() => go(routes.launch(p.id)))}><Rocket /><span className="text-muted-foreground">{p.name} /</span> Launch check</CommandItem>
+                {p.website !== false && <CommandItem value={`${p.name} tools`} onSelect={() => run(() => go(routes.project(p.id, "tools")))}><Wrench /><span className="text-muted-foreground">{p.name} /</span> Tools</CommandItem>}
+                {p.website !== false && <CommandItem value={`${p.name} launch check report`} onSelect={() => run(() => go(routes.launch(p.id)))}><Rocket /><span className="text-muted-foreground">{p.name} /</span> Launch check</CommandItem>}
                 <CommandItem value={`${p.name} time hours log`} onSelect={() => run(() => go(routes.time(p.id)))}><Timer /><span className="text-muted-foreground">{p.name} /</span> Time</CommandItem>
                 </>}
               </React.Fragment>

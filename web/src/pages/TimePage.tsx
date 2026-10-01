@@ -1,6 +1,6 @@
 import * as React from "react"
 import { cn } from "cn"
-import { ChevronLeft, ChevronRight, Download, MoreHorizontal, Pencil, Plus, Trash2, X } from "lucide-react"
+import { Check, ChevronLeft, ChevronRight, Download, MoreHorizontal, Pencil, Plus, Receipt, Trash2, Undo2, X } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,7 +10,9 @@ import { DateField } from "@/components/common/DateField"
 import { EditTimeDialog, ProjectSelect, openRef } from "@/components/time/TimeBits"
 import { useApp } from "@/hooks/useApp"
 import { timeChanged, useTimeChanged, useTimer } from "@/hooks/useTimer"
-import { api, timeCsvUrl, type TimeEntry } from "@/lib/api"
+import { api, fmtMoney, invoiceUrl, timeCsvUrl, type Project, type TimeEntry } from "@/lib/api"
+import { makeInvoice } from "@/components/project/InvoiceDialog"
+import { dayOf, fmtDay } from "@/lib/project"
 import { today } from "@/lib/project"
 import { clockOf, fmtMins, longDay, parseDur, periodLabel, rangeOf, runMins, shiftPeriod, timeOf, type Period } from "@/lib/time"
 import { store } from "@/lib/store"
@@ -28,7 +30,12 @@ export function TimePage({ project }: { project?: string }) {
   const [entries, setEntries] = React.useState<TimeEntry[] | null>(null)
   const [editing, setEditing] = React.useState<TimeEntry | null>(null)
   const range = rangeOf(period, at)
-  const load = React.useCallback(() => { api.time({ ...range, project }).then((r) => setEntries(r.entries)).catch((e) => toast.error((e as Error).message)) }, [range.from, range.to, project]) // eslint-disable-line react-hooks/exhaustive-deps
+  // One project's page also shows its invoices and what's been paid.
+  const [pj, setPj] = React.useState<Project | null>(null)
+  const load = React.useCallback(() => {
+    api.time({ ...range, project }).then((r) => setEntries(r.entries)).catch((e) => toast.error((e as Error).message))
+    if (project) api.project(project).then(setPj).catch(() => {})
+  }, [range.from, range.to, project]) // eslint-disable-line react-hooks/exhaustive-deps
   React.useEffect(load, [load])
   useTimeChanged(load)
   const pick = (p: Period) => { setPeriod(p); store.set("timePeriod", p) }
@@ -65,6 +72,7 @@ export function TimePage({ project }: { project?: string }) {
         <div role="group" aria-label="Period" className="inline-flex gap-0.5 rounded-lg bg-muted p-0.5">
           {(["day", "week", "month"] as const).map((k) => <button key={k} aria-pressed={period === k} onClick={() => pick(k)} className={cn("h-7 rounded-md px-2.5 text-[13px] capitalize", period === k ? "bg-card font-medium shadow-sm" : "text-muted-foreground")}>{k}</button>)}
         </div>
+        {proj && <Button size="sm" variant="outline" onClick={() => makeInvoice({ projectId: proj.id, kind: "hours" })}><Receipt />Invoice hours</Button>}
         <Button size="sm" variant="outline" nativeButton={false} render={<a href={timeCsvUrl({ ...range, project })} download />}><Download />Export CSV</Button>
       </TopBar>
       <div className="scrollbar-thin flex-1 overflow-auto">
@@ -76,7 +84,7 @@ export function TimePage({ project }: { project?: string }) {
                 {!isNow && <button onClick={() => setAt(today())} className="ml-1.5 rounded px-1.5 text-[12.5px] underline-offset-2 hover:text-foreground hover:underline">Back to {period === "day" ? "today" : `this ${period}`}</button>}
               </div>
               <h1 className="text-[30px] leading-tight font-medium tabular">{fmtMins(total)} {when}</h1>
-              <p className="text-[14px] text-muted-foreground">{total ? `${fmtMins(billable)} billable` : "Nothing logged yet"}{proj ? <> · for {proj.name} <button onClick={() => go(routes.time())} className="ml-1 inline-flex items-center gap-0.5 underline-offset-2 hover:text-foreground hover:underline"><X className="size-3" />every project</button></> : ""}</p>
+              <p className="text-[14px] text-muted-foreground">{total ? `${fmtMins(billable)} billable` : "Nothing logged yet"}{pj?.paid && pj.time.mins >= 60 && !pj.paid.mixed ? ` · ${fmtMoney(pj.paid.amount, pj.paid.currency)} paid so far, ${fmtMoney(pj.paid.amount / (pj.time.mins / 60), pj.paid.currency).replace(/\.\d\d(?=\D*$)/, "")} for each hour logged` : ""}{proj ? <> · for {proj.name} <button onClick={() => go(routes.time())} className="ml-1 inline-flex items-center gap-0.5 underline-offset-2 hover:text-foreground hover:underline"><X className="size-3" />every project</button></> : ""}</p>
             </div>
             <div className="flex gap-1">
               <Button variant="outline" size="icon-sm" aria-label={`Previous ${period}`} onClick={() => setAt(shiftPeriod(period, at, -1))}><ChevronLeft /></Button>
@@ -95,6 +103,8 @@ export function TimePage({ project }: { project?: string }) {
               ))}
             </section>
           )}
+
+          {pj && <Invoices p={pj} onChange={setPj} />}
 
           <section className="grid">
             <AddRow key={addDay} project={project || null} day={addDay} />
@@ -126,6 +136,37 @@ export function TimePage({ project }: { project?: string }) {
   )
 }
 
+/** A project's invoices: for payments and for hours, with when they're due or were paid. */
+function Invoices({ p, onChange }: { p: Project; onChange: (x: Project) => void }) {
+  if (!p.invoices.length) return null
+  const act = async (f: () => Promise<Project>, msg?: string) => { try { onChange(await f()); timeChanged(); if (msg) toast(msg) } catch (e) { toast.error((e as Error).message) } }
+  return (
+    <section aria-label="Invoices" className="grid">
+      <div className="flex h-9 items-baseline gap-2 border-b"><h2 className="flex-1 text-[14px] font-medium">Invoices</h2><span className="text-[13px] text-muted-foreground">{p.invoices.filter((x) => !x.paid).length} waiting on payment</span></div>
+      {p.invoices.map((x) => {
+        const late = !x.paid && !!x.due && x.due < today()
+        const what = x.kind === "hours" ? `${x.hours ? `${x.hours} hours` : "Hours"}${x.from ? `, ${fmtDay(x.from)} to ${fmtDay(x.to)}` : ""}` : p.phases.find((ph) => ph.id === x.phaseId)?.payment?.label || "Payment"
+        return (
+          <div key={x.id} className="group grid min-h-[46px] grid-cols-[110px_minmax(0,1fr)_140px_110px_28px] items-center gap-3 border-b border-border/60 text-[13.5px]">
+            <a href={invoiceUrl(p.id, x.id)} download className="tabular hover:underline">{x.number}</a>
+            <span className="truncate text-muted-foreground">{what}</span>
+            <span className={cn("text-right text-[13px]", late ? "text-destructive" : "text-muted-foreground")}>{x.paid ? `Paid ${fmtDay(dayOf(x.paid))}` : late ? `Was due ${fmtDay(x.due)}` : x.due ? `Due ${fmtDay(x.due)}` : "Not paid yet"}</span>
+            <span className="text-right tabular">{fmtMoney(x.total, x.currency)}</span>
+            <DropdownMenu>
+              <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label="Invoice options" className="opacity-60 group-hover:opacity-100" />}><MoreHorizontal /></DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-52">
+                <DropdownMenuItem render={<a href={invoiceUrl(p.id, x.id)} download />}><Download />Download the PDF</DropdownMenuItem>
+                {x.paid ? <DropdownMenuItem onClick={() => act(() => api.setInvoice(p.id, x.id, { paid: false }))}><Undo2 />Not paid after all</DropdownMenuItem> : <DropdownMenuItem onClick={() => act(() => api.setInvoice(p.id, x.id, { paid: true }), `Invoice ${x.number} marked paid`)}><Check />Mark paid</DropdownMenuItem>}
+                {!x.paid && <><DropdownMenuSeparator /><DropdownMenuItem onClick={() => act(() => api.removeInvoice(p.id, x.id), x.kind === "hours" ? "Removed the invoice. Its hours can be invoiced again." : "Removed the invoice")}><Trash2 />Remove the invoice</DropdownMenuItem></>}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        )
+      })}
+    </section>
+  )
+}
+
 /** What the time was for, and what it's linked to: a checklist item or a task. */
 function Title({ e, onOpen }: { e: Pick<TimeEntry, "title" | "item" | "taskId" | "itemId" | "projectId">; onOpen: () => void }) {
   const ref = e.item ? `Checklist item · ${e.item.phase}` : e.itemId ? "Checklist item" : e.taskId ? "Task" : ""
@@ -151,6 +192,7 @@ function EntryRow({ e, showProject, onEdit }: { e: TimeEntry; showProject: boole
       <span className="flex min-w-0 items-center gap-1.5 text-[13px] text-muted-foreground">
         {showProject ? (e.projectId && !e.gone ? <button onClick={() => go(routes.time(e.projectId))} className="truncate hover:text-foreground hover:underline">{e.pname}</button> : <span className="truncate">{e.gone ? `${e.pname || "A project"} (deleted)` : "No project"}</span>) : null}
         {!e.billable && <span className="shrink-0 rounded bg-muted px-1.5 text-[11.5px] leading-5">Not billable</span>}
+        {e.invoice && <span className="shrink-0 rounded bg-muted px-1.5 text-[11.5px] leading-5">Invoiced</span>}
       </span>
       <span className="text-right text-[13px] text-muted-foreground tabular">{e.start && e.end ? `${timeOf(e.start)} to ${timeOf(e.end)}` : "Added by hand"}</span>
       <span className="text-right text-[13.5px] tabular">{fmtMins(e.mins)}</span>

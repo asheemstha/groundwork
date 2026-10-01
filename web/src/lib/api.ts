@@ -65,6 +65,13 @@ export interface Settings {
   voice?: string
   /** A morning notification with what's due today. */
   notify?: boolean
+  /** Invoices: the usual hourly rate ("$90"), your business details, how clients pay you, the next number and the days to pay. */
+  rate?: string
+  bizDetails?: string
+  payLink?: string
+  payDetails?: string
+  invoiceNext?: string
+  payDays?: number
 }
 export interface Counts { tasks: number; done: number }
 /** `all` is the merged to-do list; `live`/`optimize` come from runs made before it existed. */
@@ -262,7 +269,9 @@ export interface TGroup { id: string; name: string; items: TItem[] }
 export interface TPhase { id: string; name: string; due: DueRule | null; groups: TGroup[]; handoff: { title: string; needs: "us" | "client"; items: TItem[] } }
 export interface TPart { id: string; name: string; desc: string }
 /** What a checklist is for and where its steps come from, shown in the gallery. */
-export interface TemplateMeta { desc?: string; basedOn?: { label: string; url: string }[]; labels?: DateLabels | null; repeat?: "monthly" | null; refSpan?: number }
+export interface TemplateMeta { desc?: string; basedOn?: { label: string; url: string }[]; labels?: DateLabels | null; repeat?: "monthly" | null; refSpan?: number
+  /** False for work with no website (a brand, an ad setup): no site fields or Site tools until one is added. */
+  website?: boolean }
 /** A template's names for the two project dates, like "Store opens" or "Report due". */
 export interface DateLabels { kickoff?: string; launch?: string }
 export interface ChecklistTemplate extends TemplateMeta { id: string; kind: "checklist"; name: string; version: number; updated: number; parts: TPart[]; phases: TPhase[] }
@@ -282,6 +291,8 @@ export type Sites = Record<SiteKey, string | null>
 export interface ProjectRun { id: string; site: SiteKey | null; status: RunStatus; created: number; pages: number; scanned: number; output: Output | null; progress: RunProgress | null; hasIcon: boolean; seo: { status: SeoStatus; progress: Counts | null } | null; error: string | null; url: string }
 export interface Project {
   id: string; kind: "project" | "audit"; name: string; url: string | null; host: string | null; sites: Sites; platform: PlatformId | null;
+  /** The project has a website (or its kind of work does): it shows the site details and the Tools tab. */
+  website: boolean
   labels: DateLabels | null; repeat: "monthly" | null; cycle: number; sample: boolean; lastUpdate: number | null; remindEvery: number; created: number; updated: number; kickoff: string | null; launch: string | null
   clientName: string; templateId: string; templateName: string; parts: string[]
   /** Days the plan has been shifted, and how far behind it is now. */
@@ -298,7 +309,16 @@ export interface Project {
   }
   /** Time logged on the project, in minutes, counting a timer running on it. */
   time: { mins: number; billable: number; running: { itemId: string | null; start: number } | null }
+  invoices: InvoiceSummary[]
+  /** The project's own hourly rate, when it differs from Settings, and who invoices go to. */
+  rate: string; billTo: string
+  /** Payments marked paid and paid hours invoices, added up in one currency. */
+  paid: { amount: number; currency: Currency; mixed: boolean } | null
 }
+export interface Currency { before: string; after: string }
+export interface InvoiceLine { text: string; sub?: string; qty?: number; unit?: number; amount: number }
+export interface InvoiceSummary { id: string; number: string; kind: "milestone" | "hours"; date: string; due: string | null; phaseId: string | null; from: string | null; to: string | null; total: number; currency: Currency; paid: number | null; hours: number | null }
+export interface InvoiceDraft { kind: "milestone" | "hours"; number: string; date: string; due: string; billTo: string; note: string; lines: InvoiceLine[]; currency: Currency; total: number; phaseId?: string; from?: string; to?: string; entryIds?: string[]; rate?: number; mins?: number }
 // ---------- redirect map ----------
 export type RedirectHow = "same" | "seo" | "slug" | "similar" | "parent" | "home" | "manual"
 export interface RedirectRow { from: string; title: string; to: string; how: RedirectHow; score: number; sure: boolean; checked?: boolean }
@@ -340,7 +360,7 @@ export interface LaunchReport {
   previous?: { id: string; at: number }; fixed?: { check: LaunchCheckId; text: string; pages: number }[]
 }
 export interface ProjectSummary {
-  id: string; kind: "project" | "audit"; name: string; templateId: string | null; sample?: boolean; host: string | null; url: string | null; launch: string | null; iconRun: string | null
+  id: string; kind: "project" | "audit"; name: string; templateId: string | null; sample?: boolean; website?: boolean; host: string | null; url: string | null; launch: string | null; iconRun: string | null
   current: { index: number; id: string; name: string; done: number; total: number; ready: boolean; needs: "us" | "client"; handoffTitle: string } | null
   phases: { state: PPhase["state"]; done: number; total: number }[]
   clientOpen: number; clientLate: number; behind: Behind
@@ -362,7 +382,7 @@ export interface NextUp { key: string; kind: "item" | "client" | "ask" | "signof
 export interface HomeGroup { projectId: string; projectName: string; iconRun: string | null; rows: NextUp[]; more: number; late: number }
 /** Messages to send today for one project: items to ask for, reminders, the weekly update and invoices. */
 export interface BriefResult { name: string | null; clientName: string | null; sites: Sites; platform: PlatformId | null; kickoff: string | null; launch: string | null; parts: string[] | null; items: { title: string; who: "us" | "client"; phase: string; done: string }[]; ai: boolean }
-export interface HomeMessages { projectId: string; projectName: string; iconRun: string | null; clientName: string; ask: number; remind: number; update: boolean; lastUpdate: number | null; invoices: { phaseId: string; label: string; amount: string }[]; unpaid: { phaseId: string; label: string; amount: string; invoiced: number }[] }
+export interface HomeMessages { projectId: string; projectName: string; iconRun: string | null; clientName: string; ask: number; remind: number; update: boolean; lastUpdate: number | null; invoices: { phaseId: string; label: string; amount: string }[]; unpaid: { phaseId: string | null; invoiceId?: string; label: string; amount: string; invoiced: number }[] }
 export interface HomeData { groups: HomeGroup[]; messages: HomeMessages[]; stats: { dueThisWeek: number; dueToday: number; watchIssues: number; overdue: number; toAsk: number; waiting: number; late: number; signoffs: number; nextLaunch: { name: string; date: string } | null }; projects: ProjectSummary[] }
 export interface NewProject { kind?: "project" | "audit"; platform?: PlatformId | null; extraItems?: BriefResult["items"]; name: string; sites?: Partial<Sites>; templateId?: string; kickoff?: string; launch?: string; parts?: string[]; clientName?: string; startAt?: string }
 export interface SignoffInput { by: string; date: string; note?: string; link?: string; file?: { name: string; data: string } | null; carry?: string[]; skip?: string[] }
@@ -371,6 +391,8 @@ export interface SignoffInput { by: string; date: string; note?: string; link?: 
 export interface TimeEntry {
   id: string; who: string; projectId: string | null; pname: string | null; gone?: boolean; itemId: string | null; item: { title: string; phase: string } | null; taskId: string | null
   title: string; day: string; mins: number; start: number | null; end: number | null; billable: boolean; by: "timer" | "hand"; at: number
+  /** The invoice this time was billed on. */
+  invoice?: string
 }
 export interface RunningTimer {
   id: string; projectId: string | null; pname: string | null; itemId: string | null; item: { title: string; phase: string } | null; taskId: string | null; title: string; start: number; billable: boolean
@@ -437,7 +459,7 @@ export const api = {
   projects: () => req<ProjectSummary[]>("GET", "/api/projects"),
   project: (id: string) => req<Project>("GET", `/api/projects/${id}`),
   createProject: (b: NewProject) => req<{ id: string; runId: string | null }>("POST", "/api/projects", b),
-  updateProject: (id: string, b: Partial<{ name: string; kickoff: string | null; launch: string | null; clientName: string; url: string; sites: Partial<Sites>; platform: PlatformId | null; remindEvery: number }>) => req<Project>("PATCH", `/api/projects/${id}`, b),
+  updateProject: (id: string, b: Partial<{ name: string; kickoff: string | null; launch: string | null; clientName: string; url: string; sites: Partial<Sites>; platform: PlatformId | null; remindEvery: number; rate: string }>) => req<Project>("PATCH", `/api/projects/${id}`, b),
   templateUpdate: (id: string, b: { dryRun?: boolean; removeUntouched?: boolean }) => req<TemplateUpdate & { project?: Project }>("POST", `/api/projects/${id}/template`, b),
   shiftPlan: (id: string, b: { days: number; launch: boolean }) => req<Project>("POST", `/api/projects/${id}/shift`, b),
   /** The weekly update was sent today. */
@@ -497,7 +519,16 @@ export const api = {
   addTask: (b: { text?: string; title?: string; projectId?: string | null; itemId?: string | null; day?: string }) => req<Task>("POST", "/api/tasks", b),
   editTask: (id: string, b: Partial<{ title: string; projectId: string | null; itemId: string | null; est: number | string | null; day: string; done: boolean }>) => req<Task>("PATCH", `/api/tasks/${id}`, b),
   removeTask: (id: string) => req<{ ok: boolean }>("DELETE", `/api/tasks/${id}`),
+  // invoices
+  /** A new invoice to look over: for a phase's payment, or for billable hours between two dates. */
+  invoiceDraft: (id: string, q: { kind: "milestone" | "hours"; phase?: string; from?: string; to?: string; rate?: string }) => req<InvoiceDraft>("GET", `/api/projects/${id}/invoice-draft?` + new URLSearchParams(Object.entries(q).filter(([, v]) => v) as [string, string][])),
+  saveInvoice: (id: string, d: InvoiceDraft) => req<{ invoice: InvoiceSummary; project: Project }>("POST", `/api/projects/${id}/invoices`, d),
+  setInvoice: (id: string, invId: string, b: { paid: boolean }) => req<Project>("POST", `/api/projects/${id}/invoices/${invId}`, b),
+  removeInvoice: (id: string, invId: string) => req<Project>("DELETE", `/api/projects/${id}/invoices/${invId}`),
 }
+export const invoiceUrl = (id: string, invId: string, html = false) => `/api/projects/${id}/invoices/${invId}${html ? "?format=html" : ""}`
+/** "$2,400.00", "1,250.50 EUR". */
+export const fmtMoney = (n: number, c: Currency) => `${c.before || ""}${(Math.round(n * 100) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${c.after ? " " + c.after : ""}`
 export const timeCsvUrl = (q: { from?: string; to?: string; project?: string | null }) => "/api/time.csv?" + new URLSearchParams(Object.entries(q).filter(([, v]) => v) as [string, string][])
 // Screenshots are versioned by capture time so a retake always shows the new image.
 export const shotUrl = (run: Pick<Run, "id" | "shotsAt" | "crawledAt">, pid: string) => `/api/runs/${run.id}/shot/${pid}?v=${run.shotsAt || run.crawledAt || 0}`

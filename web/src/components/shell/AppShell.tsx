@@ -13,6 +13,7 @@ import { fmtMins } from "@/lib/time"
 import { go, routes, useRoute } from "@/lib/router"
 import { api, type ProjectSummary, type RunSummary } from "@/lib/api"
 import { NewProjectDialog, newProject } from "@/components/project/NewProjectDialog"
+import { InvoiceDialog } from "@/components/project/InvoiceDialog"
 import { QuickFind, openQuickFind } from "@/components/shell/QuickFind"
 import { ago, pct, plural } from "@/lib/format"
 import { Bar, Dot, Logo, Ring, SiteIcon, Spinner } from "@/components/common/bits"
@@ -60,6 +61,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="relative flex h-full bg-canvas" data-sidebar={sidebar ? "open" : "closed"}>
       <NewProjectDialog />
+      <InvoiceDialog />
       <FeedbackDialog />
       <QuickFind />
       <TimerCheck />

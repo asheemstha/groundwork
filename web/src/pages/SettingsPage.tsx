@@ -4,6 +4,7 @@ import { CalendarPlus, Check, Copy, Download, ExternalLink, Globe, HardDrive, Lo
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Switch } from "@/components/ui/switch"
 import { morningLine } from "@/hooks/useMorningNotice"
@@ -16,7 +17,7 @@ import { api, type EngineId } from "@/lib/api"
 import { ago, cap, clock, pct } from "@/lib/format"
 import { SkillsSection } from "@/components/settings/Skills"
 
-const SECTIONS = [["you", "You"], ["reminders", "Reminders and calendar"], ["engines", "AI accounts"], ["privacy", "Data and privacy"], ["skills", "AI rules"], ["updates", "Updates"], ["scanning", "Scanning"], ["help", "Help and feedback"]] as const
+const SECTIONS = [["you", "You"], ["invoices", "Invoices"], ["reminders", "Reminders and calendar"], ["engines", "AI accounts"], ["privacy", "Data and privacy"], ["skills", "AI rules"], ["updates", "Updates"], ["scanning", "Scanning"], ["help", "Help and feedback"]] as const
 
 export function SettingsPage({ focus }: { focus?: EngineId | "privacy" }) {
   const { status } = useApp()
@@ -50,6 +51,7 @@ export function SettingsPage({ focus }: { focus?: EngineId | "privacy" }) {
           <div className="mx-auto w-full max-w-3xl px-12 pt-10 pb-16">
             <h1 className="mb-8 text-[32px] leading-tight font-medium">Settings</h1>
             <Section id="you" title="You"><Preferences /></Section>
+            <Section id="invoices" title="Invoices" desc="What goes on the invoices Groundwork makes from a payment or from your hours. Groundwork doesn’t take payments: the invoice says how to pay you, and you mark it paid."><Invoices /></Section>
             <Section id="reminders" title="Reminders and calendar"><Reminders /></Section>
             <Section id="engines" title="AI accounts" desc={<>Optional. The heading and SEO plans run Claude Code or Codex on this computer, signed in to <b className="font-medium text-foreground">your own account</b>, and count toward your Claude or ChatGPT subscription’s limits. Groundwork never sees your password, and nothing goes through a Groundwork server.</>}>
               <div className="grid gap-4"><EngineCard k="claude" highlight={focus === "claude"} /><EngineCard k="codex" highlight={focus === "codex"} /></div>
@@ -277,6 +279,41 @@ function Preferences() {
             <button key={t} onClick={() => setTheme(t)} className={cn("rounded-md py-1 text-xs font-medium capitalize text-muted-foreground", theme === t && "bg-card text-foreground shadow-sm")}>{t}</button>
           ))}
         </div>
+      </div>
+    </div>
+  )
+}
+
+/** One setting that saves when you leave the field. */
+function PrefField({ k, title, desc, placeholder, multiline }: { k: "rate" | "bizDetails" | "payLink" | "payDetails" | "invoiceNext"; title: string; desc: string; placeholder: string; multiline?: boolean }) {
+  const { prefs, setPrefs } = useApp()
+  const [v, setV] = React.useState(String(prefs[k] || ""))
+  const save = async () => {
+    if ((prefs[k] || "") === v.trim()) return
+    try { await api.savePrefs({ [k]: v.trim() }); setPrefs({ [k]: v.trim() }); toast.success("Saved") } catch (e) { toast.error((e as Error).message) }
+  }
+  return (
+    <label className={cn("grid gap-3 bg-card p-4 text-sm sm:grid-cols-[1fr_260px]", !multiline && "sm:items-center")}>
+      <span><span className="block font-medium">{title}</span><span className="text-muted-foreground">{desc}</span></span>
+      {multiline ? <Textarea value={v} rows={3} placeholder={placeholder} onChange={(e) => setV(e.target.value)} onBlur={save} className="text-[13.5px]" /> : <Input value={v} placeholder={placeholder} onChange={(e) => setV(e.target.value)} onBlur={save} onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()} />}
+    </label>
+  )
+}
+
+function Invoices() {
+  const { prefs, setPrefs } = useApp()
+  return (
+    <div className="grid gap-px overflow-hidden rounded-2xl border bg-border">
+      <PrefField k="rate" title="Hourly rate" desc="For invoices made from hours. A project can have its own in its details." placeholder="e.g. $90" />
+      <PrefField k="bizDetails" title="Your details" desc="Under your studio name: address, email, tax or business number." placeholder={"Street, city\nhello@yourstudio.com"} multiline />
+      <PrefField k="payLink" title="Payment link" desc="Your own Stripe, PayPal or other link, if you have one." placeholder="https://" />
+      <PrefField k="payDetails" title="How to pay" desc="Bank details or anything else clients need to pay you." placeholder={"Bank transfer to\nAccount name, number"} multiline />
+      <PrefField k="invoiceNext" title="Next invoice number" desc="Counts up from here each time you make an invoice." placeholder="INV-0001" />
+      <div className="grid gap-3 bg-card p-4 text-sm sm:grid-cols-[1fr_260px] sm:items-center">
+        <span><span className="block font-medium">Days to pay</span><span className="text-muted-foreground">The due date on a new invoice.</span></span>
+        <select value={prefs.payDays || 14} onChange={async (e) => { const n = +e.target.value; await api.savePrefs({ payDays: n }); setPrefs({ payDays: n }) }} className="h-9 rounded-lg border border-input bg-card px-2.5 text-sm">
+          {[7, 14, 21, 30, 45, 60].map((n) => <option key={n} value={n}>{n} days</option>)}
+        </select>
       </div>
     </div>
   )

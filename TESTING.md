@@ -22,7 +22,8 @@ Run one real project in Groundwork from start to finish, or as far as it gets. A
 - Today each morning: plan your tasks, start a timer on each, and send the messages it lists.
 - The Time page at the end of the week: does it match what you'd have written in a timesheet? Export the CSV.
 - The weekly update, or a client status page (the project's ⋯ menu) instead of writing one from scratch.
-- Recording a sign-off with the client's approval.
+- Recording a sign-off with the client's approval, then making the invoice for its payment (add your payment details in Settings, Invoices first).
+- If you sell more than websites, a brand, SEO, ads or social project from Other client work.
 - For a redesign: the content inventory, the redirect map and the redirect test.
 - The launch check on staging before launch day, and on the live domain after.
 
