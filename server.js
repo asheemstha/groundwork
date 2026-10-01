@@ -670,6 +670,9 @@ const server = http.createServer(async (req, res) => {
       setTimeout(async () => { server.close(); await Promise.race([crawl.closeBrowser(), new Promise(r => setTimeout(r, 2000))]); process.exit(75); }, 300);
       return;
     }
+    // Connected data: which of Google's and Meta's official connectors the user's Claude Code has. Checked when asked.
+    if (p === '/api/connectors' && M === 'GET') return json(res, readJson(path.join(DATA, 'connectors.json'), null));
+    if (p === '/api/connectors/check' && M === 'POST') { const r = await require('./lib/connectors').check(); writeJson(path.join(DATA, 'connectors.json'), r); return json(res, r); }
     if (p === '/api/prefs' && M === 'GET') return json(res, getSettings().prefs || {});
     if (p === '/api/prefs' && M === 'POST') { const b = await body(req); const prefs = { ...(getSettings().prefs || {}), ...b }; setSettings({ prefs }); return json(res, prefs); }
     if (p === '/api/limits/refresh' && M === 'POST') {

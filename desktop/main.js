@@ -83,7 +83,8 @@ function buildMenu() {
 
 app.whenReady().then(async () => {
   try {
-    port = await freePort(4478);
+    // A copy run from source starts above the installed app's port, so it never takes 4478 while that app is closed.
+    port = await freePort(app.isPackaged ? 4478 : 4590);
     Object.assign(process.env, { PORT: String(port), GW_DATA: DATA, GW_APP: '1' });
     const codeVersion = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version;
     global.gwDesktop = require('./updater')({ app, shell, repo: 'asheemstha/groundwork', log, version: codeVersion, shellVersion: SHELL, codeDir: CODE_DIR, running: ROOT });

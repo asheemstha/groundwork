@@ -6,7 +6,7 @@ export type Route =
   | { name: "time"; project?: string }
   | { name: "templates" }
   | { name: "template"; id: string }
-  | { name: "settings"; engine?: "claude" | "codex" | "privacy" }
+  | { name: "settings"; engine?: "claude" | "codex" | "privacy" | "connectors" }
   | { name: "run"; id: string; tool?: "seo" | "headings" }
   | { name: "review"; id: string; view: string }
   | { name: "seo"; id: string; view: string }
@@ -17,7 +17,7 @@ function parse(): Route {
   if (parts[0] === "project" && parts[1]) return { name: "project", id: parts[1], tab: parts[2] === "client" || parts[2] === "tools" || parts[2] === "money" || parts[2] === "launch" || parts[2] === "redirects" || parts[2] === "inventory" ? parts[2] : "checklist", sub: parts[3] }
   if (parts[0] === "time") return { name: "time", project: parts[1] }
   if (parts[0] === "templates") return parts[1] ? { name: "template", id: parts[1] } : { name: "templates" }
-  if (parts[0] === "settings") return { name: "settings", engine: parts[1] === "codex" || parts[1] === "claude" || parts[1] === "privacy" ? parts[1] : undefined }
+  if (parts[0] === "settings") return { name: "settings", engine: parts[1] === "codex" || parts[1] === "claude" || parts[1] === "privacy" || parts[1] === "connectors" ? parts[1] : undefined }
   if (parts[0] === "run" && parts[1]) {
     if (parts[2] === "review") return { name: "review", id: parts[1], view: parts[3] || "overview" }
     if (parts[2] === "seo") return { name: "seo", id: parts[1], view: parts[3] || "all" }

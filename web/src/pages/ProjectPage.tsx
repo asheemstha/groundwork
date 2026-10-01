@@ -1,6 +1,6 @@
 import * as React from "react"
 import { cn } from "cn"
-import { Ban, CalendarDays, FileText, Check, ChevronDown, ChevronRight, ChevronUp, Copy, Download, ExternalLink, FolderPlus, Hourglass, Info, Play, Layers, Link2, Loader2, Mail, MessageSquare, MoreHorizontal, Paperclip, Pencil, Plus, Receipt, RefreshCw, Stamp, Timer, Trash2, Undo2, User, X } from "lucide-react"
+import { Ban, BarChart3, CalendarDays, FileText, Check, ChevronDown, ChevronRight, ChevronUp, Copy, Download, ExternalLink, FolderPlus, Hourglass, Info, Play, Layers, Link2, Loader2, Mail, MessageSquare, MoreHorizontal, Paperclip, Pencil, Plus, Receipt, RefreshCw, Stamp, Timer, Trash2, Undo2, User, X } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -30,6 +30,7 @@ import { AccountsSection } from "@/components/project/Accounts"
 import { FilesSection } from "@/components/project/Files"
 import { TrafficCard } from "@/components/project/Traffic"
 import { CareReportDialog } from "@/components/project/CareReport"
+import { AskClaudeDialog } from "@/components/project/AskClaude"
 import { MoneyTab } from "@/components/project/Money"
 import { ShiftDialog, shiftPlan } from "@/components/project/ShiftDialog"
 import { TemplateUpdateDialog, updateFromTemplate } from "@/components/project/TemplateUpdate"
@@ -50,6 +51,7 @@ export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Ta
   const [editing, setEditing] = React.useState(false)
   const [statusOpen, setStatusOpen] = React.useState(false)
   const [handoffOpen, setHandoffOpen] = React.useState(false)
+  const [askOpen, setAskOpen] = React.useState(false)
   const [careOpen, setCareOpen] = React.useState(false)
   React.useEffect(() => { const on = () => setStatusOpen(true); window.addEventListener("gw:status-page", on); return () => window.removeEventListener("gw:status-page", on) }, [])
   const [removing, setRemoving] = React.useState(false)
@@ -90,6 +92,7 @@ export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Ta
             {!audit && <DropdownMenuItem onClick={() => setStatusOpen(true)}><FileText /> Client status page…</DropdownMenuItem>}
             {!audit && p.repeat && <DropdownMenuItem onClick={() => setCareOpen(true)}><FileText /> Care report…</DropdownMenuItem>}
             {!audit && p.website && !p.repeat && <DropdownMenuItem onClick={() => setHandoffOpen(true)}><FileText /> Handoff document…</DropdownMenuItem>}
+            {!audit && <DropdownMenuItem onClick={() => setAskOpen(true)}><BarChart3 /> Ask Claude Code about traffic…</DropdownMenuItem>}
             {!audit && <DropdownMenuItem onClick={() => makeInvoice({ projectId: p.id, kind: "hours" })}><Receipt /> Invoice hours…</DropdownMenuItem>}
             <DropdownMenuItem onClick={() => { const a = document.createElement("a"); a.href = `/api/projects/${p.id}/export`; a.download = ""; a.click(); toast("Exporting the project", { description: "Its checklist, files, scans and plans, as one zip another Groundwork can import." }) }}><Download /> Export project…</DropdownMenuItem>
             <DropdownMenuSeparator />
@@ -150,6 +153,7 @@ export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Ta
       {!audit && <StatusPageDialog p={p} open={statusOpen} onClose={() => setStatusOpen(false)} />}
       {!audit && <HandoffDialog p={p} open={handoffOpen} onClose={() => setHandoffOpen(false)} />}
       {!audit && p.repeat && <CareReportDialog p={p} open={careOpen} onClose={() => setCareOpen(false)} />}
+      {!audit && <AskClaudeDialog p={p} open={askOpen} onClose={() => setAskOpen(false)} />}
       <ShiftDialog p={p} onDone={(x) => { setP(x); refreshProjects() }} />
       <TemplateUpdateDialog p={p} onDone={(x) => { setP(x); refreshProjects() }} />
       <AlertDialog open={removing} onOpenChange={setRemoving}>

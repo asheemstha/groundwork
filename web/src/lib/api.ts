@@ -72,7 +72,12 @@ export interface Settings {
   payDetails?: string
   invoiceNext?: string
   payDays?: number
+  /** The Google Cloud project ID, to fill in the connector setup commands. */
+  gcpProject?: string
 }
+/** Which official connectors the user's Claude Code has, from `claude mcp list`. */
+export type ConnectorId = "ga4" | "ads" | "meta" | "gsc"
+export interface ConnectorCheck { at: number; installed: boolean; count?: number; found: Partial<Record<ConnectorId, { name: string; state: "connected" | "auth" | "failed"; note: string }>>; error?: string | null }
 export interface Counts { tasks: number; done: number }
 /** `all` is the merged to-do list; `live`/`optimize` come from runs made before it existed. */
 export type RunProgress = { all?: Counts; now?: Counts; live?: Counts; optimize?: Counts }
@@ -459,6 +464,8 @@ export const api = {
   status: (fresh = false) => req<AppStatus>("GET", "/api/status" + (fresh ? "?fresh" : "")),
   prefs: () => req<Partial<Settings>>("GET", "/api/prefs"),
   diagnostics: () => req<{ text: string }>("GET", "/api/diagnostics"),
+  connectors: () => req<ConnectorCheck | null>("GET", "/api/connectors"),
+  checkConnectors: () => req<ConnectorCheck>("POST", "/api/connectors/check"),
   savePrefs: (p: Partial<Settings>) => req<Partial<Settings>>("POST", "/api/prefs", p),
   runs: () => req<RunSummary[]>("GET", "/api/runs"),
   run: (id: string) => req<{ run: Run; progress: Progress | null; seoProgress: Progress | null; log: LogEntry[] }>("GET", `/api/runs/${id}`),

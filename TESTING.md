@@ -28,6 +28,7 @@ Run one real project in Groundwork from start to finish, or as far as it gets. A
 - Point Files from the client (the Client tab) at the folder your client shares with you, add the usual asks, and copy the list for them. Did the files tick off as they came in?
 - Log the next “could you also…” as an extra request on the Money tab, time it, and invoice it when it’s done.
 - If you run care plans: set the plan’s hours in the project details, then send the month’s care report (the project’s ⋯ menu) with the invoice.
+- If you have Google Analytics access for a client: set up the connector in Settings, Connected data, then paste a question from the project's ⋯ menu, Ask Claude Code about traffic, into Claude Code. Was the answer worth the setup?
 - If you sell more than websites, a brand, SEO, ads or social project from Other client work.
 - For a redesign: the content inventory, the redirect map and the redirect test.
 - The launch check on staging before launch day, and on the live domain after. Look at its tracking section: does it match what you know is installed?
