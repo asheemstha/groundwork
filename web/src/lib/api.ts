@@ -257,14 +257,14 @@ export interface CrawlItem { ref?: string; kind: string; text: string; hidden?: 
 export interface CrawlData { status: number; title: string; items: CrawlItem[]; height: number; counts: Record<string, number> }
 
 // ---------- projects and templates ----------
-export type ToolId = "scan" | "headings" | "seo" | "launch" | "redirects" | "inventory"
+export type ToolId = "scan" | "headings" | "seo" | "launch" | "redirects" | "inventory" | "requests"
 export type Decision = "keep" | "rewrite" | "merge" | "remove"
 export interface InventoryRow { path: string; name: string; title: string; words: number | null; status: number | null; nav: boolean; collection: string | null; decision: Decision; reason: string; into: string | null; by: "rule" | "ai" | "you"; sure: boolean }
 export interface Inventory { at: number; runId: string; host: string; ai: boolean; rows: InventoryRow[] }
 export interface InventorySummary { at: number; total: number; review: number; keep: number; rewrite: number; merge: number; remove: number; ai: boolean }
 export interface DueRule { from: "kickoff" | "launch"; days: number }
 export type LaunchCheckId = "indexing" | "placeholders" | "links" | "seo" | "canonicals" | "legal" | "https" | "a11y" | "speed" | "tracking"
-export interface TItem { id: string; title: string; who: "us" | "client"; done: string; part: string | null; platforms?: PlatformId[] | null; tool: ToolId | null; check?: LaunchCheckId | "plan" | "live" | "map" | "after" | "recrawl" | null; due: DueRule | null }
+export interface TItem { id: string; title: string; who: "us" | "client"; done: string; part: string | null; platforms?: PlatformId[] | null; tool: ToolId | null; check?: LaunchCheckId | "plan" | "live" | "map" | "after" | "recrawl" | "brand" | "content" | null; due: DueRule | null }
 export interface TGroup { id: string; name: string; items: TItem[] }
 export interface TPhase { id: string; name: string; due: DueRule | null; groups: TGroup[]; handoff: { title: string; needs: "us" | "client"; items: TItem[] } }
 export interface TPart { id: string; name: string; desc: string }
@@ -278,8 +278,8 @@ export interface ChecklistTemplate extends TemplateMeta { id: string; kind: "che
 export interface MessageTemplate { id: string; kind: "message" | "email"; name: string; subject: string; body: string; use: string[]; updated: number }
 export type Template = ChecklistTemplate | MessageTemplate
 export interface TemplateSummary extends TemplateMeta { id: string; kind: Template["kind"]; name: string; updated: number; used: number; items?: number; phases?: number; subject?: string; preview?: string; use?: string[] }
-export interface ToolInfo { id: ToolId; name: string; ready: boolean; text?: string; runId?: string; progress?: { done: number; total: number }; check?: LaunchCheckId | "plan" | "live" | "map" | "after" | "recrawl"; checkName?: string; issues?: number }
-export interface PItem { id: string; title: string; check: LaunchCheckId | "plan" | "live" | "map" | "after" | "recrawl" | null; doneMeans: string; who: "us" | "client"; part: string | null; tool: ToolId | null; toolInfo: ToolInfo | null; due: string | null; status: "todo" | "done" | "na"; auto: boolean; at: number | null; note: string; link: string; asked: number | null; nudged: number | null; hist: { at: number; what: string }[]; manualDue: boolean; phaseId: string; phaseName: string; late: boolean; carriedFrom?: string; askBy?: string | null; remindDue?: boolean
+export interface ToolInfo { id: ToolId; name: string; ready: boolean; text?: string; runId?: string; progress?: { done: number; total: number }; check?: LaunchCheckId | "plan" | "live" | "map" | "after" | "recrawl" | "brand" | "content"; checkName?: string; issues?: number }
+export interface PItem { id: string; title: string; check: LaunchCheckId | "plan" | "live" | "map" | "after" | "recrawl" | "brand" | "content" | null; doneMeans: string; who: "us" | "client"; part: string | null; tool: ToolId | null; toolInfo: ToolInfo | null; due: string | null; status: "todo" | "done" | "na"; auto: boolean; at: number | null; note: string; link: string; asked: number | null; nudged: number | null; hist: { at: number; what: string }[]; manualDue: boolean; phaseId: string; phaseName: string; late: boolean; carriedFrom?: string; askBy?: string | null; remindDue?: boolean
   /** The estimate and the time logged on the item, in minutes. */
   est: number | null; mins: number }
 export interface Signoff { by: string; date: string; note: string; link: string; file: { name: string; stored: string } | null; at: number }
@@ -328,7 +328,11 @@ export interface Project {
   accounts: Account[]
   /** CSV exports from Search Console, GA4 or Google Ads, newest first. */
   traffic: TrafficImport[] | null
+  /** Files to get from the client, ticked off as they land in the project's folder. */
+  requests: Requests
 }
+export interface FileRequest { id: string; title: string; kind: "content" | "brand" | "other"; match: string[]; path: string | null; status: "waiting" | "in"; file: { name: string; at: number } | null; in: number | null; at: number }
+export interface Requests { folder: string | null; folderOk: boolean; due: string | null; rows: FileRequest[]; total: number; in: number; waiting: number; late: boolean }
 export interface TrafficImport { id: string; at: number; name: string; source: string; metric: "clicks" | "sessions" | "views" | "users"; total: number; pages: number; before: boolean; top: { path: string; n: number }[] }
 export interface Account { id: string; kind: string; name: string; where: string; owner: "" | "client" | "us" | "none"; login: string; access: boolean; revoke: boolean; note: string }
 export interface Renewals {
@@ -381,6 +385,8 @@ export interface LaunchReport {
     speed?: SpeedResult[] | null; a11yPages?: number
     /** What the tracking check saw, and whether Search Console's verification tag is on the home page. */
     tracking?: TrackingInfo; trackingError?: string; searchConsole?: "meta" | null
+    /** What the site runs on, as its pages show it, and who answers for its DNS. */
+    stack?: { services: { name: string; kind: string; pages: number }[]; dns: { host: string | null; servers: string[] } | null }
   }
   pages?: { path: string; status: number; title: string; error: string | null }[]
   /** The last check of the same site, and what was fixed since. */
@@ -411,7 +417,7 @@ export interface ShiftPreview {
   days: number; launch: { from: string | null; to: string | null }; late: { before: number; after: number }
   next: { title: string; due: string } | null; phases: { name: string; from: string | null; to: string; clash: boolean }[]
 }
-export interface NextUp { key: string; kind: "item" | "client" | "ask" | "signoff" | "watch" | "renewal" | "down"; projectId: string; itemId?: string; checkId?: string; title: string; phaseId?: string; phaseName?: string; due: string | null; late: boolean; asked?: boolean; ready?: boolean; leftover?: boolean }
+export interface NextUp { key: string; kind: "item" | "client" | "ask" | "signoff" | "watch" | "renewal" | "down" | "files"; projectId: string; itemId?: string; checkId?: string; title: string; phaseId?: string; phaseName?: string; due: string | null; late: boolean; asked?: boolean; ready?: boolean; leftover?: boolean }
 /** Home: this week's work for one project, most urgent first. */
 export interface HomeGroup { projectId: string; projectName: string; iconRun: string | null; rows: NextUp[]; more: number; late: number }
 /** Messages to send today for one project: items to ask for, reminders, the weekly update and invoices. */
@@ -566,6 +572,11 @@ export const api = {
   addExtra: (id: string, b: Partial<Pick<Extra, "title" | "asked" | "status" | "price" | "note">>) => req<Project>("POST", `/api/projects/${id}/extras`, b),
   setExtra: (id: string, extraId: string, b: Partial<Pick<Extra, "title" | "asked" | "status" | "price" | "note">>) => req<Project>("POST", `/api/projects/${id}/extras/${extraId}`, b),
   removeExtra: (id: string, extraId: string) => req<Project>("DELETE", `/api/projects/${id}/extras/${extraId}`),
+  setRequests: (id: string, b: { due?: string | null; add?: { title: string; kind?: FileRequest["kind"]; match?: string }[]; usual?: boolean; fromInventory?: boolean; set?: Record<string, { title?: string; match?: string; kind?: FileRequest["kind"]; status?: FileRequest["status"] }>; remove?: string[] }) => req<Project>("POST", `/api/projects/${id}/requests`, b),
+  scanRequests: (id: string) => req<Project & { came: number }>("POST", `/api/projects/${id}/requests/scan`),
+  /** Opens a folder picker in the app; `folder: null` forgets the folder. */
+  requestFolder: (id: string, folder?: string | null) => req<Project>("POST", `/api/projects/${id}/requests/folder`, folder === undefined ? {} : { folder }),
+  openRequestFolder: (id: string) => req<{ ok: true }>("POST", `/api/projects/${id}/requests/open`),
   setAccounts: (id: string, accounts: Account[]) => req<Project>("POST", `/api/projects/${id}/accounts`, { accounts }),
   /** Reads the live domain's SSL certificate and domain expiry now. */
   checkRenewals: (id: string) => req<Project>("POST", `/api/projects/${id}/renewals`),

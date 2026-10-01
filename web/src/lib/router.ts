@@ -54,6 +54,8 @@ export const routes = {
   phase: (id: string, phaseId: string) => `/project/${id}/checklist/${phaseId}`,
   /** The Client tab set up for a reminder: the late items already asked for, with the reminder template. */
   remind: (id: string) => `/project/${id}/client/remind`,
+  /** The Client tab, at the files to get from the client. */
+  clientFiles: (id: string) => `/project/${id}/client/files`,
   /** The Client tab set up for the weekly update. */
   clientUpdate: (id: string) => `/project/${id}/client/update`,
   launch: (id: string, checkId?: string, check?: string) => `/project/${id}/launch${checkId ? "/" + checkId + (check ? "?" + check : "") : ""}`,

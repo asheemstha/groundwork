@@ -877,6 +877,27 @@ const server = http.createServer(async (req, res) => {
         const exm = sub.match(/^\/extras\/([a-z0-9]+)$/);
         if (exm && M === 'POST') { P.setExtra(id, exm[1], await body(req)); return json(res, P.get(id)); }
         if (exm && M === 'DELETE') { P.setExtra(id, exm[1], { remove: true }); return json(res, P.get(id)); }
+        // Files from the client: the requests, the folder they land in, and a look in it now.
+        if (sub === '/requests' && M === 'POST') { try { return json(res, P.setRequests(id, await body(req))); } catch (e) { return json(res, { error: e.message }, 400); } }
+        if (sub === '/requests/scan' && M === 'POST') { const n = P.scanRequests(id); return json(res, { ...P.get(id), came: n }); }
+        if (sub === '/requests/folder' && M === 'POST') {
+          // In the app, a folder picker; from source, a typed path.
+          let folder = (await body(req)).folder;
+          if (folder === undefined && process.versions.electron) {
+            const { dialog, BrowserWindow } = require('electron');
+            const opts = { title: 'The folder the client’s files land in', buttonLabel: 'Use this folder', properties: ['openDirectory', 'createDirectory'] };
+            const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+            const r = await (win ? dialog.showOpenDialog(win, opts) : dialog.showOpenDialog(opts));
+            if (r.canceled || !r.filePaths[0]) return json(res, P.get(id));
+            folder = r.filePaths[0];
+          }
+          try { return json(res, P.setRequests(id, { folder: folder || null })); } catch (e) { return json(res, { error: e.message }, 400); }
+        }
+        if (sub === '/requests/open' && M === 'POST') {
+          const f = (P.get(id).requests || {}).folder; if (!f || !fs.existsSync(f)) return json(res, { error: 'That folder isn’t on this Mac any more.' }, 400);
+          execFile(process.platform === 'win32' ? 'explorer' : process.platform === 'darwin' ? 'open' : 'xdg-open', [f], () => {});
+          return json(res, { ok: true });
+        }
         if (sub === '/accounts' && M === 'POST') { const b = await body(req); P.setAccounts(id, b.accounts); return json(res, P.get(id)); }
         if (sub === '/renewals' && M === 'POST') { try { await P.checkRenewals(id); } catch (e) { return json(res, { error: e.message }, 400); } return json(res, P.get(id)); }
         if (sub === '/scan' && M === 'POST') {
@@ -1174,5 +1195,9 @@ Promise.all([import('./shared/checks.mjs'), import('./shared/seo.mjs')]).then(([
     const up = async () => { for (const id of P.upDue()) { try { await P.upCheck(id); } catch (e) { console.log('up check failed', id, e.message); } } };
     setTimeout(up, 20e3).unref?.();
     setInterval(up, 60 * 60e3).unref?.();
+    // Files from the client: each project's folder, every two minutes, for files that fit what's still to come.
+    const files = () => { try { const n = P.requestsTick(); if (n) console.log('files from clients', n); } catch (e) { console.log('files check failed', e.message); } };
+    setTimeout(files, 30e3).unref?.();
+    setInterval(files, 2 * 60e3).unref?.();
   });
 });

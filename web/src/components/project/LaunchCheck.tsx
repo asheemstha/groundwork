@@ -243,11 +243,12 @@ function Report({ p, r, focus, busy, onRun, head, speed, setSpeed }: { p: Projec
       {(r.fixed || []).length > 0 && <Fixed r={r} />}
       {!!info.speed?.length && <Speed r={r} list={info.speed} carried={r.checks!.find((c) => c.id === "speed")?.carried} />}
       {info.tracking && <Tracking t={info.tracking} error={info.trackingError} />}
+      {info.stack && <Stack s={info.stack} p={p} staging={!!r.staging} />}
 
       <section className="grid gap-1">
         <h2 className="mb-1 text-sm font-medium">Also found</h2>
         <div className="overflow-hidden rounded-xl border bg-card text-[13.5px]">
-          <Fact label="Sitemap" bad={!info.sitemap?.found && !r.staging}>{info.sitemap?.found ? <>Found, {info.sitemap.urls?.toLocaleString()} URLs <Out href={info.sitemap.url!} /></> : r.staging ? "Not found on staging. Check it’s there on the live domain." : "Not found at /sitemap.xml. Webflow makes one when it’s switched on in SEO settings."}</Fact>
+          <Fact label="Sitemap" bad={!info.sitemap?.found && !r.staging}>{info.sitemap?.found ? <>Found, {info.sitemap.urls?.toLocaleString()} URLs <Out href={info.sitemap.url!} /></> : r.staging ? "Not found on staging. Check it’s there on the live domain." : `Not found at /sitemap.xml. ${sitemapHint(p.platform, info.stack)}`}</Fact>
           <Fact label="robots.txt" bad={!!info.robots?.blocksAll && !r.staging}>{!info.robots?.found ? "None. That’s fine, everything can be indexed." : info.robots.blocksAll ? (r.staging ? "Blocks every page, as staging should" : "Blocks every page") : "Found, allows indexing"}</Fact>
           <Fact label="Copyright year" bad={!!info.copyright && info.copyright < year}>{info.copyright ? (info.copyright < year ? `${info.copyright}, update it to ${year}` : String(info.copyright)) : "No copyright line found"}</Fact>
           <Fact label="Phone numbers" bad={info.phones.length > 0} list={info.phones.map((x) => ({ page: x.page, text: x.number }))} base={r.url}>{info.phones.length ? `${info.phones.length} ${info.phones.length === 1 ? "page shows" : "pages show"} a number that isn’t a tap-to-call link` : "Every number found is a tap-to-call link"}</Fact>
@@ -345,7 +346,7 @@ function Tracking({ t, error }: { t: TrackingInfo; error?: string }) {
   const dropped = t.redirects.filter((x) => !x.kept)
   return (
     <section className="grid gap-1">
-      <h2 className="mb-1 flex items-baseline gap-2 text-sm font-medium">What’s installed<span className="text-[12.5px] font-normal text-muted-foreground">{t.blocked ? `${t.blocked} tracking requests blocked during the check, so nothing reached the client’s accounts` : "as a visitor’s browser sees it"}</span></h2>
+      <h2 className="mb-1 flex items-baseline gap-2 text-sm font-medium">Tracking tags<span className="text-[12.5px] font-normal text-muted-foreground">{t.blocked ? `${t.blocked} tracking requests blocked during the check, so nothing reached the client’s accounts` : "as a visitor’s browser sees it"}</span></h2>
       <div className="overflow-hidden rounded-xl border bg-card text-[13.5px]">
         {t.tags.length ? t.tags.map((x) => (
           <div key={x.tag} className="grid min-h-10 grid-cols-[minmax(0,1fr)_minmax(0,1fr)_120px] items-center gap-3 border-t px-4 py-2 first:border-t-0">
@@ -364,6 +365,32 @@ function Tracking({ t, error }: { t: TrackingInfo; error?: string }) {
         <Fact label="Ad click IDs" bad={dropped.length > 0}>{!t.redirects.length ? "No redirects to test" : dropped.length ? `${dropped.length} of ${t.redirects.length} redirects drop gclid and UTM tags` : `Kept through ${t.redirects.length} ${t.redirects.length === 1 ? "redirect" : "redirects"}`}</Fact>
       </div>
       {error && <p className="text-[12.5px] text-muted-foreground">The cookie test couldn’t finish: {error}</p>}
+    </section>
+  )
+}
+
+// Where the platform makes its sitemap, from the project's platform or what the check saw.
+function sitemapHint(platform: string | null, stack?: NonNullable<LaunchReport["info"]>["stack"]) {
+  const seen = stack?.services.find((x) => x.kind === "Platform")?.name.toLowerCase()
+  const pf = platform || seen || ""
+  return /webflow/.test(pf) ? "Webflow makes one when it’s switched on in SEO settings." : /wordpress/.test(pf) ? "WordPress makes one at /wp-sitemap.xml, or an SEO plugin like Yoast makes its own." : /shopify|squarespace|wix|framer/.test(pf) ? "The platform makes one on its own once the site is published." : "Most platforms make one: check it’s switched on."
+}
+
+// The platform, plugins and services the pages load, the DNS host, and the registrar and certificate from the renewals check.
+const STACK_LABEL: Record<string, string> = { "WordPress plugin": "WordPress plugins" }
+function Stack({ s, p, staging }: { s: NonNullable<NonNullable<LaunchReport["info"]>["stack"]>; p: Project; staging: boolean }) {
+  const kinds = [...new Set(s.services.map((x) => x.kind))]
+  const rn = p.renewals
+  return (
+    <section className="grid gap-1">
+      <h2 className="mb-1 flex items-baseline gap-2 text-sm font-medium">What the site runs on<span className="text-[12.5px] font-normal text-muted-foreground">from what its pages load, so services behind a login or on the server aren’t listed</span></h2>
+      <div className="overflow-hidden rounded-xl border bg-card text-[13.5px]">
+        {kinds.map((k) => <Fact key={k} label={STACK_LABEL[k] || k}>{s.services.filter((x) => x.kind === k).map((x) => x.name).join(", ")}</Fact>)}
+        {!kinds.length && <Fact label="Services">None recognised on the pages checked</Fact>}
+        {!staging && s.dns && <Fact label="DNS">{s.dns.host || "Name servers"}<span className="text-muted-foreground"> {s.dns.servers.slice(0, 2).join(", ")}</span></Fact>}
+        {!staging && rn?.domain?.registrar && <Fact label="Domain registrar">{rn.domain.registrar}</Fact>}
+        {!staging && rn?.ssl?.issuer && <Fact label="SSL certificate">From {rn.ssl.issuer}</Fact>}
+      </div>
     </section>
   )
 }
