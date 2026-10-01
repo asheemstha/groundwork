@@ -17,6 +17,8 @@ Follow [Install (Mac)](README.md#install-mac) in the README. The app isn't signe
 
 ## Your first two weeks
 
+If you're new: the two-step start on Today. Did it open the right checklist?
+
 Run one real project in Groundwork from start to finish, or as far as it gets. Along the way, try:
 
 - Each project's Overview: does its first sentence say where things really stand?

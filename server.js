@@ -800,7 +800,7 @@ const server = http.createServer(async (req, res) => {
     } catch (e) { return json(res, { error: e.message }, 400); }
 
     // ---- projects ----
-    if (p === '/api/home' && M === 'GET') return json(res, P.home());
+    if (p === '/api/home' && M === 'GET') return json(res, P.home({ updates: (getSettings().prefs || {}).weeklyUpdates !== false }));
     if (p === '/api/projects' && M === 'GET') return json(res, P.list());
     if (p === '/api/items' && M === 'GET') return json(res, P.searchItems());
     // App details for a bug report: versions, the Mac, the browser and AI tools (never the account), counts and the

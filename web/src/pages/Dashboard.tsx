@@ -5,6 +5,7 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { SiteIcon, TopBar } from "@/components/common/bits"
 import { newProject } from "@/components/project/NewProjectDialog"
+import { FirstRun } from "@/components/shell/FirstRun"
 import { MyTasks } from "@/components/time/MyTasks"
 import { PlayButton, useRunningOn } from "@/components/time/TimeBits"
 import { timeChanged, useTimer } from "@/hooks/useTimer"
@@ -17,7 +18,7 @@ import { go, routes } from "@/lib/router"
 
 /** Today: my tasks and time, the messages to send, then what needs doing across every project and where each stands. */
 export function Dashboard() {
-  const { projects, runs, refreshProjects } = useApp()
+  const { projects, runs } = useApp()
   const { state } = useTimer()
   const [data, setData] = React.useState<HomeData | null>(null)
   const [left, setLeft] = React.useState(0)
@@ -34,17 +35,14 @@ export function Dashboard() {
       <div className="scrollbar-thin flex-1 overflow-auto">
         <div className="flex mx-auto w-full max-w-5xl flex-col gap-9 px-12 pt-10 pb-12">
           <div>
+            {work.length > 0 && <>
             <div className="text-[13px] text-muted-foreground">{work.length ? (building.length ? `${building.length} ${building.length === 1 ? "project" : "projects"} in progress` : "Nothing in progress") : today}</div>
             <h1 className="mt-1 text-[32px] leading-tight font-medium">{work.length ? today : "Welcome to Groundwork"}</h1>
             {data && work.length > 0 && <p className="mt-1.5 text-[14px] text-muted-foreground">{[left ? `${left} ${left === 1 ? "task" : "tasks"} left` : "", state?.today.mins ? `${fmtMins(state.today.mins)} logged` : ""].filter(Boolean).join(", ").replace(/^./, (c) => c.toUpperCase())}{left || state?.today.mins ? ". " : ""}{summaryLine(data)}</p>}
+            </>}
           </div>
-          <Setup />
-          {!work.length ? (
-            <div className="rounded-lg bg-muted/50 px-6 py-8 text-center">
-              <p className="text-[14px] text-muted-foreground">A project follows a website checklist from kickoff to launch. An audit just scans a site and checks it.</p>
-              <div className="mt-4 flex flex-wrap justify-center gap-2"><Button onClick={() => newProject()}><Plus />New project</Button><Button variant="outline" onClick={() => newProject({ audit: true })}>Audit a site</Button><Button variant="ghost" onClick={async () => { try { const r = await api.createSample(); await refreshProjects(); go(routes.project(r.id)) } catch (e) { toast.error((e as Error).message) } }}>Explore a sample project</Button></div>
-            </div>
-          ) : (
+          {!work.length ? <FirstRun /> : <Setup />}
+          {!work.length ? null : (
             <>
               <MyTasks onCount={setLeft} />
               <div className="grid grid-cols-2 gap-x-8 gap-y-4 sm:grid-cols-4">

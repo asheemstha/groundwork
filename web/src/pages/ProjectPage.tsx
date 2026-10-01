@@ -390,6 +390,8 @@ function Group({ name, done, total, children }: { name: string; done: number; to
   )
 }
 
+// The plans that use the person's own Claude Code or Codex; everything else works without AI.
+const AI_TOOLS = ["headings", "seo"]
 function ItemRow({ it, projectId, onToggle, onOpen, active }: { it: PItem; projectId: string; onToggle: () => void; onOpen: () => void; active?: boolean }) {
   const { now } = useTimer()
   const running = useRunningOn({ projectId, itemId: it.id })
@@ -397,7 +399,7 @@ function ItemRow({ it, projectId, onToggle, onOpen, active }: { it: PItem; proje
   let tag: React.ReactNode = null
   if (it.who === "client" && it.status === "todo") tag = <Chip className={cn(!it.asked && "border-dashed")}><User className="size-3" />{it.asked ? `Asked ${new Date(it.asked).toLocaleDateString([], { month: "short", day: "numeric" })}` : "Not asked yet"}</Chip>
   else if (it.tool && it.toolInfo) tag = it.toolInfo.ready
-    ? <Chip className="bg-muted/60 text-foreground/80"><span className="size-2 rounded-[2px] bg-brand" />{it.toolInfo.progress ? <>{it.toolInfo.name} <span className="text-muted-foreground tabular">{it.toolInfo.progress.done} of {it.toolInfo.progress.total}</span></> : it.status === "done" && it.auto ? "Done by Groundwork" : it.status === "todo" && it.toolInfo.issues ? <>{it.toolInfo.name} <span className="text-destructive tabular">{it.toolInfo.issues} {it.toolInfo.issues === 1 ? "issue" : "issues"}</span></> : it.toolInfo.name}</Chip>
+    ? <Chip className="bg-muted/60 text-foreground/80"><span className="size-2 rounded-[2px] bg-brand" />{AI_TOOLS.includes(it.tool) && !it.toolInfo.progress ? <>{it.toolInfo.name} <span className="text-muted-foreground">· optional</span></> : it.toolInfo.progress ? <>{it.toolInfo.name} <span className="text-muted-foreground tabular">{it.toolInfo.progress.done} of {it.toolInfo.progress.total}</span></> : it.status === "done" && it.auto ? "Done by Groundwork" : it.status === "todo" && it.toolInfo.issues ? <>{it.toolInfo.name} <span className="text-destructive tabular">{it.toolInfo.issues} {it.toolInfo.issues === 1 ? "issue" : "issues"}</span></> : it.toolInfo.name}</Chip>
     : <Chip className="border-dashed"><span className="size-2 rounded-[2px] bg-brand" />{it.toolInfo.name}, soon</Chip>
   else if (it.note || it.link) tag = <span className="inline-flex items-center gap-1 text-xs text-muted-foreground/80">{it.link ? <Link2 className="size-3" /> : <MessageSquare className="size-3" />}{it.link ? "Link" : "Note"}</span>
   return (
@@ -509,6 +511,8 @@ function PaymentRow({ p, ph, setP }: { p: Project; ph: PPhase; setP: (x: Project
 
 // ---------- item detail ----------
 function ItemSheet({ p, it, onClose, setItem, reload, order, onMove }: { p: Project; it: PItem | null; onClose: () => void; setItem: SetItem; reload: () => void; order: string[]; onMove: (id: string) => void }) {
+  const app = useApp()
+  const aiReady = !!(app.status?.engines.claude?.loggedIn || app.status?.engines.codex?.loggedIn)
   const [note, setNote] = React.useState("")
   const [link, setLink] = React.useState("")
   React.useEffect(() => { setNote(it?.note || ""); setLink(it?.link || "") }, [it?.id]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -580,6 +584,7 @@ function ItemSheet({ p, it, onClose, setItem, reload, order, onMove }: { p: Proj
                 {t && (
                   <section className="mt-6 grid gap-3 rounded-lg border p-4">
                     <div className="text-[13px] text-muted-foreground">{t.ready ? t.text || "Not run yet" : "Coming soon to Groundwork"}</div>
+                    {x.tool && AI_TOOLS.includes(x.tool) && !aiReady && <p className="text-[13px] leading-relaxed">Optional. The {t.name.toLowerCase()} uses your own Claude Code or Codex: <button onClick={() => go(routes.settings("claude"))} className="underline underline-offset-2">set one up in Settings</button>, or tick this item yourself when you do it by hand.</p>}
                     {t.progress && t.progress.total > 0 && <><div className="flex items-baseline gap-1.5"><span className="text-xl font-medium tabular">{t.progress.done}</span><span className="text-muted-foreground">of {t.progress.total} {x.tool === "seo" ? "SEO changes done" : x.tool === "requests" ? "files in" : "tag fixes done"}</span></div><div className="h-[5px] overflow-hidden rounded-full bg-muted"><span className="block h-full bg-brand" style={{ width: `${(100 * t.progress.done) / t.progress.total}%` }} /></div></>}
                     {x.tool === "launch" ? <LaunchItemPanel p={p} it={x} reload={reload} /> : t.ready && (t.runId
                       ? <div className="flex gap-2"><Button size="sm" onClick={() => go(x.tool === "headings" ? routes.review(t.runId!) : x.tool === "seo" ? routes.seo(t.runId!) : routes.run(t.runId!))}>{x.tool === "headings" ? "Open the to-do list" : x.tool === "seo" ? "Open the SEO plan" : "Open the scan"}</Button></div>

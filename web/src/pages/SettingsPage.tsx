@@ -17,6 +17,7 @@ import { api, invoicesCsvUrl, type EngineId } from "@/lib/api"
 import { ago, cap, clock, pct } from "@/lib/format"
 import { SkillsSection } from "@/components/settings/Skills"
 import { ConnectorsSection } from "@/components/settings/Connectors"
+import { SERVICES } from "@/lib/services"
 
 const SECTIONS = [["you", "You"], ["invoices", "Invoices"], ["reminders", "Reminders and calendar"], ["engines", "AI accounts"], ["connectors", "Connected data"], ["privacy", "Data and privacy"], ["skills", "AI rules"], ["updates", "Updates"], ["scanning", "Scanning"], ["help", "Help and feedback"]] as const
 
@@ -143,6 +144,10 @@ function Reminders() {
       <div className="grid gap-3 bg-card p-4 text-sm sm:grid-cols-[1fr_auto] sm:items-center">
         <span><span className="block font-medium">Morning notification</span><span className="text-muted-foreground">Once a day from 9am, while Groundwork is open: what’s due today, what’s late and the messages to send.</span></span>
         <span className="flex items-center gap-3">{prefs.notify && <button onClick={test} className="text-[12.5px] text-muted-foreground underline underline-offset-2 hover:text-foreground">Send a test</button>}<Switch checked={!!prefs.notify} onCheckedChange={setNotify} aria-label="Morning notification" /></span>
+      </div>
+      <div className="grid gap-3 bg-card p-4 text-sm sm:grid-cols-[1fr_auto] sm:items-center">
+        <span><span className="block font-medium">Weekly update reminders</span><span className="text-muted-foreground">Today lists a weekly update to send for each project in progress, a week after the last one. You can always write one from the Client tab.</span></span>
+        <Switch checked={prefs.weeklyUpdates !== false} onCheckedChange={async (on) => { await api.savePrefs({ weeklyUpdates: on }); setPrefs({ weeklyUpdates: on }) }} aria-label="Weekly update reminders" />
       </div>
       <div className="grid gap-3 bg-card p-4 text-sm">
         <span><span className="block font-medium">Calendar</span><span className="text-muted-foreground">Launch days and sign-off dates for every project in Calendar or any app that subscribes to calendars. A subscription refreshes while Groundwork is open.</span></span>
@@ -285,6 +290,21 @@ function Preferences() {
         <span><span className="block font-medium">Studio or agency name</span><span className="text-muted-foreground">Shows at the top of client status pages.</span></span>
         <Input value={agency} placeholder="e.g. Northwind Studio" onChange={(e) => setAgency(e.target.value)} onBlur={saveAgency} onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()} />
       </label>
+      <label className="grid gap-3 bg-card p-4 text-sm sm:grid-cols-[1fr_260px] sm:items-center">
+        <span><span className="block font-medium">Who runs the projects</span><span className="text-muted-foreground">Just you, or a studio where each person keeps their own hours.</span></span>
+        <select value={prefs.who || "solo"} onChange={async (e) => { const who = e.target.value as "solo" | "studio"; await api.savePrefs({ who }); setPrefs({ who }) }} className="h-9 rounded-lg border border-input bg-card px-2.5 text-[13.5px]">
+          <option value="solo">Just me</option><option value="studio">A studio with a team</option>
+        </select>
+      </label>
+      <div className="grid gap-3 bg-card p-4 text-sm">
+        <span><span className="block font-medium">What you do for clients</span><span className="text-muted-foreground">Their checklists come first when you start a project.</span></span>
+        <div className="flex flex-wrap gap-1.5">
+          {SERVICES.map((x) => {
+            const on = (prefs.services || []).includes(x.id)
+            return <button key={x.id} aria-pressed={on} onClick={async () => { const services = on ? (prefs.services || []).filter((y) => y !== x.id) : [...(prefs.services || []), x.id]; await api.savePrefs({ services }); setPrefs({ services }) }} className={cn("flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-[13px]", on ? "border-foreground" : "text-foreground/80 hover:border-foreground/30")}>{on && <Check className="size-3.5" />}{x.label}</button>
+          })}
+        </div>
+      </div>
       <div className="grid gap-3 bg-card p-4 text-sm sm:grid-cols-[1fr_260px] sm:items-center">
         <span className="font-medium">Theme</span>
         <div className="grid grid-cols-3 gap-1 rounded-lg bg-muted p-1">

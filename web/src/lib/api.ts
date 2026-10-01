@@ -74,6 +74,13 @@ export interface Settings {
   payDays?: number
   /** The Google Cloud project ID, to fill in the connector setup commands. */
   gcpProject?: string
+  /** From the first run: who runs the projects, and what you do for clients (their checklists come first). */
+  who?: "solo" | "studio"
+  services?: string[]
+  /** Today's weekly-update reminders. Off for someone new; on for anyone from before they could be switched. */
+  weeklyUpdates?: boolean
+  /** Every checklist in the New project picker, the long Full agency process too. */
+  allChecklists?: boolean
 }
 /** Which official connectors the user's Claude Code has, from `claude mcp list`. */
 export type ConnectorId = "ga4" | "ads" | "meta" | "gsc"

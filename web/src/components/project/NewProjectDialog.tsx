@@ -13,8 +13,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useApp } from "@/hooks/useApp"
 import { api, type BriefResult, type ChecklistTemplate, type TemplateSummary } from "@/lib/api"
 import { go, routes } from "@/lib/router"
+import { SERVICES } from "@/lib/services"
 
-type Detail = { name?: string; old?: string; audit?: boolean; template?: string }
+type Detail = { name?: string; old?: string; audit?: boolean; template?: string; platform?: PlatformId }
 /** Open the New project dialog from anywhere: a website project, or an audit of one site (`audit`). */
 export const newProject = (detail?: Detail) => window.dispatchEvent(new CustomEvent("gw:new-project", { detail: detail || {} }))
 
@@ -51,12 +52,19 @@ export function NewProjectDialog() {
   const [found, setFound] = React.useState<BriefResult | null>(null)
   const [keep, setKeep] = React.useState<Set<number>>(new Set())
   const aiReady = !!(status?.engines.claude?.loggedIn || status?.engines.codex?.loggedIn)
+  // The checklists for what you do come first; the 140-item Full agency process stays out of the way unless asked for.
+  const [showAll, setShowAll] = React.useState(false)
+  const firstIds = SERVICES.filter((x) => (prefs.services || []).includes(x.id)).flatMap((x) => x.templates)
+  const hide = (t: TemplateSummary) => t.id === "website" && !showAll && !prefs.allChecklists && prefs.template !== "website"
+  const rank = (t: TemplateSummary) => (firstIds.includes(t.id) ? firstIds.indexOf(t.id) : 100 + list.indexOf(t))
+  const shown = list.filter((t) => !hide(t)).sort((a, b) => rank(a) - rank(b))
+  const hiddenCount = list.length - shown.length
 
   React.useEffect(() => {
     const on = (e: Event) => {
       const d = (e as CustomEvent<Detail>).detail || {}
       setAudit(!!d.audit); setStep(d.audit || d.template ? "details" : "pick"); setName(d.name || ""); setSites({ old: d.old || "", staging: "", live: "" }); setClientName(""); setBusy(false)
-      setKickoff(addDays(7)); setLaunch(addDays(77)); setStartAt(""); setTouched(false); setPlatform(""); setPickedPlatform(false)
+      setKickoff(addDays(7)); setLaunch(addDays(77)); setStartAt(""); setTouched(false); setPlatform(d.platform || ""); setPickedPlatform(!!d.platform); setShowAll(false)
       setBriefOpen(false); setBrief(""); setFound(null); setKeep(new Set())
       api.templates().then((l) => {
         const c = l.filter((t) => t.kind === "checklist"); setList(c)
@@ -175,13 +183,14 @@ export function NewProjectDialog() {
               <DialogDescription>Each checklist is written from public guidance and works on any platform. You can change anything once the project exists.</DialogDescription>
             </DialogHeader>
             <div className="scrollbar-thin grid max-h-[66vh] grid-cols-1 gap-2.5 overflow-auto px-6 py-5 sm:grid-cols-2">
-              {list.filter((t) => t.website !== false).map(card)}
+              {shown.filter((t) => t.website !== false).map(card)}
               <button onClick={() => { setAudit(true); setStep("details") }} className="grid content-start gap-1 rounded-xl border border-dashed px-4 py-3.5 text-left hover:border-foreground/25 hover:bg-muted/30">
                 <span className="font-medium">Audit a site</span>
                 <span className="text-[12.5px] leading-snug text-muted-foreground">Scan one site and check it, with no checklist. Turns into a project if the redesign is won.</span>
               </button>
-              {list.some((t) => t.website === false) && <h3 className="mt-3 text-[13px] font-medium text-muted-foreground sm:col-span-2">Other client work <span className="font-normal">· no website needed, add one later if the work includes a site</span></h3>}
-              {list.filter((t) => t.website === false).map(card)}
+              {shown.some((t) => t.website === false) && <h3 className="mt-3 text-[13px] font-medium text-muted-foreground sm:col-span-2">Other client work <span className="font-normal">· no website needed, add one later if the work includes a site</span></h3>}
+              {shown.filter((t) => t.website === false).map(card)}
+              {hiddenCount > 0 && <button onClick={() => setShowAll(true)} className="text-left text-[13px] text-muted-foreground underline underline-offset-2 hover:text-foreground sm:col-span-2">Also show the Full agency process, the long one with 140 items</button>}
             </div>
             <div className="flex items-center gap-2 border-t px-6 py-3.5 text-[13px] text-muted-foreground">
               <span className="flex-1">Moving a project from another Mac?</span>
