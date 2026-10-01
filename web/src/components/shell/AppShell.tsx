@@ -1,12 +1,15 @@
 import * as React from "react"
 import { cn } from "cn"
-import { ArrowLeft, ArrowRight, Camera, Check, ChevronDown, Download, House, LayoutTemplate, Loader2, PanelLeft, RefreshCw, Search, Settings, Sparkles, SquarePen, Trash2 } from "lucide-react"
+import { ArrowLeft, ArrowRight, Camera, Check, ChevronDown, Download, LayoutTemplate, Loader2, PanelLeft, RefreshCw, Search, Settings, Sparkles, SquarePen, Sun, Timer, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useApp } from "@/hooks/useApp"
 import { useMorningNotice } from "@/hooks/useMorningNotice"
 import { FeedbackDialog } from "@/components/common/Feedback"
+import { TimerCard, TimerCheck } from "@/components/time/TimeBits"
+import { useTimer } from "@/hooks/useTimer"
+import { fmtMins } from "@/lib/time"
 import { go, routes, useRoute } from "@/lib/router"
 import { api, type ProjectSummary, type RunSummary } from "@/lib/api"
 import { NewProjectDialog, newProject } from "@/components/project/NewProjectDialog"
@@ -59,6 +62,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <NewProjectDialog />
       <FeedbackDialog />
       <QuickFind />
+      <TimerCheck />
       {sidebar ? (
         <Sidebar />
       ) : (
@@ -175,10 +179,10 @@ export function VersionMenu({ runId, tool }: { runId: string; tool: VersionTool 
   )
 }
 
-function NavItem({ icon: Icon, label, active, onClick, hint }: { icon: React.ComponentType<{ className?: string }>; label: string; active?: boolean; onClick: () => void; hint?: string }) {
+function NavItem({ icon: Icon, label, active, onClick, hint, count }: { icon: React.ComponentType<{ className?: string }>; label: string; active?: boolean; onClick: () => void; hint?: string; count?: string }) {
   return (
     <button onClick={onClick} className={cn("group flex h-[30px] items-center gap-2.5 rounded-md px-2 text-[14px] font-medium text-foreground/80 hover:bg-sidebar-accent", active && "bg-sidebar-accent text-foreground")}>
-      <Icon className="size-4 text-muted-foreground" /><span className="flex-1 text-left">{label}</span>{hint && <span className="text-[11px] font-normal text-muted-foreground opacity-0 group-hover:opacity-100">{hint}</span>}
+      <Icon className="size-4 text-muted-foreground" /><span className="flex-1 text-left">{label}</span>{hint && <span className="text-[11px] font-normal text-muted-foreground opacity-0 group-hover:opacity-100">{hint}</span>}{count && <span className="text-[12px] font-normal text-muted-foreground tabular">{count}</span>}
     </button>
   )
 }
@@ -207,6 +211,7 @@ function ProjectRow({ p, active }: { p: ProjectSummary; active: boolean }) {
 /** The sidebar: pinned beside the page, or floating over it while previewed from the collapsed state. */
 function Sidebar({ floating, open, onHover, panelRef }: { floating?: boolean; open?: boolean; onHover?: (on: boolean) => void; panelRef?: React.Ref<HTMLElement> }) {
   const { runs, projects, status } = useApp()
+  const timer = useTimer()
   const route = useRoute()
   // A scan or plan page belongs to its project, so the project stays highlighted there.
   const cur = route.name === "run" || route.name === "review" || route.name === "seo" ? route.id : null
@@ -227,10 +232,12 @@ function Sidebar({ floating, open, onHover, panelRef }: { floating?: boolean; op
     >
       {/* The top row belongs to the window buttons and the toggle cluster, which float above it. */}
       <div className={cn("app-drag shrink-0", floating ? "h-12" : "h-14")} />
+      <TimerCard />
       <nav aria-label="Main" className="grid gap-px">
         <NavItem icon={SquarePen} label="New project" hint="⌘N" onClick={() => newProject()} />
         <NavItem icon={Search} label="Search" hint="⌘K" onClick={openQuickFind} />
-        <NavItem icon={House} label="Home" active={route.name === "home"} onClick={() => go(routes.home)} />
+        <NavItem icon={Sun} label="Today" active={route.name === "home"} onClick={() => go(routes.home)} />
+        <NavItem icon={Timer} label="Time" active={route.name === "time"} onClick={() => go(routes.time())} count={timer.state?.today.mins ? fmtMins(timer.state.today.mins) : undefined} />
         <NavItem icon={LayoutTemplate} label="Templates" active={route.name === "templates" || route.name === "template"} onClick={() => go(routes.templates)} />
       </nav>
       <div className="scrollbar-thin mt-4 min-h-0 flex-1 overflow-auto">

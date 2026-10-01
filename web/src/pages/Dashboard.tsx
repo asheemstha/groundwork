@@ -1,20 +1,26 @@
 import * as React from "react"
-import { Bell, CalendarClock, Mail, Plus, Radar, Receipt, User, Stamp } from "lucide-react"
+import { Bell, CalendarClock, ListPlus, Mail, Plus, Radar, Receipt, User, Stamp } from "lucide-react"
 import { cn } from "cn"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { SiteIcon, TopBar } from "@/components/common/bits"
 import { newProject } from "@/components/project/NewProjectDialog"
+import { MyTasks } from "@/components/time/MyTasks"
+import { PlayButton, useRunningOn } from "@/components/time/TimeBits"
+import { timeChanged, useTimer } from "@/hooks/useTimer"
+import { clockOf, fmtMins } from "@/lib/time"
 import { useApp } from "@/hooks/useApp"
 import { api, type HomeData, type HomeGroup, type HomeMessages, type NextUp, type ProjectSummary } from "@/lib/api"
 import { dayOf, dueLabel, fmtDay } from "@/lib/project"
 import { store } from "@/lib/store"
 import { go, routes } from "@/lib/router"
 
-/** Home: what needs doing across every project, soonest first, and where each project stands. */
+/** Today: my tasks and time, the messages to send, then what needs doing across every project and where each stands. */
 export function Dashboard() {
   const { projects, runs, refreshProjects } = useApp()
+  const { state } = useTimer()
   const [data, setData] = React.useState<HomeData | null>(null)
+  const [left, setLeft] = React.useState(0)
   React.useEffect(() => { api.home().then(setData).catch(() => {}) }, [projects, runs])
   const today = new Date().toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" })
   const s = data?.stats
@@ -22,13 +28,13 @@ export function Dashboard() {
 
   return (
     <div className="flex h-full flex-col">
-      <TopBar><span className="px-1.5 text-[14px]">Home</span><span className="flex-1" /><Button size="sm" onClick={() => newProject()}><Plus />New project</Button></TopBar>
+      <TopBar><span className="px-1.5 text-[14px]">Today</span><span className="flex-1" /><Button size="sm" onClick={() => newProject()}><Plus />New project</Button></TopBar>
       <div className="scrollbar-thin flex-1 overflow-auto">
         <div className="flex mx-auto w-full max-w-5xl flex-col gap-9 px-12 pt-10 pb-12">
           <div>
-            <div className="text-[13px] text-muted-foreground">{today}</div>
-            <h1 className="mt-1 text-[32px] leading-tight font-medium">{work.length ? `${work.length} ${work.length === 1 ? "project" : "projects"} in progress` : "Welcome to Groundwork"}</h1>
-            {data && work.length > 0 && <p className="mt-1.5 text-[14px] text-muted-foreground">{summaryLine(data)}</p>}
+            <div className="text-[13px] text-muted-foreground">{work.length ? `${work.length} ${work.length === 1 ? "project" : "projects"} in progress` : today}</div>
+            <h1 className="mt-1 text-[32px] leading-tight font-medium">{work.length ? today : "Welcome to Groundwork"}</h1>
+            {data && work.length > 0 && <p className="mt-1.5 text-[14px] text-muted-foreground">{[left ? `${left} ${left === 1 ? "task" : "tasks"} left` : "", state?.today.mins ? `${fmtMins(state.today.mins)} logged` : ""].filter(Boolean).join(", ").replace(/^./, (c) => c.toUpperCase())}{left || state?.today.mins ? ". " : ""}{summaryLine(data)}</p>}
           </div>
           <Setup />
           {!work.length ? (
@@ -38,6 +44,7 @@ export function Dashboard() {
             </div>
           ) : (
             <>
+              <MyTasks onCount={setLeft} />
               <div className="grid grid-cols-2 gap-x-8 gap-y-4 sm:grid-cols-4">
                 {s?.overdue ? <Stat n={s.overdue} label="of yours late" tone="bad" sub={`${s.dueThisWeek} more due this week`} /> : <Stat n={s?.dueThisWeek ?? 0} label="due this week" sub={s?.toAsk ? `${s.toAsk} to ask the client for` : undefined} />}
                 <Stat n={s?.waiting ?? 0} label="waiting on clients" tone={s?.late ? "bad" : undefined} sub={s?.late ? `${s.late} client ${s.late === 1 ? "item" : "items"} late` : "none late"} />
@@ -175,18 +182,27 @@ const KIND: Record<NextUp["kind"], (n: NextUp) => React.ReactNode> = {
   watch: () => <span className="inline-flex items-center gap-1"><Radar className="size-3" />Groundwork checked the live site again</span>,
 }
 
-// Two lines, so the title gets the full width: what to do, then what kind of work it is.
+// Two lines, so the title gets the full width: what to do, then what kind of work it is. Your own items can go on
+// today's task list or get a timer straight away.
 function NextRow({ n }: { n: NextUp }) {
+  const { now } = useTimer()
+  const running = useRunningOn({ projectId: n.projectId, itemId: n.itemId })
   const open = () => go(n.kind === "watch" && n.checkId ? routes.launch(n.projectId, n.checkId) : n.kind === "client" || n.kind === "ask" ? routes.project(n.projectId, "client") : n.itemId ? routes.item(n.projectId, n.itemId) : routes.project(n.projectId))
   const due = n.kind === "watch" ? fmtDay(n.due) : n.kind === "signoff" && n.ready ? "Ready" : n.kind === "ask" ? (n.due ? `due ${fmtDay(n.due)}` : "") : dueLabel({ due: n.due, late: n.late, status: "todo" })
+  const ours = n.kind === "item" && !!n.itemId
+  const addTask = async (e: React.MouseEvent) => { e.stopPropagation(); try { await api.addTask({ title: n.title, projectId: n.projectId, itemId: n.itemId }); toast("Added to my tasks"); timeChanged() } catch (err) { toast((err as Error).message) } }
   return (
-    <button onClick={open} className="grid min-h-[46px] w-full grid-cols-[minmax(0,1fr)_96px] items-center gap-3.5 rounded-md px-2 py-1.5 text-left hover:bg-muted/50">
+    <div role="button" tabIndex={0} onClick={open} onKeyDown={(e) => e.key === "Enter" && e.target === e.currentTarget && open()} className="group grid min-h-[46px] w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto_96px] items-center gap-3 rounded-md px-2 py-1.5 text-left hover:bg-muted/50">
       <span className="grid min-w-0 gap-0.5">
         <span className="truncate text-[13.5px]">{n.title}</span>
         <span className="flex min-w-0 items-center gap-1.5 text-[12px] text-muted-foreground">{KIND[n.kind](n)}</span>
       </span>
-      <span className={cn("text-right text-[12.5px] whitespace-nowrap", n.late ? "text-destructive" : n.kind === "signoff" && n.ready ? "text-foreground" : "text-muted-foreground")}>{due}</span>
-    </button>
+      <span className="flex items-center">
+        {ours && !running && <button onClick={addTask} aria-label="Add to my tasks" title="Add to my tasks" className="grid size-7 place-items-center rounded-md text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-muted hover:text-foreground focus-visible:opacity-100"><ListPlus className="size-4" /></button>}
+        {ours && <PlayButton running={running} start={{ projectId: n.projectId, itemId: n.itemId, title: n.title }} className={running ? "" : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100"} label="Start a timer on this item" />}
+      </span>
+      <span className={cn("text-right text-[12.5px] whitespace-nowrap", running ? "text-brand-ink tabular" : n.late ? "text-destructive" : n.kind === "signoff" && n.ready ? "text-foreground" : "text-muted-foreground")}>{running ? clockOf(running, now) : due}</span>
+    </div>
   )
 }
 

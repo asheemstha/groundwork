@@ -5,6 +5,7 @@ import { sendFeedback } from "@/components/common/Feedback"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { AppShell } from "@/components/shell/AppShell"
 import { AppProvider } from "@/hooks/useApp"
+import { TimerProvider } from "@/hooks/useTimer"
 import { RunProvider } from "@/hooks/useRun"
 import { useRoute } from "@/lib/router"
 import { RunPage } from "@/pages/RunPage"
@@ -15,6 +16,7 @@ import { Dashboard } from "@/pages/Dashboard"
 import { ProjectPage } from "@/pages/ProjectPage"
 import { TemplatesPage } from "@/pages/TemplatesPage"
 import { TemplatePage } from "@/pages/TemplatePage"
+import { TimePage } from "@/pages/TimePage"
 
 /** A page that crashes shows what happened and a way out, instead of a blank window. */
 class PageBoundary extends React.Component<{ children: React.ReactNode }, { error: Error | null }> {
@@ -41,6 +43,7 @@ function Routes() {
     return <RunProvider key={r.id} id={r.id}>{r.name === "run" ? <RunPage tool={r.tool} /> : r.name === "seo" ? <SeoPage view={r.view} /> : <ReviewPage view={r.view} />}</RunProvider>
   if (r.name === "settings") return <SettingsPage focus={r.engine} />
   if (r.name === "project") return <ProjectPage key={r.id} id={r.id} tab={r.tab} sub={r.sub} item={r.item} />
+  if (r.name === "time") return <TimePage key={r.project || ""} project={r.project} />
   if (r.name === "templates") return <TemplatesPage />
   if (r.name === "template") return <TemplatePage key={r.id} id={r.id} />
   return <Dashboard />
@@ -56,10 +59,12 @@ function RouteBoundary() {
 export default function App() {
   return (
     <AppProvider>
-      <TooltipProvider>
-        <PageBoundary><AppShell><RouteBoundary /></AppShell></PageBoundary>
-        <Toaster position="bottom-right" />
-      </TooltipProvider>
+      <TimerProvider>
+        <TooltipProvider>
+          <PageBoundary><AppShell><RouteBoundary /></AppShell></PageBoundary>
+          <Toaster position="bottom-right" />
+        </TooltipProvider>
+      </TimerProvider>
     </AppProvider>
   )
 }

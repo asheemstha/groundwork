@@ -1,5 +1,5 @@
 import * as React from "react"
-import { FileText, FolderKanban, Home, LayoutTemplate, Plus, Rocket, Search, Settings, Wrench, Users } from "lucide-react"
+import { FileText, FolderKanban, LayoutTemplate, Plus, Rocket, Search, Settings, Sun, Timer, Wrench, Users } from "lucide-react"
 import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandShortcut } from "@/components/ui/command"
 import { SiteIcon } from "@/components/common/bits"
 import { newProject } from "@/components/project/NewProjectDialog"
@@ -34,7 +34,8 @@ export function QuickFind() {
       <CommandList className="max-h-[420px]">
         <CommandEmpty>Nothing matches.</CommandEmpty>
         <CommandGroup heading="Go to">
-          <CommandItem value="home" onSelect={() => run(() => go(routes.home))}><Home />Home</CommandItem>
+          <CommandItem value="today home" onSelect={() => run(() => go(routes.home))}><Sun />Today</CommandItem>
+          <CommandItem value="time log timer hours" onSelect={() => run(() => go(routes.time()))}><Timer />Time</CommandItem>
           <CommandItem value="templates" onSelect={() => run(() => go(routes.templates))}><LayoutTemplate />Templates</CommandItem>
           <CommandItem value="settings engines skills" onSelect={() => run(() => go(routes.settings()))}><Settings />Settings<CommandShortcut>⌘,</CommandShortcut></CommandItem>
         </CommandGroup>
@@ -51,6 +52,7 @@ export function QuickFind() {
                 <CommandItem value={`${p.name} client waiting`} onSelect={() => run(() => go(routes.project(p.id, "client")))}><Users /><span className="text-muted-foreground">{p.name} /</span> Client</CommandItem>
                 <CommandItem value={`${p.name} tools`} onSelect={() => run(() => go(routes.project(p.id, "tools")))}><Wrench /><span className="text-muted-foreground">{p.name} /</span> Tools</CommandItem>
                 <CommandItem value={`${p.name} launch check report`} onSelect={() => run(() => go(routes.launch(p.id)))}><Rocket /><span className="text-muted-foreground">{p.name} /</span> Launch check</CommandItem>
+                <CommandItem value={`${p.name} time hours log`} onSelect={() => run(() => go(routes.time(p.id)))}><Timer /><span className="text-muted-foreground">{p.name} /</span> Time</CommandItem>
                 </>}
               </React.Fragment>
             ))}

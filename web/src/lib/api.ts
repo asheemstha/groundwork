@@ -270,7 +270,9 @@ export interface MessageTemplate { id: string; kind: "message" | "email"; name: 
 export type Template = ChecklistTemplate | MessageTemplate
 export interface TemplateSummary extends TemplateMeta { id: string; kind: Template["kind"]; name: string; updated: number; used: number; items?: number; phases?: number; subject?: string; preview?: string; use?: string[] }
 export interface ToolInfo { id: ToolId; name: string; ready: boolean; text?: string; runId?: string; progress?: { done: number; total: number }; check?: LaunchCheckId | "plan" | "live" | "map" | "after" | "recrawl"; checkName?: string; issues?: number }
-export interface PItem { id: string; title: string; check: LaunchCheckId | "plan" | "live" | "map" | "after" | "recrawl" | null; doneMeans: string; who: "us" | "client"; part: string | null; tool: ToolId | null; toolInfo: ToolInfo | null; due: string | null; status: "todo" | "done" | "na"; auto: boolean; at: number | null; note: string; link: string; asked: number | null; nudged: number | null; hist: { at: number; what: string }[]; manualDue: boolean; phaseId: string; phaseName: string; late: boolean; carriedFrom?: string; askBy?: string | null; remindDue?: boolean }
+export interface PItem { id: string; title: string; check: LaunchCheckId | "plan" | "live" | "map" | "after" | "recrawl" | null; doneMeans: string; who: "us" | "client"; part: string | null; tool: ToolId | null; toolInfo: ToolInfo | null; due: string | null; status: "todo" | "done" | "na"; auto: boolean; at: number | null; note: string; link: string; asked: number | null; nudged: number | null; hist: { at: number; what: string }[]; manualDue: boolean; phaseId: string; phaseName: string; late: boolean; carriedFrom?: string; askBy?: string | null; remindDue?: boolean
+  /** The estimate and the time logged on the item, in minutes. */
+  est: number | null; mins: number }
 export interface Signoff { by: string; date: string; note: string; link: string; file: { name: string; stored: string } | null; at: number }
 /** A payment due at a phase's sign-off: invoiced once the phase is signed off, then paid. */
 export interface Payment { label: string; amount: string; invoiced: number | null; paid: number | null }
@@ -294,6 +296,8 @@ export interface Project {
     seo: { runId: string; done: number; total: number; pages: number; at: number } | null; seoRunning: string | null
     redirects: RedirectSummary | null; inventory: InventorySummary | null; redirectsRunning: "build" | "test" | "list" | null; oldScan: { runId: string; urls: number; at: number } | null
   }
+  /** Time logged on the project, in minutes, counting a timer running on it. */
+  time: { mins: number; billable: number; running: { itemId: string | null; start: number } | null }
 }
 // ---------- redirect map ----------
 export type RedirectHow = "same" | "seo" | "slug" | "similar" | "parent" | "home" | "manual"
@@ -362,6 +366,21 @@ export interface HomeMessages { projectId: string; projectName: string; iconRun:
 export interface HomeData { groups: HomeGroup[]; messages: HomeMessages[]; stats: { dueThisWeek: number; dueToday: number; watchIssues: number; overdue: number; toAsk: number; waiting: number; late: number; signoffs: number; nextLaunch: { name: string; date: string } | null }; projects: ProjectSummary[] }
 export interface NewProject { kind?: "project" | "audit"; platform?: PlatformId | null; extraItems?: BriefResult["items"]; name: string; sites?: Partial<Sites>; templateId?: string; kickoff?: string; launch?: string; parts?: string[]; clientName?: string; startAt?: string }
 export interface SignoffInput { by: string; date: string; note?: string; link?: string; file?: { name: string; data: string } | null; carry?: string[]; skip?: string[] }
+
+// ---------- time and tasks ----------
+export interface TimeEntry {
+  id: string; who: string; projectId: string | null; pname: string | null; gone?: boolean; itemId: string | null; item: { title: string; phase: string } | null; taskId: string | null
+  title: string; day: string; mins: number; start: number | null; end: number | null; billable: boolean; by: "timer" | "hand"; at: number
+}
+export interface RunningTimer {
+  id: string; projectId: string | null; pname: string | null; itemId: string | null; item: { title: string; phase: string } | null; taskId: string | null; title: string; start: number; billable: boolean
+  /** When "Still on it" was last answered, and time away from the Mac to ask about. */
+  checked: number | null; away: { from: number; to: number } | null; now: number
+}
+export interface TimerState { running: RunningTimer | null; today: { mins: number; billable: number } }
+export type Stopped = TimeEntry | { dropped: true } | null
+export interface Task { id: string; title: string; est: number | null; projectId: string | null; pname: string | null; itemId: string | null; item: { title: string; phase: string; done: boolean } | null; day: string; done: number | null; created: number; mins: number }
+export interface TimerStart { projectId?: string | null; itemId?: string | null; taskId?: string | null; title?: string; billable?: boolean }
 
 export interface UpdateInfo { enabled: boolean; version: string; commit: string | null; behind: number; latest: string | null; checkedAt: number; error: string | null; launcher: boolean; app?: boolean; url?: string }
 
@@ -432,7 +451,7 @@ export const api = {
   nextCycle: (id: string) => req<Project>("POST", `/api/projects/${id}/next-cycle`),
   previewShift: (id: string, b: { days: number; launch: boolean }) => req<ShiftPreview>("POST", `/api/projects/${id}/shift`, { ...b, dryRun: true }),
   removeProject: (id: string) => req<{ ok: boolean }>("DELETE", `/api/projects/${id}`),
-  setItem: (id: string, itemId: string, b: Partial<{ status: PItem["status"]; note: string; link: string; asked: boolean | number; nudged: boolean; due: string | null }>) => req<Project>("POST", `/api/projects/${id}/items/${itemId}`, b),
+  setItem: (id: string, itemId: string, b: Partial<{ status: PItem["status"]; note: string; link: string; asked: boolean | number; nudged: boolean; due: string | null; est: number | null }>) => req<Project>("POST", `/api/projects/${id}/items/${itemId}`, b),
   askItems: (id: string, items: string[], nudge = false) => req<Project>("POST", `/api/projects/${id}/ask`, { items, nudge }),
   signoff: (id: string, phaseId: string, b: SignoffInput) => req<Project>("POST", `/api/projects/${id}/signoff/${phaseId}`, b),
   unsign: (id: string, phaseId: string) => req<Project>("DELETE", `/api/projects/${id}/signoff/${phaseId}`),
@@ -460,7 +479,26 @@ export const api = {
   /** Puts back a template that was just deleted (for Undo). */
   restoreTemplate: (t: Template) => req<Template>("POST", "/api/templates", { kind: t.kind, restore: t }),
   removeTemplate: (id: string) => req<{ ok: boolean }>("DELETE", `/api/templates/${id}`),
+  // time and tasks
+  timer: () => req<TimerState>("GET", "/api/timer"),
+  /** Starts a timer; one already running stops and is logged first. */
+  startTimer: (b: TimerStart) => req<TimerState & { stopped: Stopped }>("POST", "/api/timer/start", b),
+  /** Stops the timer, at `at` when it was forgotten. Under a minute isn't logged. */
+  stopTimer: (at?: number) => req<TimerState & { stopped: Stopped }>("POST", "/api/timer/stop", { at }),
+  stillOn: () => req<TimerState>("POST", "/api/timer/still"),
+  /** Time away with the timer running: keep it, take it out and carry on, or stop when you left. */
+  awayTime: (what: "keep" | "trim" | "stop") => req<TimerState>("POST", "/api/timer/away", { what }),
+  time: (q: { from?: string; to?: string; project?: string | null }) => req<TimerState & { entries: TimeEntry[] }>("GET", "/api/time?" + new URLSearchParams(Object.entries(q).filter(([, v]) => v) as [string, string][])),
+  addTime: (b: { title?: string; projectId?: string | null; itemId?: string | null; day?: string; dur?: string; mins?: number; billable?: boolean }) => req<TimeEntry>("POST", "/api/time", b),
+  editTime: (id: string, b: Partial<{ title: string; projectId: string | null; itemId: string | null; day: string; dur: string; mins: number; start: number; end: number; billable: boolean }>) => req<TimeEntry>("PATCH", `/api/time/${id}`, b),
+  removeTime: (id: string) => req<{ ok: boolean }>("DELETE", `/api/time/${id}`),
+  tasks: (day?: string) => req<TimerState & { tasks: Task[] }>("GET", "/api/tasks" + (day ? "?day=" + day : "")),
+  /** A task typed as "Call Sam 30m": the time at the end becomes its estimate. */
+  addTask: (b: { text?: string; title?: string; projectId?: string | null; itemId?: string | null; day?: string }) => req<Task>("POST", "/api/tasks", b),
+  editTask: (id: string, b: Partial<{ title: string; projectId: string | null; itemId: string | null; est: number | string | null; day: string; done: boolean }>) => req<Task>("PATCH", `/api/tasks/${id}`, b),
+  removeTask: (id: string) => req<{ ok: boolean }>("DELETE", `/api/tasks/${id}`),
 }
+export const timeCsvUrl = (q: { from?: string; to?: string; project?: string | null }) => "/api/time.csv?" + new URLSearchParams(Object.entries(q).filter(([, v]) => v) as [string, string][])
 // Screenshots are versioned by capture time so a retake always shows the new image.
 export const shotUrl = (run: Pick<Run, "id" | "shotsAt" | "crawledAt">, pid: string) => `/api/runs/${run.id}/shot/${pid}?v=${run.shotsAt || run.crawledAt || 0}`
 export const faviconUrl = (id: string) => `/api/runs/${id}/favicon`

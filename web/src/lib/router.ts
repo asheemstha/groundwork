@@ -3,6 +3,7 @@ import { useSyncExternalStore } from "react"
 export type Route =
   | { name: "home" }
   | { name: "project"; id: string; tab: "checklist" | "client" | "tools" | "launch" | "redirects" | "inventory"; sub?: string; item?: string }
+  | { name: "time"; project?: string }
   | { name: "templates" }
   | { name: "template"; id: string }
   | { name: "settings"; engine?: "claude" | "codex" | "privacy" }
@@ -14,6 +15,7 @@ function parse(): Route {
   const parts = (location.hash.slice(1) || "/").split("/").filter(Boolean).map(decodeURIComponent)
   if (parts[0] === "project" && parts[1] && parts[2] === "item") return { name: "project", id: parts[1], tab: "checklist", item: parts[3] }
   if (parts[0] === "project" && parts[1]) return { name: "project", id: parts[1], tab: parts[2] === "client" || parts[2] === "tools" || parts[2] === "launch" || parts[2] === "redirects" || parts[2] === "inventory" ? parts[2] : "checklist", sub: parts[3] }
+  if (parts[0] === "time") return { name: "time", project: parts[1] }
   if (parts[0] === "templates") return parts[1] ? { name: "template", id: parts[1] } : { name: "templates" }
   if (parts[0] === "settings") return { name: "settings", engine: parts[1] === "codex" || parts[1] === "claude" || parts[1] === "privacy" ? parts[1] : undefined }
   if (parts[0] === "run" && parts[1]) {
@@ -55,6 +57,8 @@ export const routes = {
   /** The Client tab set up for the weekly update. */
   clientUpdate: (id: string) => `/project/${id}/client/update`,
   launch: (id: string, checkId?: string, check?: string) => `/project/${id}/launch${checkId ? "/" + checkId + (check ? "?" + check : "") : ""}`,
+  /** The work log, for every project or just one. */
+  time: (project?: string | null) => (project ? `/time/${project}` : "/time"),
   templates: "/templates",
   template: (id: string) => `/templates/${id}`,
   settings: (engine?: string) => (engine ? `/settings/${engine}` : "/settings"),

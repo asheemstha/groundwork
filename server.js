@@ -52,7 +52,9 @@ async function htmlToPdf(html) {
   finally { await ctx.close().catch(() => {}); }
 }
 const SK = require('./lib/skills')({ DATA, BUILTIN: H.SKILL_DIR, readJson, writeJson, seoRules: SEO.RULES });
-const P = require('./lib/projects')({ DATA, readJson, writeJson, allRuns, hostOf: u => hostOf(/^https?:\/\//i.test(u) ? u : 'https://' + u) });
+const P = require('./lib/projects')({ DATA, readJson, writeJson, allRuns, hostOf: u => hostOf(/^https?:\/\//i.test(u) ? u : 'https://' + u), timeOf: id => T.forProject(id) });
+// The work log, the running timer and the day's tasks (lib/time.js). Entries are signed with your name from Settings.
+const T = require('./lib/time')({ DATA, readJson, writeJson, newId: () => P.newId(), who: () => (getSettings().prefs || {}).appliedBy || '', projectOf: id => P.readRaw(id), itemOf: (id, itemId) => P.itemRef(id, itemId) });
 const ICON_EXT = { 'image/svg+xml': 'svg', 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif' };
 function saveFavicon(run, fav) {
   if (!fav) return;
@@ -583,6 +585,7 @@ async function exportProject(id) {
   const raw = P.readRaw(id), tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gw-export-')), root = path.join(tmp, 'groundwork-project');
   fs.cpSync(P.dirOf(id), path.join(root, 'project'), { recursive: true });
   for (const r of P.runsOf(raw)) if (fs.existsSync(runDir(r.id))) fs.cpSync(runDir(r.id), path.join(root, 'runs', r.id), { recursive: true });
+  const time = T.ofProject(id); if (time.length) writeJson(path.join(root, 'time.json'), time);
   writeJson(path.join(root, 'manifest.json'), { format: 'groundwork-project', version: 1, app: VERSION, exported: Date.now(), name: raw.name });
   const file = path.join(tmp, 'project.zip');
   await zipDir(root, file);
@@ -617,6 +620,7 @@ async function importProject(data) {
     writeJson(path.join(P.dirOf(id), 'project.json'), pj);
     const rf = path.join(P.dirOf(id), 'redirects.json'), rm = readJson(rf, null);
     if (rm && renamed[rm.oldRunId]) { rm.oldRunId = renamed[rm.oldRunId]; writeJson(rf, rm); }
+    T.importFor(id, readJson(path.join(root, 'time.json'), []));
     return { id, name: pj.name, runs: Object.keys(renamed).length };
   } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
 }
@@ -725,6 +729,32 @@ const server = http.createServer(async (req, res) => {
       if (M === 'PUT') { const b = await body(req); try { return json(res, P.saveTemplate(m[1], b)); } catch (e) { return json(res, { error: e.message }, 400); } }
       if (M === 'DELETE') { P.removeTemplate(m[1]); return json(res, { ok: true }); }
     }
+    // ---- time and tasks ----
+    const timerOut = () => ({ running: T.current(), today: T.dayTotal() });
+    try {
+      if (p === '/api/timer' && M === 'GET') return json(res, timerOut());
+      if (p === '/api/timer/start' && M === 'POST') { const r = T.start(await body(req)); return json(res, { ...timerOut(), stopped: r.stopped }); }
+      if (p === '/api/timer/stop' && M === 'POST') { const r = T.stop(await body(req)); return json(res, { ...timerOut(), stopped: r }); }
+      if (p === '/api/timer/still' && M === 'POST') { T.still(); return json(res, timerOut()); }
+      if (p === '/api/timer/away' && M === 'POST') { const b = await body(req); T.away(b.what); return json(res, timerOut()); }
+      if (p === '/api/time' && M === 'GET') { const q = u.searchParams; return json(res, { entries: T.list({ from: q.get('from'), to: q.get('to'), projectId: q.get('project') }), ...timerOut() }); }
+      if (p === '/api/time' && M === 'POST') return json(res, T.add(await body(req)));
+      if (p === '/api/time.csv' && M === 'GET') {
+        const q = u.searchParams, pid = q.get('project'), pr = pid && P.readRaw(pid);
+        const name = `${pr ? pr.name.replace(/[^\w .()-]+/g, '').trim() + ' ' : ''}time ${q.get('from') || ''}${q.get('to') && q.get('to') !== q.get('from') ? ' to ' + q.get('to') : ''}`.replace(/\s+/g, ' ').trim();
+        res.writeHead(200, { 'content-type': 'text/csv; charset=utf-8', 'content-disposition': `attachment; filename="${name}.csv"` });
+        return res.end('\ufeff' + T.csv({ from: q.get('from'), to: q.get('to'), projectId: pid }));
+      }
+      let tm = p.match(/^\/api\/time\/([a-z0-9]+)$/);
+      if (tm && M === 'PATCH') return json(res, T.edit(tm[1], await body(req)));
+      if (tm && M === 'DELETE') { T.remove(tm[1]); return json(res, { ok: true }); }
+      if (p === '/api/tasks' && M === 'GET') return json(res, { tasks: T.taskList(u.searchParams.get('day') || undefined), ...timerOut() });
+      if (p === '/api/tasks' && M === 'POST') return json(res, T.addTask(await body(req)));
+      tm = p.match(/^\/api\/tasks\/([a-z0-9]+)$/);
+      if (tm && M === 'PATCH') return json(res, T.editTask(tm[1], await body(req)));
+      if (tm && M === 'DELETE') { T.removeTask(tm[1]); return json(res, { ok: true }); }
+    } catch (e) { return json(res, { error: e.message }, 400); }
+
     // ---- projects ----
     if (p === '/api/home' && M === 'GET') return json(res, P.home());
     if (p === '/api/projects' && M === 'GET') return json(res, P.list());
@@ -1042,5 +1072,10 @@ Promise.all([import('./shared/checks.mjs'), import('./shared/seo.mjs')]).then(([
     const watch = () => { try { const w = P.watchTick(); if (w) console.log('after-launch check', w.projectId, 'day', w.day); } catch (e) { console.log('after-launch check failed', e.message); } };
     setTimeout(watch, 2 * 60e3).unref?.();
     setInterval(watch, 30 * 60e3).unref?.();
+    // The running timer notices time away from the Mac: in the app, from how long there's been no keyboard or mouse
+    // input; anywhere, from a gap while the Mac slept or Groundwork was closed.
+    const idle = () => { try { return process.versions.electron ? require('electron').powerMonitor.getSystemIdleTime() : null; } catch { return null; } };
+    const tick = () => { try { T.tick(idle()); } catch (e) { console.log('timer check failed', e.message); } };
+    tick(); setInterval(tick, 60e3).unref?.();
   });
 });

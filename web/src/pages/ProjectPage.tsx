@@ -1,6 +1,6 @@
 import * as React from "react"
 import { cn } from "cn"
-import { Ban, CalendarDays, FileText, Check, ChevronDown, ChevronRight, ChevronUp, Copy, Download, ExternalLink, FolderPlus, Info, Layers, Link2, Loader2, Mail, MessageSquare, MoreHorizontal, Paperclip, Pencil, Plus, Receipt, RefreshCw, Stamp, Trash2, Undo2, User, X } from "lucide-react"
+import { Ban, CalendarDays, FileText, Check, ChevronDown, ChevronRight, ChevronUp, Copy, Download, ExternalLink, FolderPlus, Hourglass, Info, Play, Layers, Link2, Loader2, Mail, MessageSquare, MoreHorizontal, Paperclip, Pencil, Plus, Receipt, RefreshCw, Stamp, Timer, Trash2, Undo2, User, X } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -27,6 +27,10 @@ import { InventoryCard, InventoryPage } from "@/components/project/Inventory"
 import { StatusPageDialog } from "@/components/project/StatusPage"
 import { ShiftDialog, shiftPlan } from "@/components/project/ShiftDialog"
 import { TemplateUpdateDialog, updateFromTemplate } from "@/components/project/TemplateUpdate"
+import { AddTime, EditTimeDialog, PlayButton, useRunningOn } from "@/components/time/TimeBits"
+import { useTimeChanged, useTimer } from "@/hooks/useTimer"
+import { clockOf, fmtMins, parseDur, timeOf } from "@/lib/time"
+import type { TimeEntry } from "@/lib/api"
 
 type Tab = "checklist" | "client" | "tools" | "launch" | "redirects" | "inventory"
 type SetItem = (itemId: string, b: Parameters<typeof api.setItem>[2]) => Promise<void>
@@ -43,6 +47,8 @@ export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Ta
   // A project that's been deleted says so; anything else (the app restarting, a bad file) can be retried.
   const load = React.useCallback(() => api.project(id).then((x) => { setP(x); setMissing(null) }).catch((e: Error) => setMissing(/doesn’t exist|not found/i.test(e.message) ? "gone" : e.message)), [id])
   React.useEffect(() => { load() }, [load, runs])
+  // Time logged anywhere (a timer stopped, an entry added) moves the project's hours.
+  useTimeChanged(load)
   // While a launch check runs, keep the checklist current so its items tick as soon as it ends.
   const checking = p?.tools.launchRunning?.id
   React.useEffect(() => { if (!checking) return; const t = setInterval(load, 3000); return () => clearInterval(t) }, [checking, load])
@@ -86,7 +92,7 @@ export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Ta
           <header className="px-12 pt-7">
             <SiteIcon runId={p.tools.iconRun || undefined} name={p.name} className="size-10 rounded-lg text-lg" />
             <h1 className="mt-2.5 text-[32px] leading-tight font-medium">{p.name}</h1>
-            <dl className="mt-4 grid max-w-2xl gap-y-0.5 text-[14px] [--prop-w:130px] lg:max-w-5xl lg:grid-flow-col lg:grid-cols-2 lg:grid-rows-5 lg:gap-x-12">
+            <dl className={cn("mt-4 grid max-w-2xl gap-y-0.5 text-[14px] [--prop-w:130px] lg:max-w-5xl lg:grid-flow-col lg:grid-cols-2 lg:gap-x-12", audit ? "lg:grid-rows-2" : "lg:grid-rows-5")}>
               {(audit ? (["live"] as const) : SITE_KEYS).map((k) => (
                 <Prop key={k} icon={<Link2 className="size-3.5" />} label={audit ? "Site" : SITE_NAME[k]}>{p.sites[k] ? <a href={p.sites[k]!} target="_blank" rel="noreferrer" className="hover:underline">{hostOfUrl(p.sites[k])}</a> : <button onClick={() => setEditing(true)} className="text-muted-foreground hover:text-foreground">Empty</button>}</Prop>
               ))}
@@ -96,6 +102,7 @@ export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Ta
               <Prop icon={<CalendarDays className="size-3.5" />} label={p.labels?.kickoff || "Kickoff"}><DateField value={p.kickoff} placeholder="Empty" icon={false} className="-ml-2" onChange={async (v) => { try { setP(await api.updateProject(id, { kickoff: v })); refreshProjects() } catch (e) { toast.error((e as Error).message) } }} /></Prop>
               <Prop icon={<CalendarDays className="size-3.5" />} label={p.labels?.launch || "Launch"}><DateField value={p.launch} placeholder="Empty" icon={false} className="-ml-2" onChange={async (v) => { try { setP(await api.updateProject(id, { launch: v })); refreshProjects() } catch (e) { toast.error((e as Error).message) } }} /></Prop>
               <Prop icon={<Stamp className="size-3.5" />} label="Phase">{(() => { const c = p.phases.find((x) => x.id === p.current); return c ? <span>{c.name} <span className="text-muted-foreground">· {c.done} of {c.total} done</span></span> : <span className="text-muted-foreground">All signed off</span> })()}</Prop>
+              <Prop icon={<Timer className="size-3.5" />} label="Time"><button onClick={() => go(routes.time(p.id))} className={cn("hover:underline", !p.time.mins && "text-muted-foreground")}>{p.time.mins ? `${fmtMins(p.time.mins)} logged` : "None logged yet"}</button>{p.time.mins > 0 && p.time.billable < p.time.mins && <span className="ml-1.5 text-muted-foreground">· {fmtMins(p.time.billable)} billable</span>}{p.time.running && <span className="ml-2.5 inline-flex items-center gap-1.5 text-[12.5px] text-brand-ink"><span className="size-1.5 rounded-full bg-brand" />Timer running</span>}</Prop>
               <Prop icon={<Layers className="size-3.5" />} label="Template"><span>{p.templateName}</span>{p.templateChanged && <button onClick={updateFromTemplate} className="ml-2 inline-flex items-center gap-1.5 text-[12.5px] text-muted-foreground underline underline-offset-2 hover:text-foreground">Template updated. Review changes</button>}</Prop>
               </>}
             </dl>
@@ -249,7 +256,7 @@ function ChecklistTab({ p, setItem, setP, reload, openItem, openPhase }: { p: Pr
           {ph.groups.map((g) => {
             const items = g.items.filter(match)
             if (!items.length) return null
-            return <Group key={g.id} name={g.name} done={g.items.filter((x) => x.status !== "todo").length} total={g.items.length}>{items.map((it) => <ItemRow key={it.id} it={it} active={itemId === it.id} onToggle={() => toggle(it)} onOpen={() => setItemId(it.id)} />)}</Group>
+            return <Group key={g.id} name={g.name} done={g.items.filter((x) => x.status !== "todo").length} total={g.items.length}>{items.map((it) => <ItemRow key={it.id} projectId={p.id} it={it} active={itemId === it.id} onToggle={() => toggle(it)} onOpen={() => setItemId(it.id)} />)}</Group>
           })}
           <SignoffCard p={p} ph={ph} setP={setP} onReview={() => setSigning(true)} onUndo={async () => setP(await api.unsign(p.id, ph.id))} onOpen={setItemId} match={match} toggle={toggle} />
         </div>
@@ -310,7 +317,9 @@ function Group({ name, done, total, children }: { name: string; done: number; to
   )
 }
 
-function ItemRow({ it, onToggle, onOpen, active }: { it: PItem; onToggle: () => void; onOpen: () => void; active?: boolean }) {
+function ItemRow({ it, projectId, onToggle, onOpen, active }: { it: PItem; projectId: string; onToggle: () => void; onOpen: () => void; active?: boolean }) {
+  const { now } = useTimer()
+  const running = useRunningOn({ projectId, itemId: it.id })
   const faded = it.status !== "todo"
   let tag: React.ReactNode = null
   if (it.who === "client" && it.status === "todo") tag = <Chip className={cn(!it.asked && "border-dashed")}><User className="size-3" />{it.asked ? `Asked ${new Date(it.asked).toLocaleDateString([], { month: "short", day: "numeric" })}` : "Not asked yet"}</Chip>
@@ -319,10 +328,15 @@ function ItemRow({ it, onToggle, onOpen, active }: { it: PItem; onToggle: () => 
     : <Chip className="border-dashed"><span className="size-2 rounded-[2px] bg-brand" />{it.toolInfo.name}, soon</Chip>
   else if (it.note || it.link) tag = <span className="inline-flex items-center gap-1 text-xs text-muted-foreground/80">{it.link ? <Link2 className="size-3" /> : <MessageSquare className="size-3" />}{it.link ? "Link" : "Note"}</span>
   return (
-    <div onClick={onOpen} className={cn("-mx-2 grid h-[34px] cursor-pointer grid-cols-[18px_minmax(0,1fr)_180px_78px] items-center gap-3 rounded-md px-2 hover:bg-muted/50", active && "bg-muted/70 hover:bg-muted/70")}>
+    <div onClick={onOpen} className={cn("group -mx-2 grid h-[34px] cursor-pointer grid-cols-[18px_minmax(0,1fr)_180px_60px_78px] items-center gap-3 rounded-md px-2 hover:bg-muted/50", active && "bg-muted/70 hover:bg-muted/70")}>
       <StatusIcon it={it} onClick={onToggle} />
       <span className={cn("truncate text-[13.5px]", faded && "text-muted-foreground", it.status === "na" && "line-through")}>{it.title}{it.carriedFrom && <span className="ml-2 text-xs text-muted-foreground">from {it.carriedFrom}</span>}</span>
       <span className="flex justify-end">{tag}</span>
+      {/* Time on the item: the clock while a timer runs on it, else what's logged. Hovering shows the timer button. */}
+      <span className="flex items-center justify-end">
+        <span className={cn("text-right text-[12.5px] whitespace-nowrap tabular", running ? "text-brand-ink" : "text-muted-foreground", it.status === "todo" && "group-hover:hidden")}>{running ? <><span className="mr-1.5 inline-block size-1.5 translate-y-[-1px] rounded-full bg-brand" />{clockOf(running, now)}</> : it.mins ? fmtMins(it.mins) : ""}</span>
+        {it.status === "todo" && <PlayButton running={running} start={{ projectId, itemId: it.id, title: it.title }} className="-my-1 hidden size-6 group-hover:grid" label="Start a timer on this item" />}
+      </span>
       <span className={cn("text-right text-[12.5px] whitespace-nowrap", it.status === "todo" && it.late ? "text-destructive" : faded ? "text-muted-foreground/70" : "text-muted-foreground")}>{it.status === "na" ? "Not needed" : it.status === "done" ? (it.at ? fmtDay(dayOf(it.at)) : "Done") : dueLabel(it)}</span>
     </div>
   )
@@ -349,7 +363,7 @@ function SignoffCard({ p, ph, setP, onReview, onUndo, onOpen, match, toggle }: {
           {s ? <Button variant="outline" size="sm" onClick={onUndo}><Undo2 />Undo</Button> : ph.state !== "upcoming" || ph.ready ? <Button variant="outline" size="sm" onClick={onReview}>Review handoff</Button> : null}
         </div>
       </div>
-      {open && <div className="border-t bg-card/60 px-3.5 pb-1">{h.items.filter(match).map((it) => <ItemRow key={it.id} it={it} onToggle={() => toggle(it)} onOpen={() => onOpen(it.id)} />)}</div>}
+      {open && <div className="border-t bg-card/60 px-3.5 pb-1">{h.items.filter(match).map((it) => <ItemRow key={it.id} projectId={p.id} it={it} onToggle={() => toggle(it)} onOpen={() => onOpen(it.id)} />)}</div>}
       <PaymentRow p={p} ph={ph} setP={setP} />
     </div>
   )
@@ -483,6 +497,7 @@ function ItemSheet({ p, it, onClose, setItem, reload, order, onMove }: { p: Proj
                     {x.link && <a href={x.link} target="_blank" rel="noreferrer" aria-label="Open link" className="text-muted-foreground hover:text-foreground"><ExternalLink className="size-4" /></a>}
                   </Prop>
                   {t && <Prop icon={<Layers className="size-3.5" />} label="Groundwork">{t.name}{t.checkName && <span className="text-muted-foreground">: {t.checkName}</span>}</Prop>}
+                  <EstimateProp key={x.id} x={x} setItem={setItem} />
                 </dl>
                 {x.doneMeans && <div className="mt-6 grid grid-cols-[18px_minmax(0,1fr)] gap-2.5 rounded-lg bg-muted/60 px-4 py-3.5 leading-relaxed"><Info className="mt-0.5 size-4 text-muted-foreground" /><span><span className="text-muted-foreground">Done means </span>{x.doneMeans.replace(/^./, (c) => c.toLowerCase())}</span></div>}
                 {t && (
@@ -499,6 +514,7 @@ function ItemSheet({ p, it, onClose, setItem, reload, order, onMove }: { p: Proj
                     <p className="text-[12.5px] leading-relaxed text-muted-foreground">{!t.ready ? "When this tool is ready, it will do or check this item for you." : x.tool === "headings" ? "This item ticks itself once every tag fix in the plan is done. You can also tick it yourself." : x.tool === "inventory" ? "This item ticks itself once every old page has a keep, rewrite, merge or remove call you’re happy with." : x.tool === "launch" ? (x.check === "indexing" || x.check === "https" ? "This item ticks itself when a check of the live domain passes. A staging check shows the issues but doesn’t tick it." : "This item ticks itself when the check passes. You can also tick it yourself.") : x.tool === "redirects" ? (x.check === "map" ? "This item ticks itself when every old URL has a match you’re happy with." : x.check === "after" ? "This item ticks itself when a test of the live domain after launch day passes." : "This item ticks itself when a test of the live domain passes: every redirect is one 301 to the right page.") : x.tool === "seo" ? (x.check === "plan" ? "This item ticks itself once an SEO plan covers every page the scan read. Plan staging, so it describes the new site." : "Counts the plan’s titles, descriptions and URLs as they go live. This item also covers OG images, alt text, schema and the 404 page, so you tick it yourself. The launch check covers several of those.") : (x.check === "recrawl" ? "This item ticks itself when the old site is scanned in the 10 days before launch day. Rebuild the redirect map afterwards, so new pages get redirects too." : "This item ticks itself when the scan finishes.")}</p>
                   </section>
                 )}
+                <ItemTime p={p} x={x} />
                 <Textarea value={note} onChange={(e) => setNote(e.target.value)} onBlur={() => note !== x.note && setItem(x.id, { note })} rows={3} placeholder="Add notes…" className="mt-6 min-h-0 resize-none border-0 bg-transparent px-0 text-[14.5px] leading-relaxed shadow-none [field-sizing:content] focus-visible:ring-0 dark:bg-transparent" />
                 <div className="mt-8 border-t pt-4">
                   <h3 className="mb-2 text-[13px] font-medium text-muted-foreground">Activity</h3>
@@ -518,6 +534,74 @@ function ItemSheet({ p, it, onClose, setItem, reload, order, onMove }: { p: Proj
         )}
       </SheetContent>
     </Sheet>
+  )
+}
+
+/** How long the item should take, typed like "6h". The time logged on it is measured against this. */
+function EstimateProp({ x, setItem }: { x: PItem; setItem: SetItem }) {
+  const [v, setV] = React.useState(x.est ? fmtMins(x.est) : "")
+  const save = () => {
+    const mins = v.trim() ? parseDur(v) : null
+    if (v.trim() && !mins) { toast.error("Type the estimate like 6h or 1h 30m."); return setV(x.est ? fmtMins(x.est) : "") }
+    if (mins !== x.est) setItem(x.id, { est: mins })
+    setV(mins ? fmtMins(mins) : "")
+  }
+  return (
+    <Prop icon={<Hourglass className="size-3.5" />} label="Estimate">
+      <input value={v} onChange={(e) => setV(e.target.value)} onBlur={save} onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()} placeholder="How long it should take, like 6h" className="-ml-2 h-8 min-w-0 flex-1 rounded-md bg-transparent px-2 outline-none placeholder:text-muted-foreground/70 hover:bg-muted/70 focus:bg-muted/70" />
+    </Prop>
+  )
+}
+
+/** Time on an item: logged against its estimate, a timer, time added by hand, and the entries. */
+function ItemTime({ p, x }: { p: Project; x: PItem }) {
+  const { now, start, stop } = useTimer()
+  const running = useRunningOn({ projectId: p.id, itemId: x.id })
+  const [entries, setEntries] = React.useState<TimeEntry[]>([])
+  const [adding, setAdding] = React.useState(false)
+  const [editing, setEditing] = React.useState<TimeEntry | null>(null)
+  const load = React.useCallback(() => { api.time({ project: p.id }).then((r) => setEntries(r.entries.filter((e) => e.itemId === x.id))).catch(() => {}) }, [p.id, x.id])
+  React.useEffect(load, [load])
+  useTimeChanged(load)
+  const mins = x.mins, est = x.est
+  const over = est && mins > est ? mins - est : 0
+  return (
+    <section className="mt-6 grid gap-2.5">
+      <div className="flex items-center gap-2">
+        <h3 className="flex-1 text-[13.5px] font-medium">Time on this item</h3>
+        {!adding && <Button size="sm" variant="outline" onClick={() => setAdding(true)}><Plus />Add time</Button>}
+        {running
+          ? <Button size="sm" onClick={() => stop()} className="tabular"><span className="size-[9px] rounded-[2px] bg-current" />Stop {clockOf(running, now)}</Button>
+          : <Button size="sm" variant="outline" onClick={() => start({ projectId: p.id, itemId: x.id, title: x.title })}><Play />Start timer</Button>}
+      </div>
+      {(mins > 0 || est) && (
+        <div className="grid gap-1.5">
+          <span className="text-[13.5px]">{fmtMins(mins)}{est ? <span className="text-muted-foreground"> of a {fmtMins(est)} estimate{over ? `, ${fmtMins(over)} over` : ""}</span> : <span className="text-muted-foreground"> logged</span>}</span>
+          {est ? <span className="h-1 w-56 overflow-hidden rounded-full bg-muted"><span className="block h-full bg-brand" style={{ width: `${Math.min(100, (100 * mins) / est)}%` }} /></span> : null}
+        </div>
+      )}
+      {adding && <AddTime projectId={p.id} itemId={x.id} title={x.title} onDone={() => setAdding(false)} />}
+      {(entries.length > 0 || running) && (
+        <div className="grid">
+          {running && (
+            <div className="grid h-9 grid-cols-[110px_minmax(0,1fr)_70px] items-center gap-3 border-b border-border/60 text-[13px]">
+              <span className="text-muted-foreground">Today</span>
+              <span className="truncate text-muted-foreground">{timeOf(running.start)} to now</span>
+              <span className="text-right text-brand-ink tabular">{clockOf(running, now)}</span>
+            </div>
+          )}
+          {entries.slice(0, 12).map((e) => (
+            <button key={e.id} onClick={() => setEditing(e)} className="grid h-9 grid-cols-[110px_minmax(0,1fr)_70px] items-center gap-3 border-b border-border/60 text-left text-[13px] hover:bg-muted/40">
+              <span className="text-muted-foreground">{fmtDay(e.day, true)}</span>
+              <span className="truncate text-muted-foreground">{e.start && e.end ? `${timeOf(e.start)} to ${timeOf(e.end)}` : "Added by hand"}{e.title && e.title !== x.title ? `: ${e.title}` : ""}</span>
+              <span className="text-right tabular">{fmtMins(e.mins)}</span>
+            </button>
+          ))}
+          {entries.length > 12 && <button onClick={() => go(routes.time(p.id))} className="h-8 text-left text-[12.5px] text-muted-foreground hover:text-foreground">{entries.length - 12} more on the Time page</button>}
+        </div>
+      )}
+      <EditTimeDialog entry={editing} onClose={() => setEditing(null)} />
+    </section>
   )
 }
 
@@ -733,7 +817,7 @@ function ClientTab({ p, setItem, setP, mode }: { p: Project; setItem: SetItem; s
           <select value={p.remindEvery} onChange={async (e) => { try { setP(await api.updateProject(p.id, { remindEvery: +e.target.value })) } catch (err) { toast.error((err as Error).message) } }} className="mx-0.5 h-7 rounded-md border border-input bg-card px-1.5 text-[13px] text-foreground">
             {[[0, "never"], [2, "every 2 days"], [3, "every 3 days"], [5, "every 5 days"], [7, "once a week"]].map(([v, l]) => <option key={v} value={v}>{l}</option>)}
           </select>{" "}
-          once something they were asked for is due in two days or late. Home lists the reminders to send.
+          once something they were asked for is due in two days or late. Today lists the reminders to send.
         </label>
         <div className={cn("grid h-[30px] items-center gap-3 border-b text-[12.5px] text-muted-foreground", cols)}><span /><span>Item</span><span>Phase</span><span>Asked</span><span className="text-right">Due</span><span /></div>
         <Section title="Late" list={c.late} tone="text-destructive">{c.late.map((x) => <Row key={x.id} x={x} right={<span className="text-destructive">{fmtDay(x.due)}, {dueLabel(x)}</span>} />)}</Section>

@@ -10,7 +10,7 @@ Follow [Install (Mac)](README.md#install-mac) in the README. The app isn't signe
 
 ## Your first hour
 
-1. **Explore the sample project** (5 minutes). On Home, click **Explore a sample project**. Tick a few items, open one, look at the Client tab. Delete it when you're done.
+1. **Explore the sample project** (5 minutes). On Today, click **Explore a sample project**. Tick a few items, open one, look at the Client tab. Delete it when you're done.
 2. **Audit a site you know** (10 minutes). **New project**, then **Audit a site**. Scan it, then run the launch check from the Tools tab. Does what it finds match what you know about the site?
 3. **Start a real project** (15 minutes). Pick the checklist that fits, paste the brief or your kickoff notes, and add the websites and dates. If it's a redesign, scan the old site.
 4. **Ask the client for something** (5 minutes). In the Client tab, tick what you need, copy the message and send it the way you normally would.
@@ -19,7 +19,8 @@ Follow [Install (Mac)](README.md#install-mac) in the README. The app isn't signe
 
 Run one real project in Groundwork from start to finish, or as far as it gets. Along the way, try:
 
-- Home each morning: what's due, and the messages to send.
+- Today each morning: plan your tasks, start a timer on each, and send the messages it lists.
+- The Time page at the end of the week: does it match what you'd have written in a timesheet? Export the CSV.
 - The weekly update, or a client status page (the project's ⋯ menu) instead of writing one from scratch.
 - Recording a sign-off with the client's approval.
 - For a redesign: the content inventory, the redirect map and the redirect test.
