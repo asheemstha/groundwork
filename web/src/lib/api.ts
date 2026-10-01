@@ -293,7 +293,7 @@ export interface Project {
   id: string; kind: "project" | "audit"; name: string; url: string | null; host: string | null; sites: Sites; platform: PlatformId | null;
   /** The project has a website (or its kind of work does): it shows the site details and the Tools tab. */
   website: boolean
-  labels: DateLabels | null; repeat: "monthly" | null; cycle: number; sample: boolean; lastUpdate: number | null; remindEvery: number; created: number; updated: number; kickoff: string | null; launch: string | null
+  labels: DateLabels | null; repeat: "monthly" | null; cycle: number; cycles: { at: number; kickoff: string | null; launch: string | null; done: number; total: number }[]; sample: boolean; lastUpdate: number | null; remindEvery: number; created: number; updated: number; kickoff: string | null; launch: string | null
   clientName: string; templateId: string; templateName: string; parts: string[]
   /** Days the plan has been shifted, and how far behind it is now. */
   slip: number; behind: Behind
@@ -308,7 +308,10 @@ export interface Project {
     redirects: RedirectSummary | null; inventory: InventorySummary | null; redirectsRunning: "build" | "test" | "list" | null; oldScan: { runId: string; urls: number; at: number } | null
   }
   /** Time logged on the project, in minutes, counting a timer running on it. */
-  time: { mins: number; billable: number; running: { itemId: string | null; start: number } | null }
+  time: { mins: number; billable: number; running: { itemId: string | null; start: number } | null; month: number | null }
+  /** A care plan's hours each month, and whether the live site answered when Groundwork looked (last 30 days). */
+  planHours: number | null
+  uptime: { last: { at: number; ok: boolean; status: number; ms: number; error?: string }; checks: number; down: { at: number; status: number; error: string | null }[] } | null
   invoices: InvoiceSummary[]
   /** The project's own hourly rate, when it differs from Settings, and who invoices go to. */
   rate: string; billTo: string
@@ -402,7 +405,7 @@ export interface ShiftPreview {
   days: number; launch: { from: string | null; to: string | null }; late: { before: number; after: number }
   next: { title: string; due: string } | null; phases: { name: string; from: string | null; to: string; clash: boolean }[]
 }
-export interface NextUp { key: string; kind: "item" | "client" | "ask" | "signoff" | "watch" | "renewal"; projectId: string; itemId?: string; checkId?: string; title: string; phaseId?: string; phaseName?: string; due: string | null; late: boolean; asked?: boolean; ready?: boolean; leftover?: boolean }
+export interface NextUp { key: string; kind: "item" | "client" | "ask" | "signoff" | "watch" | "renewal" | "down"; projectId: string; itemId?: string; checkId?: string; title: string; phaseId?: string; phaseName?: string; due: string | null; late: boolean; asked?: boolean; ready?: boolean; leftover?: boolean }
 /** Home: this week's work for one project, most urgent first. */
 export interface HomeGroup { projectId: string; projectName: string; iconRun: string | null; rows: NextUp[]; more: number; late: number }
 /** Messages to send today for one project: items to ask for, reminders, the weekly update and invoices. */
@@ -484,7 +487,7 @@ export const api = {
   projects: () => req<ProjectSummary[]>("GET", "/api/projects"),
   project: (id: string) => req<Project>("GET", `/api/projects/${id}`),
   createProject: (b: NewProject) => req<{ id: string; runId: string | null }>("POST", "/api/projects", b),
-  updateProject: (id: string, b: Partial<{ name: string; kickoff: string | null; launch: string | null; clientName: string; url: string; sites: Partial<Sites>; platform: PlatformId | null; remindEvery: number; rate: string }>) => req<Project>("PATCH", `/api/projects/${id}`, b),
+  updateProject: (id: string, b: Partial<{ name: string; kickoff: string | null; launch: string | null; clientName: string; url: string; sites: Partial<Sites>; platform: PlatformId | null; remindEvery: number; rate: string; planHours: number | null }>) => req<Project>("PATCH", `/api/projects/${id}`, b),
   templateUpdate: (id: string, b: { dryRun?: boolean; removeUntouched?: boolean }) => req<TemplateUpdate & { project?: Project }>("POST", `/api/projects/${id}/template`, b),
   shiftPlan: (id: string, b: { days: number; launch: boolean }) => req<Project>("POST", `/api/projects/${id}/shift`, b),
   /** The weekly update was sent today. */

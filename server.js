@@ -52,7 +52,7 @@ async function htmlToPdf(html) {
   finally { await ctx.close().catch(() => {}); }
 }
 const SK = require('./lib/skills')({ DATA, BUILTIN: H.SKILL_DIR, readJson, writeJson, seoRules: SEO.RULES });
-const P = require('./lib/projects')({ DATA, readJson, writeJson, allRuns, hostOf: u => hostOf(/^https?:\/\//i.test(u) ? u : 'https://' + u), timeOf: id => T.forProject(id) });
+const P = require('./lib/projects')({ DATA, readJson, writeJson, allRuns, hostOf: u => hostOf(/^https?:\/\//i.test(u) ? u : 'https://' + u), timeOf: (id, from) => T.forProject(id, from), userAgent: `Groundwork/${readJson(path.join(ROOT, 'package.json'), {}).version || '0'} (+https://github.com/asheemstha/groundwork)` });
 // The work log, the running timer and the day's tasks (lib/time.js). Entries are signed with your name from Settings.
 const T = require('./lib/time')({ DATA, readJson, writeJson, newId: () => P.newId(), who: () => (getSettings().prefs || {}).appliedBy || '', projectOf: id => P.readRaw(id), itemOf: (id, itemId) => P.itemRef(id, itemId) });
 const ICON_EXT = { 'image/svg+xml': 'svg', 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif' };
@@ -913,6 +913,34 @@ const server = http.createServer(async (req, res) => {
         }
         if (im && M === 'POST') { P.setInvoice(id, im[1], await body(req)); return json(res, P.get(id)); }
         if (im && M === 'DELETE') { const inv = P.removeInvoice(id, im[1]); if (inv) T.unmarkInvoice(inv.id); return json(res, P.get(id)); }
+        // A care plan's monthly report: this month (cycle empty) or an earlier one (its index in the project's cycles).
+        if (sub === '/care-report' && M === 'GET') {
+          const v = P.get(id), raw = P.readRaw(id), q = u.searchParams, pr = getSettings().prefs || {};
+          const past = q.get('cycle') ? (raw.cycles || [])[+q.get('cycle')] : null;
+          const start = past ? past.start || (past.kickoff ? new Date(past.kickoff + 'T00:00').getTime() : 0) : raw.cycleStart || raw.created;
+          const end = past ? past.at : Date.now();
+          const from = past ? past.kickoff : v.kickoff, to = past ? past.launch : null;
+          const checks = (raw.checks || []).filter(c => c.status === 'done' && !c.oldSite && !c.staging && c.at >= start && c.at < end);
+          const all = v.phases.flatMap(ph => [...ph.groups.flatMap(g => g.items), ...ph.handoff.items]);
+          const imports = P.trafficOf(id).imports || [];
+          const traffic = imports.find(x => x.at >= start && x.at < end) || null;
+          // The hours logged in the plan's month: from the month's start day to its report day (or today).
+          const day = t => { const x = new Date(t); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; };
+          const mins = T.list({ projectId: id, from: from || day(start), to: to || undefined }).reduce((n, e) => n + e.mins, 0);
+          const month = new Date((from || day(start)) + 'T00:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+          const html = require('./lib/care-report').render(v, {
+            month, report: checks[0] ? P.getLaunch(id, checks[0].id) : null, up: P.uptimeIn(id, start, end), mins, plan: raw.planHours || null,
+            done: past ? past.items || [] : all.filter(x => x.status === 'done' && (x.at || 0) >= start).map(x => ({ title: x.title, at: x.at })).sort((a, b) => a.at - b.at),
+            traffic, before: traffic ? imports.find(x => x.at < traffic.at) || null : null,
+          }, { studio: q.has('agency') ? String(q.get('agency')).slice(0, 80) : pr.agency || '', yourName: pr.appliedBy || '', note: String(q.get('note') || '').slice(0, 2000) });
+          const base = `${v.name.replace(/[^\w .()-]+/g, '').trim() || 'Project'} care report ${month}`;
+          if (q.get('format') === 'pdf') {
+            try { const pdf = await htmlToPdf(html); res.writeHead(200, { 'content-type': 'application/pdf', 'content-disposition': `attachment; filename="${base}.pdf"` }); return res.end(pdf); }
+            catch (e) { return json(res, { error: 'Couldn’t make the PDF: ' + friendly(e) }, 500); }
+          }
+          res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', ...(q.has('download') ? { 'content-disposition': `attachment; filename="${base}.html"` } : {}) });
+          return res.end(html);
+        }
         // The handoff document: what's installed, who owns which account, the launch check, redirects and renewals.
         if (sub === '/handoff' && M === 'GET') {
           const v = P.get(id), raw = P.readRaw(id), q = u.searchParams, pr = getSettings().prefs || {};
@@ -1114,7 +1142,11 @@ Promise.all([import('./shared/checks.mjs'), import('./shared/seo.mjs')]).then(([
     setTimeout(checkOnce, 4000);
     setInterval(checkOnce, 6 * 3600e3);
     // After-launch checks: a look two minutes after opening, then every half hour.
-    const watch = () => { try { const w = P.watchTick(); if (w) console.log('after-launch check', w.projectId, 'day', w.day); } catch (e) { console.log('after-launch check failed', e.message); } };
+    const watch = () => {
+      try { const w = P.watchTick(); if (w) console.log('after-launch check', w.projectId, 'day', w.day); } catch (e) { console.log('after-launch check failed', e.message); }
+      // A care plan's monthly check, when no after-launch check is running.
+      try { const c = P.careTick(); if (c) console.log('monthly care check', c.projectId); } catch (e) { console.log('monthly care check failed', e.message); }
+    };
     setTimeout(watch, 2 * 60e3).unref?.();
     setInterval(watch, 30 * 60e3).unref?.();
     // The running timer notices time away from the Mac: in the app, from how long there's been no keyboard or mouse
@@ -1126,5 +1158,9 @@ Promise.all([import('./shared/checks.mjs'), import('./shared/seo.mjs')]).then(([
     const renew = async () => { for (const id of P.renewalsDue().slice(0, 3)) { try { await P.checkRenewals(id); } catch (e) { console.log('renewal check failed', id, e.message); } } };
     setTimeout(renew, 90e3).unref?.();
     setInterval(renew, 60 * 60e3).unref?.();
+    // Is it up: launched sites and care plans, soon after opening and then every hour, one at a time.
+    const up = async () => { for (const id of P.upDue()) { try { await P.upCheck(id); } catch (e) { console.log('up check failed', id, e.message); } } };
+    setTimeout(up, 20e3).unref?.();
+    setInterval(up, 60 * 60e3).unref?.();
   });
 });

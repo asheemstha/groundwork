@@ -28,6 +28,7 @@ import { StatusPageDialog } from "@/components/project/StatusPage"
 import { HandoffDialog } from "@/components/project/HandoffDoc"
 import { AccountsSection } from "@/components/project/Accounts"
 import { TrafficCard } from "@/components/project/Traffic"
+import { CareReportDialog } from "@/components/project/CareReport"
 import { ShiftDialog, shiftPlan } from "@/components/project/ShiftDialog"
 import { TemplateUpdateDialog, updateFromTemplate } from "@/components/project/TemplateUpdate"
 import { AddTime, EditTimeDialog, PlayButton, useRunningOn } from "@/components/time/TimeBits"
@@ -47,6 +48,7 @@ export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Ta
   const [editing, setEditing] = React.useState(false)
   const [statusOpen, setStatusOpen] = React.useState(false)
   const [handoffOpen, setHandoffOpen] = React.useState(false)
+  const [careOpen, setCareOpen] = React.useState(false)
   React.useEffect(() => { const on = () => setStatusOpen(true); window.addEventListener("gw:status-page", on); return () => window.removeEventListener("gw:status-page", on) }, [])
   const [removing, setRemoving] = React.useState(false)
   // A project that's been deleted says so; anything else (the app restarting, a bad file) can be retried.
@@ -84,7 +86,8 @@ export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Ta
             {!audit && <DropdownMenuItem onClick={updateFromTemplate}><RefreshCw /> Update from the template…{p.templateChanged && <span className="ml-auto size-1.5 rounded-full bg-foreground/60" />}</DropdownMenuItem>}
             {audit && <DropdownMenuItem onClick={() => newProject({ name: p.name, old: p.sites.live || p.url || "" })}><FolderPlus /> Start a project for this site…</DropdownMenuItem>}
             {!audit && <DropdownMenuItem onClick={() => setStatusOpen(true)}><FileText /> Client status page…</DropdownMenuItem>}
-            {!audit && p.website && <DropdownMenuItem onClick={() => setHandoffOpen(true)}><FileText /> Handoff document…</DropdownMenuItem>}
+            {!audit && p.repeat && <DropdownMenuItem onClick={() => setCareOpen(true)}><FileText /> Care report…</DropdownMenuItem>}
+            {!audit && p.website && !p.repeat && <DropdownMenuItem onClick={() => setHandoffOpen(true)}><FileText /> Handoff document…</DropdownMenuItem>}
             {!audit && <DropdownMenuItem onClick={() => makeInvoice({ projectId: p.id, kind: "hours" })}><Receipt /> Invoice hours…</DropdownMenuItem>}
             <DropdownMenuItem onClick={() => { const a = document.createElement("a"); a.href = `/api/projects/${p.id}/export`; a.download = ""; a.click(); toast("Exporting the project", { description: "Its checklist, files, scans and plans, as one zip another Groundwork can import." }) }}><Download /> Export project…</DropdownMenuItem>
             <DropdownMenuSeparator />
@@ -111,7 +114,7 @@ export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Ta
               <Prop icon={<CalendarDays className="size-3.5" />} label={p.labels?.kickoff || "Kickoff"}><DateField value={p.kickoff} placeholder="Empty" icon={false} className="-ml-2" onChange={async (v) => { try { setP(await api.updateProject(id, { kickoff: v })); refreshProjects() } catch (e) { toast.error((e as Error).message) } }} /></Prop>
               <Prop icon={<CalendarDays className="size-3.5" />} label={p.labels?.launch || "Launch"}><DateField value={p.launch} placeholder="Empty" icon={false} className="-ml-2" onChange={async (v) => { try { setP(await api.updateProject(id, { launch: v })); refreshProjects() } catch (e) { toast.error((e as Error).message) } }} /></Prop>
               <Prop icon={<Stamp className="size-3.5" />} label="Phase">{(() => { const c = p.phases.find((x) => x.id === p.current); return c ? <span>{c.name} <span className="text-muted-foreground">· {c.done} of {c.total} done</span></span> : <span className="text-muted-foreground">All signed off</span> })()}</Prop>
-              <Prop icon={<Timer className="size-3.5" />} label="Time"><button onClick={() => go(routes.time(p.id))} className={cn("hover:underline", !p.time.mins && "text-muted-foreground")}>{p.time.mins ? `${fmtMins(p.time.mins)} logged` : "None logged yet"}</button>{p.time.mins > 0 && p.time.billable < p.time.mins && <span className="ml-1.5 text-muted-foreground">· {fmtMins(p.time.billable)} billable</span>}{p.time.running && <span className="ml-2.5 inline-flex items-center gap-1.5 text-[12.5px] text-brand-ink"><span className="size-1.5 rounded-full bg-brand" />Timer running</span>}</Prop>
+              <Prop icon={<Timer className="size-3.5" />} label="Time"><button onClick={() => go(routes.time(p.id))} className={cn("hover:underline", !p.time.mins && "text-muted-foreground")}>{p.repeat && p.time.month != null ? `${fmtMins(p.time.month)}${p.planHours ? ` of ${p.planHours}h` : ""} this month` : p.time.mins ? `${fmtMins(p.time.mins)} logged` : "None logged yet"}</button>{p.time.mins > 0 && p.time.billable < p.time.mins && <span className="ml-1.5 text-muted-foreground">· {fmtMins(p.time.billable)} billable</span>}{p.time.running && <span className="ml-2.5 inline-flex items-center gap-1.5 text-[12.5px] text-brand-ink"><span className="size-1.5 rounded-full bg-brand" />Timer running</span>}</Prop>
               <Prop icon={<Layers className="size-3.5" />} label="Template"><span>{p.templateName}</span>{p.templateChanged && <button onClick={updateFromTemplate} className="ml-2 inline-flex items-center gap-1.5 text-[12.5px] text-muted-foreground underline underline-offset-2 hover:text-foreground">Template updated. Review changes</button>}</Prop>
               </>}
             </dl>
@@ -141,6 +144,7 @@ export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Ta
       <EditDialog p={p} open={editing} onClose={() => setEditing(false)} onSaved={(x) => { setP(x); refreshProjects() }} />
       {!audit && <StatusPageDialog p={p} open={statusOpen} onClose={() => setStatusOpen(false)} />}
       {!audit && <HandoffDialog p={p} open={handoffOpen} onClose={() => setHandoffOpen(false)} />}
+      {!audit && p.repeat && <CareReportDialog p={p} open={careOpen} onClose={() => setCareOpen(false)} />}
       <ShiftDialog p={p} onDone={(x) => { setP(x); refreshProjects() }} />
       <TemplateUpdateDialog p={p} onDone={(x) => { setP(x); refreshProjects() }} />
       <AlertDialog open={removing} onOpenChange={setRemoving}>
@@ -973,6 +977,7 @@ function SiteTools({ p, k, label, busy, onScan, onEdit, reload }: { p: Project; 
         {scan && (!seo || seo.id !== scan.id) && <Button size="xs" variant="outline" onClick={() => go(routes.run(scan.id, "seo"))}>{seo ? "Plan the latest scan" : "Plan SEO"}</Button>}
       </Row>
       {k === "live" && <RenewalsRow p={p} reload={reload} />}
+      {k === "live" && p.uptime && <Row name="Up" status={<>{p.uptime.last.ok ? <>Answered {ago(p.uptime.last.at)} in {(p.uptime.last.ms / 1000).toFixed(1)} s</> : <span className="text-destructive">Didn’t answer {ago(p.uptime.last.at)}{p.uptime.last.status ? ` (HTTP ${p.uptime.last.status})` : p.uptime.last.error ? `: ${p.uptime.last.error}` : ""}</span>}. {p.uptime.down.length ? `${p.uptime.down.length} of ${p.uptime.checks} checks in 30 days failed.` : `${p.uptime.checks} ${p.uptime.checks === 1 ? "check" : "checks"} in 30 days, none failed.`} Checked hourly while Groundwork is open, not around the clock.</>} />}
     </div>
   )
 }
@@ -998,13 +1003,13 @@ function RenewalsRow({ p, reload }: { p: Project; reload: () => void }) {
 // ---------- edit details ----------
 function EditDialog({ p, open, onClose, onSaved }: { p: Project; open: boolean; onClose: () => void; onSaved: (x: Project) => void }) {
   const audit = p.kind === "audit"
-  const init = () => ({ name: p.name, clientName: p.clientName, platform: (p.platform || "") as PlatformId | "", old: p.sites.old || "", staging: p.sites.staging || "", live: p.sites.live || "", kickoff: p.kickoff || "", launch: p.launch || "", rate: p.rate || "" })
+  const init = () => ({ name: p.name, clientName: p.clientName, platform: (p.platform || "") as PlatformId | "", old: p.sites.old || "", staging: p.sites.staging || "", live: p.sites.live || "", kickoff: p.kickoff || "", launch: p.launch || "", rate: p.rate || "", planHours: p.planHours ? String(p.planHours) : "" })
   const [f, setF] = React.useState(init)
   React.useEffect(() => { if (open) setF(init()) }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
   const save = async () => {
     try {
       const sites = audit ? { live: f.live.trim() } : { old: f.old.trim(), staging: f.staging.trim(), live: f.live.trim() }
-      onSaved(await api.updateProject(p.id, audit ? { name: f.name, sites, platform: f.platform || null } : { name: f.name, clientName: f.clientName, kickoff: f.kickoff || null, launch: f.launch || null, sites, platform: f.platform || null, rate: f.rate }))
+      onSaved(await api.updateProject(p.id, audit ? { name: f.name, sites, platform: f.platform || null } : { name: f.name, clientName: f.clientName, kickoff: f.kickoff || null, launch: f.launch || null, sites, platform: f.platform || null, rate: f.rate, ...(p.repeat ? { planHours: +f.planHours || null } : {}) }))
       onClose()
     } catch (e) { toast.error((e as Error).message) }
   }
@@ -1032,6 +1037,7 @@ function EditDialog({ p, open, onClose, onSaved }: { p: Project; open: boolean; 
               <div className="grid gap-1.5 text-[13px] font-medium">Launch<DateField boxed clearable value={f.launch} onChange={(v) => setF({ ...f, launch: v || "" })} placeholder="Not set" /></div>
             </div>
             <label className="grid gap-1.5 text-[13px] font-medium"><span>Hourly rate <span className="font-normal text-muted-foreground">(if different from Settings)</span></span><Input value={f.rate} onChange={(e) => setF({ ...f, rate: e.target.value })} placeholder="e.g. $90" className="font-normal" /></label>
+            {p.repeat && <label className="grid gap-1.5 text-[13px] font-medium"><span>Hours in the plan each month <span className="font-normal text-muted-foreground">(for the care report)</span></span><Input type="number" min="0" step="0.5" value={f.planHours} onChange={(e) => setF({ ...f, planHours: e.target.value })} placeholder="e.g. 4" className="font-normal" /></label>}
           </>}
         </div>
         <DialogFooter><Button variant="outline" onClick={onClose}>Cancel</Button><Button onClick={save}>Save</Button></DialogFooter>
