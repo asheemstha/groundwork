@@ -337,7 +337,13 @@ export interface Project {
   requests: Requests
   /** The Search Console and GA4 properties the project reads, and the last pull's error. */
   google: { gsc?: string | null; ga4?: string | null; ga4Name?: string | null; error?: string | null; errorAt?: number | null } | null
+  /** When it went live, as you marked it (or, for projects from before v0.25, as its date passed), and the planned day. */
+  launched: { on: string; at: number; by: "you" | "date" } | null
+  launchPlanned: string | null
+  /** A closed project leaves Today and the late counts. */
+  closed: { at: number } | null
 }
+export interface LiveLook { ok: boolean; host: string; url?: string; platform?: string | null; oldPlatform?: string | null; text: string; sure?: boolean }
 export interface FileRequest { id: string; title: string; kind: "content" | "brand" | "other"; match: string[]; path: string | null; status: "waiting" | "in"; file: { name: string; at: number } | null; in: number | null; at: number }
 export interface Requests { folder: string | null; folderOk: boolean; due: string | null; rows: FileRequest[]; total: number; in: number; waiting: number; late: boolean }
 export interface TrafficImport { id: string; at: number; name: string; source: string; metric: "clicks" | "sessions" | "views" | "users"; total: number; pages: number; before: boolean; top: { path: string; n: number }[]; from: string | null; to: string | null; via: "csv" | "google" }
@@ -416,7 +422,7 @@ export interface ProjectSummary {
   phases: { state: PPhase["state"]; done: number; total: number }[]
   clientOpen: number; clientLate: number; behind: Behind
   /** Where it is in its life: in progress, in care (a monthly plan), or a site check. */
-  stage: "progress" | "care" | "check"
+  stage: "progress" | "care" | "check" | "closed"
   /** What's running for the project now ("Launch check", "SEO plan"…), or null. */
   running: string | null
 }
@@ -430,7 +436,7 @@ export interface ShiftPreview {
   days: number; launch: { from: string | null; to: string | null }; late: { before: number; after: number }
   next: { title: string; due: string } | null; phases: { name: string; from: string | null; to: string; clash: boolean }[]
 }
-export interface NextUp { key: string; kind: "item" | "client" | "ask" | "signoff" | "watch" | "renewal" | "down" | "files"; projectId: string; itemId?: string; checkId?: string; title: string; phaseId?: string; phaseName?: string; due: string | null; late: boolean; asked?: boolean; ready?: boolean; leftover?: boolean }
+export interface NextUp { key: string; kind: "item" | "client" | "ask" | "signoff" | "watch" | "renewal" | "down" | "files" | "launch"; projectId: string; itemId?: string; checkId?: string; title: string; phaseId?: string; phaseName?: string; due: string | null; late: boolean; asked?: boolean; ready?: boolean; leftover?: boolean }
 /** Home: this week's work for one project, most urgent first. */
 export interface HomeGroup { projectId: string; projectName: string; iconRun: string | null; rows: NextUp[]; more: number; late: number }
 /** Messages to send today for one project: items to ask for, reminders, the weekly update and invoices. */
@@ -595,6 +601,10 @@ export const api = {
   addExtra: (id: string, b: Partial<Pick<Extra, "title" | "asked" | "status" | "price" | "note">>) => req<Project>("POST", `/api/projects/${id}/extras`, b),
   setExtra: (id: string, extraId: string, b: Partial<Pick<Extra, "title" | "asked" | "status" | "price" | "note">>) => req<Project>("POST", `/api/projects/${id}/extras/${extraId}`, b),
   removeExtra: (id: string, extraId: string) => req<Project>("DELETE", `/api/projects/${id}/extras/${extraId}`),
+  lookLive: (id: string, live: string) => req<LiveLook>("POST", `/api/projects/${id}/launched/look`, { live }),
+  markLaunched: (id: string, b: { on: string; live?: string }) => req<Project & { checkId: string | null; tested: boolean }>("POST", `/api/projects/${id}/launched`, b),
+  unmarkLaunched: (id: string) => req<Project>("DELETE", `/api/projects/${id}/launched`),
+  setClosed: (id: string, closed: boolean) => req<Project>("POST", `/api/projects/${id}/close`, { closed }),
   setRequests: (id: string, b: { due?: string | null; add?: { title: string; kind?: FileRequest["kind"]; match?: string }[]; usual?: boolean; fromInventory?: boolean; set?: Record<string, { title?: string; match?: string; kind?: FileRequest["kind"]; status?: FileRequest["status"] }>; remove?: string[] }) => req<Project>("POST", `/api/projects/${id}/requests`, b),
   scanRequests: (id: string) => req<Project & { came: number }>("POST", `/api/projects/${id}/requests/scan`),
   /** Opens a folder picker in the app; `folder: null` forgets the folder. */

@@ -20,6 +20,7 @@ Follow [Install (Mac)](README.md#install-mac) in the README. The app isn't signe
 Run one real project in Groundwork from start to finish, or as far as it gets. Along the way, try:
 
 - Each project's Overview: does its first sentence say where things really stand?
+- On launch day, Mark launched from Today or the project. Did Groundwork's look at the live domain match what you knew?
 
 - Today each morning: plan your tasks, start a timer on each, and send the messages it lists.
 - The Time page at the end of the week: does it match what you'd have written in a timesheet? Export the CSV.

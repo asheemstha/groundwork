@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Bell, CalendarClock, ListPlus, Mail, Plus, Radar, Receipt, User, Stamp } from "lucide-react"
+import { Bell, CalendarClock, ListPlus, Mail, Plus, Radar, Receipt, Rocket, User, Stamp } from "lucide-react"
 import { cn } from "cn"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
@@ -25,6 +25,8 @@ export function Dashboard() {
   const today = new Date().toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" })
   const s = data?.stats
   const work = projects.filter((p) => p.kind !== "audit"), audits = projects.filter((p) => p.kind === "audit")
+  // The count at the top is the projects still being built; launched, care and closed ones aren't in it.
+  const building = work.filter((p) => (p.stage || "progress") === "progress")
 
   return (
     <div className="flex h-full flex-col">
@@ -32,7 +34,7 @@ export function Dashboard() {
       <div className="scrollbar-thin flex-1 overflow-auto">
         <div className="flex mx-auto w-full max-w-5xl flex-col gap-9 px-12 pt-10 pb-12">
           <div>
-            <div className="text-[13px] text-muted-foreground">{work.length ? `${work.length} ${work.length === 1 ? "project" : "projects"} in progress` : today}</div>
+            <div className="text-[13px] text-muted-foreground">{work.length ? (building.length ? `${building.length} ${building.length === 1 ? "project" : "projects"} in progress` : "Nothing in progress") : today}</div>
             <h1 className="mt-1 text-[32px] leading-tight font-medium">{work.length ? today : "Welcome to Groundwork"}</h1>
             {data && work.length > 0 && <p className="mt-1.5 text-[14px] text-muted-foreground">{[left ? `${left} ${left === 1 ? "task" : "tasks"} left` : "", state?.today.mins ? `${fmtMins(state.today.mins)} logged` : ""].filter(Boolean).join(", ").replace(/^./, (c) => c.toUpperCase())}{left || state?.today.mins ? ". " : ""}{summaryLine(data)}</p>}
           </div>
@@ -183,6 +185,7 @@ const KIND: Record<NextUp["kind"], (n: NextUp) => React.ReactNode> = {
   renewal: () => <span className="inline-flex items-center gap-1"><CalendarClock className="size-3" />Renewal date</span>,
   down: () => <span className="inline-flex items-center gap-1"><Radar className="size-3" />Groundwork’s hourly check of the live site</span>,
   files: () => <span className="inline-flex items-center gap-1"><User className="size-3" />Files from the client</span>,
+  launch: () => <span className="inline-flex items-center gap-1"><Rocket className="size-3" />Launch day</span>,
 }
 
 // Two lines, so the title gets the full width: what to do, then what kind of work it is. Your own items can go on
@@ -190,8 +193,8 @@ const KIND: Record<NextUp["kind"], (n: NextUp) => React.ReactNode> = {
 function NextRow({ n }: { n: NextUp }) {
   const { now } = useTimer()
   const running = useRunningOn({ projectId: n.projectId, itemId: n.itemId })
-  const open = () => go(n.kind === "renewal" || n.kind === "down" ? routes.project(n.projectId, "site") : n.kind === "watch" && n.checkId ? routes.launch(n.projectId, n.checkId) : n.kind === "client" || n.kind === "ask" ? routes.project(n.projectId, "client") : n.kind === "files" ? routes.clientFiles(n.projectId) : n.itemId ? routes.item(n.projectId, n.itemId) : routes.project(n.projectId))
-  const due = n.kind === "down" ? "Now" : n.kind === "watch" ? fmtDay(n.due) : n.kind === "signoff" && n.ready ? "Ready" : n.kind === "ask" ? (n.due ? `due ${fmtDay(n.due)}` : "") : dueLabel({ due: n.due, late: n.late, status: "todo" })
+  const open = () => go(n.kind === "renewal" || n.kind === "down" ? routes.project(n.projectId, "site") : n.kind === "watch" && n.checkId ? routes.launch(n.projectId, n.checkId) : n.kind === "client" || n.kind === "ask" ? routes.project(n.projectId, "client") : n.kind === "files" ? routes.clientFiles(n.projectId) : n.kind === "launch" ? routes.markLaunched(n.projectId) : n.itemId ? routes.item(n.projectId, n.itemId) : routes.project(n.projectId))
+  const due = n.kind === "launch" ? "Mark launched" : n.kind === "down" ? "Now" : n.kind === "watch" ? fmtDay(n.due) : n.kind === "signoff" && n.ready ? "Ready" : n.kind === "ask" ? (n.due ? `due ${fmtDay(n.due)}` : "") : dueLabel({ due: n.due, late: n.late, status: "todo" })
   const ours = n.kind === "item" && !!n.itemId
   const addTask = async (e: React.MouseEvent) => { e.stopPropagation(); try { await api.addTask({ title: n.title, projectId: n.projectId, itemId: n.itemId }); toast("Added to my tasks"); timeChanged() } catch (err) { toast((err as Error).message) } }
   return (

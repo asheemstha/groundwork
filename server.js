@@ -913,6 +913,19 @@ const server = http.createServer(async (req, res) => {
         const exm = sub.match(/^\/extras\/([a-z0-9]+)$/);
         if (exm && M === 'POST') { P.setExtra(id, exm[1], await body(req)); return json(res, P.get(id)); }
         if (exm && M === 'DELETE') { P.setExtra(id, exm[1], { remove: true }); return json(res, P.get(id)); }
+        // Launch day: a look at the live domain, then marking it launched, which checks it straight away.
+        if (sub === '/launched/look' && M === 'POST') { try { return json(res, await P.lookLive(id, (await body(req)).live)); } catch (e) { return json(res, { error: e.message }, 400); } }
+        if (sub === '/launched' && M === 'POST') {
+          let v; try { v = P.markLaunched(id, await body(req)); } catch (e) { return json(res, { error: e.message }, 400); }
+          let checkId = null, tested = false;
+          if (v.sites.live) {
+            try { checkId = P.startLaunch(id, v.sites.live, { speed: true }); } catch {}
+            if (v.tools.redirects) { try { P.startRedirectTest(id, v.sites.live); tested = true; } catch {} }
+          }
+          return json(res, { ...P.get(id), checkId, tested });
+        }
+        if (sub === '/launched' && M === 'DELETE') return json(res, P.unmarkLaunched(id));
+        if (sub === '/close' && M === 'POST') return json(res, P.setClosed(id, !!(await body(req)).closed));
         // Search Console and GA4: the properties the project reads, and a pull of a range of days.
         if (sub === '/google' && M === 'POST') { try { return json(res, P.setGoogle(id, await body(req))); } catch (e) { return json(res, { error: e.message }, 400); } }
         if (sub === '/google/pull' && M === 'POST') {

@@ -2,7 +2,7 @@ import * as React from "react"
 import { Check, Copy } from "lucide-react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { api, type ConnectorCheck, type ConnectorId, type Project } from "@/lib/api"
-import { hostOfUrl, today } from "@/lib/project"
+import { hostOfUrl } from "@/lib/project"
 import { go, routes } from "@/lib/router"
 
 const long = (d: string) => new Date(d + "T00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
@@ -15,7 +15,7 @@ export function questionsFor(p: Project): Question[] {
   const domain = hostOfUrl(p.sites.live || "") || hostOfUrl(p.sites.old || "") || p.host || ""
   const old = p.sites.old && hostOfUrl(p.sites.old) !== domain ? hostOfUrl(p.sites.old) : ""
   const named = domain || p.name
-  const launched = !!p.launch && p.launch <= today()
+  const launched = !!p.launched
   const where = (kind: string) => p.accounts.find((a) => a.kind === kind)?.where || ""
   const ga4Id = where("ga4").match(/\b\d{6,12}\b/)?.[0]
   const adsId = where("google-ads").match(/\b\d{3}-?\d{3}-?\d{4}\b/)?.[0]

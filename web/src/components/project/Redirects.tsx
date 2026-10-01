@@ -12,7 +12,7 @@ import { ToolCard } from "@/components/project/ToolCard"
 import { Textarea } from "@/components/ui/textarea"
 import { api, type Compare, type CompareChange, type ListProblem, type Project, type RedirectMap, type RedirectProblem, type RedirectResult, type RedirectRow, type RedirectState } from "@/lib/api"
 import { go, routes } from "@/lib/router"
-import { hostOfUrl, today } from "@/lib/project"
+import { hostOfUrl } from "@/lib/project"
 import { FORMATS, formatsFor, platformOf, renderRedirects, stagingExample, type RedirectFormat } from "@/lib/platforms"
 import { Checkbox } from "@/components/ui/checkbox"
 
@@ -151,7 +151,7 @@ function MapView({ p, st, map, head, setSt, load, rebuild, busy }: { p: Project;
   const [q, setQ] = React.useState("")
   const [limit, setLimit] = React.useState(200)
   const [exporting, setExporting] = React.useState(false)
-  const launched = !!p.launch && today() >= p.launch
+  const launched = !!p.launched
   const [testUrl, setTestUrl] = React.useState(launched && p.sites.live ? p.sites.live : map.newUrl)
   const testing = st.job?.kind === "test" || st.job?.kind === "list"
   // With a Search Console or analytics export, the URLs that bring the most clicks come first.
@@ -241,7 +241,7 @@ const LIST_PROBLEM: Record<ListProblem, string> = {
  * or a backlink tool, and where each one ends up now. Missing ones can go into the map.
  */
 function ListTest({ p, st, setSt, load, site }: { p: Project; st: RedirectState; setSt: (s: RedirectState) => void; load: () => Promise<RedirectState>; site?: string }) {
-  const launched = !!p.launch && today() >= p.launch
+  const launched = !!p.launched
   const [open, setOpen] = React.useState(false)
   const [text, setText] = React.useState("")
   const [url, setUrl] = React.useState(site || (launched ? p.sites.live : p.sites.staging) || p.sites.live || "")

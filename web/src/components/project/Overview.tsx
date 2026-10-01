@@ -3,7 +3,7 @@ import { cn } from "cn"
 import { Button } from "@/components/ui/button"
 import { PlayButton, useRunningOn } from "@/components/time/TimeBits"
 import { fmtMoney, type PItem, type Project } from "@/lib/api"
-import { dueLabel, fmtDay, hostOfUrl, today } from "@/lib/project"
+import { addDaysTo, dueLabel, fmtDay, hostOfUrl, today } from "@/lib/project"
 import { fmtMins } from "@/lib/time"
 import { go, routes } from "@/lib/router"
 
@@ -17,7 +17,12 @@ const itemsOf = (p: Project) => p.phases.flatMap((ph) => [...ph.groups.flatMap((
 export function standLine(p: Project) {
   const cur = p.phases.find((ph) => ph.id === p.current)
   const out: string[] = []
-  if (p.repeat) out.push(cur ? `This month’s care: ${cur.done} of ${cur.total} done.` : "This month’s care is done.")
+  if (p.closed) return `Closed ${new Date(p.closed.at).toLocaleDateString([], { month: "long", day: "numeric" })}. It’s out of Today, and its site isn’t checked any more.`
+  if (p.launched && !p.repeat) {
+    // After launch: the day it went live and the next after-launch check.
+    const next = [3, 7, 30].map((n) => ({ n, d: addDaysTo(p.launched!.on, n) })).find((x) => x.d >= today())
+    out.push(`Launched ${new Date(p.launched.on + "T00:00").toLocaleDateString([], { month: "long", day: "numeric" })}.${next ? ` The day ${next.n} check is ${next.d === today() ? "today" : `on ${fmtDay(next.d)}`}.` : ""}`)
+  } else if (p.repeat) out.push(cur ? `This month’s care: ${cur.done} of ${cur.total} done.` : "This month’s care is done.")
   else if (p.kickoff && p.kickoff > today()) out.push(`Starts ${fmtDay(p.kickoff, true)}.`)
   else if (!cur) out.push("Every phase is signed off.")
   else if (cur.ready) out.push(`${cur.name} is ready to sign off.`)
@@ -111,10 +116,10 @@ export function PhaseStrip({ p }: { p: Project }) {
       {p.phases.map((ph, i) => (
         <React.Fragment key={ph.id}>
           {i > 0 && <span className={cn("h-0.5 w-6 rounded-full", ph.state === "upcoming" ? "bg-border" : "bg-muted-foreground/40")} />}
-          <span className={cn(ph.state === "current" && "font-medium text-foreground")}>{ph.name}{ph === launchPhase && p.launch && <span className="text-muted-foreground">, {fmtDay(p.launch)}</span>}</span>
+          <span className={cn(ph.state === "current" && "font-medium text-foreground")}>{ph.name}{ph === launchPhase && p.launch && <span className="text-muted-foreground">{p.launched ? `, live ${fmtDay(p.launched.on)}` : `, ${fmtDay(p.launch)}`}</span>}</span>
         </React.Fragment>
       ))}
-      {p.launch && !p.repeat && !launchPhase && <><span className="h-0.5 w-6 rounded-full bg-border" /><span>{p.labels?.launch || "Launch"} {fmtDay(p.launch)}</span></>}
+      {p.launch && !p.repeat && !launchPhase && <><span className="h-0.5 w-6 rounded-full bg-border" /><span>{p.launched ? `Live ${fmtDay(p.launched.on)}` : `${p.labels?.launch || "Launch"} ${fmtDay(p.launch)}`}</span></>}
       {p.sites.live && <a href={p.sites.live} target="_blank" rel="noreferrer" className="ml-2 hover:text-foreground hover:underline">{hostOfUrl(p.sites.live)}</a>}
     </div>
   )

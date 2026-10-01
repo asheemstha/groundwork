@@ -1,6 +1,6 @@
 import * as React from "react"
 import { cn } from "cn"
-import { ArrowLeft, ArrowRight, Camera, Check, ChevronDown, Download, LayoutTemplate, Loader2, PanelLeft, RefreshCw, Search, Settings, Sparkles, SquarePen, Sun, Timer, Trash2 } from "lucide-react"
+import { ArrowLeft, ArrowRight, Camera, Check, ChevronDown, ChevronRight, Download, LayoutTemplate, Loader2, PanelLeft, RefreshCw, Search, Settings, Sparkles, SquarePen, Sun, Timer, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -219,7 +219,9 @@ function Sidebar({ floating, open, onHover, panelRef }: { floating?: boolean; op
   const cur = route.name === "run" || route.name === "review" || route.name === "seo" ? route.id : null
   const curProject = cur ? runs.find((r) => r.id === cur)?.projectId : null
   // Grouped by where each one is: in progress, in care, and site checks.
-  const groups = ([["progress", "In progress"], ["care", "In care"], ["check", "Site checks"]] as const).map(([k, label]) => ({ k, label, list: projects.filter((p) => (p.stage || (p.kind === "audit" ? "check" : "progress")) === k) })).filter((g) => g.list.length)
+  const groups = ([["progress", "In progress"], ["care", "Launched and in care"], ["check", "Site checks"], ["closed", "Closed"]] as const).map(([k, label]) => ({ k, label, list: projects.filter((p) => (p.stage || (p.kind === "audit" ? "check" : "progress")) === k) })).filter((g) => g.list.length)
+  // Closed projects stay folded away unless one is open.
+  const [showClosed, setShowClosed] = React.useState(false)
   return (
     <aside
       ref={panelRef}
@@ -245,12 +247,17 @@ function Sidebar({ floating, open, onHover, panelRef }: { floating?: boolean; op
       </nav>
       <div className="scrollbar-thin mt-4 min-h-0 flex-1 overflow-auto">
         {!projects.length && <><div className="px-2 pb-1 text-[12px] font-medium text-muted-foreground">Projects</div><p className="px-2 py-1 text-[13px] text-muted-foreground">Projects you start show up here.</p></>}
-        {groups.map((g) => (
-          <div key={g.k} className="mb-3">
-            <div className="px-2 pb-1 text-[12px] font-medium text-muted-foreground">{g.label}</div>
-            {g.list.map((p) => <ProjectRow key={p.id} p={p} active={(route.name === "project" && route.id === p.id) || curProject === p.id} />)}
-          </div>
-        ))}
+        {groups.map((g) => {
+          const isActive = (p: (typeof g.list)[number]) => (route.name === "project" && route.id === p.id) || curProject === p.id
+          const folded = g.k === "closed" && !showClosed && !g.list.some(isActive)
+          return (
+            <div key={g.k} className="mb-3">
+              {g.k === "closed" ? <button onClick={() => setShowClosed(!showClosed)} className="flex w-full items-center gap-1 px-2 pb-1 text-left text-[12px] font-medium text-muted-foreground hover:text-foreground">{g.label} <span className="font-normal tabular">{g.list.length}</span><ChevronRight className={cn("size-3 transition-transform", !folded && "rotate-90")} /></button>
+                : <div className="px-2 pb-1 text-[12px] font-medium text-muted-foreground">{g.label}</div>}
+              {!folded && g.list.map((p) => <ProjectRow key={p.id} p={p} active={isActive(p)} />)}
+            </div>
+          )
+        })}
       </div>
       <UpdateCard />
       {status && <UsageCard />}

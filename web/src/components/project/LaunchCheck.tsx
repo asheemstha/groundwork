@@ -11,7 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { api, type LaunchCheck, type LaunchCheckId, type LaunchIssue, type LaunchReport, type LaunchSummary, type PItem, type Project, type Rating, type SpeedResult, type TrackingInfo } from "@/lib/api"
 import { store } from "@/lib/store"
 import { go, routes } from "@/lib/router"
-import { hostOfUrl, today } from "@/lib/project"
+import { hostOfUrl } from "@/lib/project"
 import { stagingExample } from "@/lib/platforms"
 import { CloudflareHelp, isCloudflare } from "@/components/common/CloudflareHelp"
 
@@ -46,7 +46,7 @@ const itemsOf = (p: Project) => p.phases.flatMap((ph) => [...ph.groups.flatMap((
  * redesign the live domain still shows the old site before launch, so it isn't offered then.
  */
 export const defaultUrl = (p: Project) => {
-  const launched = !!p.launch && today() >= p.launch
+  const launched = !!p.launched
   const liveIsOld = !!p.sites.old && !!p.sites.live && hostOfUrl(p.sites.old) === hostOfUrl(p.sites.live) && !launched
   const live = liveIsOld ? null : p.sites.live
   return (launched ? live || p.sites.staging : p.sites.staging || live) || p.tools.launchHistory.find((h) => !h.oldSite)?.url || ""

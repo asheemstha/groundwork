@@ -18,7 +18,7 @@ import { DateField } from "@/components/common/DateField"
 import { Chip } from "@/pages/Dashboard"
 import { useApp } from "@/hooks/useApp"
 import { api, invoiceUrl, proofUrl, type MessageTemplate, type PItem, type PPhase, type Project, type TemplateSummary } from "@/lib/api"
-import { SITE_KEYS, SITE_NAME, dayOf, dueLabel, fmtDay, hostOfUrl, renderMessage, today, waited, weeklyUpdate } from "@/lib/project"
+import { SITE_KEYS, SITE_NAME, addDaysTo, dayOf, dueLabel, fmtDay, hostOfUrl, renderMessage, today, waited, weeklyUpdate } from "@/lib/project"
 import { ago } from "@/lib/format"
 import { go, routes, type ProjectTab } from "@/lib/router"
 import { LaunchItemPanel, LaunchReportPage, useLaunchRefresh } from "@/components/project/LaunchCheck"
@@ -31,6 +31,7 @@ import { FilesSection } from "@/components/project/Files"
 import { CareReportDialog } from "@/components/project/CareReport"
 import { OverviewTab, PhaseStrip, standLine } from "@/components/project/Overview"
 import { SiteTab } from "@/components/project/SiteTab"
+import { MarkLaunchedDialog } from "@/components/project/MarkLaunched"
 import { AskClaudeDialog } from "@/components/project/AskClaude"
 import { MoneyTab } from "@/components/project/Money"
 import { ShiftDialog, shiftPlan } from "@/components/project/ShiftDialog"
@@ -53,6 +54,9 @@ export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Ta
   const [statusOpen, setStatusOpen] = React.useState(false)
   const [handoffOpen, setHandoffOpen] = React.useState(false)
   const [askOpen, setAskOpen] = React.useState(false)
+  const [launchOpen, setLaunchOpen] = React.useState(asked === "overview" && sub === "launched")
+  const [closing, setClosing] = React.useState(false)
+  React.useEffect(() => { if (asked === "overview" && sub === "launched") setLaunchOpen(true) }, [asked, sub, id])
   const [careOpen, setCareOpen] = React.useState(false)
   React.useEffect(() => { const on = () => setStatusOpen(true); window.addEventListener("gw:status-page", on); return () => window.removeEventListener("gw:status-page", on) }, [])
   const [removing, setRemoving] = React.useState(false)
@@ -122,7 +126,9 @@ export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Ta
             {!audit && <DropdownMenuItem onClick={shiftPlan}><CalendarDays /> Move dates…</DropdownMenuItem>}
             {!audit && <DropdownMenuItem onClick={updateFromTemplate}><RefreshCw /> Update from the template…{p.templateChanged && <span className="ml-auto size-1.5 rounded-full bg-foreground/60" />}</DropdownMenuItem>}
             {audit && <DropdownMenuItem onClick={() => newProject({ name: p.name, old: p.sites.live || p.url || "" })}><FolderPlus /> Start a project for this site…</DropdownMenuItem>}
+            {!audit && p.website && !p.repeat && (p.launched ? <DropdownMenuItem onClick={async () => { try { setP(await api.unmarkLaunched(id)); refreshProjects(); toast("Not launched yet", { description: p.launchPlanned ? `The planned date is back to ${fmtDay(p.launchPlanned)}.` : undefined }) } catch (e) { toast.error((e as Error).message) } }}><Undo2 /> Not launched yet</DropdownMenuItem> : <DropdownMenuItem onClick={() => setLaunchOpen(true)}><Stamp /> Mark launched…</DropdownMenuItem>)}
             {!audit && <DropdownMenuItem onClick={() => setAskOpen(true)}><BarChart3 /> Ask Claude Code about traffic…</DropdownMenuItem>}
+            {!audit && (p.closed ? <DropdownMenuItem onClick={async () => { setP(await api.setClosed(id, false)); refreshProjects() }}><RefreshCw /> Reopen project</DropdownMenuItem> : <DropdownMenuItem onClick={() => setClosing(true)}><Ban /> Close project…</DropdownMenuItem>)}
             <DropdownMenuItem onClick={() => { const a = document.createElement("a"); a.href = `/api/projects/${p.id}/export`; a.download = ""; a.click(); toast("Exporting the project", { description: "Its checklist, files, scans and plans, as one zip another Groundwork can import." }) }}><Download /> Export project…</DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem variant="destructive" onClick={() => setRemoving(true)}><Trash2 /> {audit ? "Delete audit…" : "Delete project…"}</DropdownMenuItem>
@@ -138,6 +144,13 @@ export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Ta
               <SiteIcon runId={p.tools.iconRun || undefined} name={p.name} className="size-10 rounded-lg text-lg" />
               <h1 className="mt-2.5 text-[32px] leading-tight font-medium">{p.name}</h1>
               <p className="mt-2 max-w-3xl text-[16px] leading-normal">{standLine(p)}</p>
+              {!p.closed && p.website && !p.repeat && !p.launched && p.launch && p.launch <= addDaysTo(today(), 3) && (
+                <div className="mt-3 flex max-w-3xl flex-wrap items-center gap-3 rounded-lg bg-muted/60 px-3.5 py-2.5 text-[14px]">
+                  <span className="flex-1">{p.launch < today() ? `The plan said ${p.name} would launch on ${fmtDay(p.launch)}. Is it live?` : p.launch === today() ? "Launch day is today. Mark it once the new site is live." : `Launch day is ${fmtDay(p.launch, true)}. Mark it once the new site is live.`}</span>
+                  <Button size="sm" onClick={() => setLaunchOpen(true)}>Mark launched</Button>
+                </div>
+              )}
+              {p.closed && <div className="mt-3 flex max-w-3xl items-center gap-3 rounded-lg bg-muted/60 px-3.5 py-2.5 text-[14px]"><span className="flex-1">This project is closed.</span><Button size="sm" variant="outline" onClick={async () => { setP(await api.setClosed(id, false)); refreshProjects() }}>Reopen</Button></div>}
               <div className="mt-2.5"><PhaseStrip p={p} /></div>
             </>}
             {audit ? (
@@ -177,6 +190,19 @@ export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Ta
       {!audit && <HandoffDialog p={p} open={handoffOpen} onClose={() => setHandoffOpen(false)} />}
       {!audit && p.repeat && <CareReportDialog p={p} open={careOpen} onClose={() => setCareOpen(false)} />}
       {!audit && <AskClaudeDialog p={p} open={askOpen} onClose={() => setAskOpen(false)} />}
+      {!audit && <MarkLaunchedDialog p={p} open={launchOpen} onClose={() => { setLaunchOpen(false); if (sub === "launched") go(routes.project(id)) }} onDone={(x) => { setP(x); refreshProjects() }} />}
+      <AlertDialog open={closing} onOpenChange={setClosing}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Close {p.name}?</AlertDialogTitle>
+            <AlertDialogDescription>It leaves Today and the late counts, and Groundwork stops checking its site. Everything in it stays, and you can reopen it any time.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={async () => { setP(await api.setClosed(id, true)); refreshProjects(); toast(`${p.name} is closed`) }}>Close project</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <ShiftDialog p={p} onDone={(x) => { setP(x); refreshProjects() }} />
       <TemplateUpdateDialog p={p} onDone={(x) => { setP(x); refreshProjects() }} />
       <AlertDialog open={removing} onOpenChange={setRemoving}>

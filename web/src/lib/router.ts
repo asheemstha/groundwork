@@ -52,6 +52,8 @@ export const go = (path: string) => {
 export const routes = {
   home: "/",
   project: (id: string, tab?: "checklist" | "client" | "site" | "money" | "redirects" | "inventory") => `/project/${id}${tab ? "/" + tab : ""}`,
+  /** The Overview with the Mark launched dialog open. */
+  markLaunched: (id: string) => `/project/${id}/overview/launched`,
   /** The Site tab, at its checks or at "Moving from the old site". */
   site: (id: string, view?: "moving") => `/project/${id}/site${view ? "/" + view : ""}`,
   /** A checklist item, opened in the side panel. */

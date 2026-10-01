@@ -5,7 +5,7 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { useApp } from "@/hooks/useApp"
 import { api, type LaunchCheckId, type LaunchReport, type Project, type SiteKey } from "@/lib/api"
-import { SITE_KEYS, SITE_NAME, fmtDay, hostOfUrl, subName, today } from "@/lib/project"
+import { SITE_KEYS, SITE_NAME, fmtDay, hostOfUrl, subName } from "@/lib/project"
 import { ago } from "@/lib/format"
 import { go, routes } from "@/lib/router"
 import { platformOf } from "@/lib/platforms"
@@ -77,7 +77,7 @@ function Checks({ p, setP, reload, onEdit }: { p: Project; setP: (x: Project) =>
   const failing = counted.filter((id) => !last!.checks[id]!.ok)
   const waiting = last ? (Object.keys(last.checks) as LaunchCheckId[]).filter(later).length : 0
   // A same-domain redesign: the live domain shows the old site until launch day.
-  const liveIsOld = site === "live" && !!p.sites.old && hostOfUrl(p.sites.old) === host && !(p.launch && today() >= p.launch)
+  const liveIsOld = site === "live" && !!p.sites.old && hostOfUrl(p.sites.old) === host && !p.launched
   const check = async () => { setBusy("check"); await startLaunch(p, url, reload, speed); setBusy(null) }
   const scan = async () => {
     if (!site) return
@@ -112,6 +112,7 @@ function Checks({ p, setP, reload, onEdit }: { p: Project; setP: (x: Project) =>
         {keys.length === 1 && <span className="text-[13px] text-muted-foreground">{audit ? "" : `${SITE_NAME[keys[0]]}, `}<a href={url} target="_blank" rel="noreferrer" className="text-foreground hover:underline">{host}</a></span>}
         <span className="flex-1" />
         <button onClick={onEdit} className="text-[12.5px] text-muted-foreground hover:text-foreground">Edit addresses</button>
+        {!audit && !p.repeat && !p.launched && !p.closed && <Button size="sm" onClick={() => go(routes.markLaunched(p.id))}>Mark launched</Button>}
       </div>
 
       {liveIsOld ? (
@@ -142,7 +143,7 @@ function Checks({ p, setP, reload, onEdit }: { p: Project; setP: (x: Project) =>
                 return (
                   <button key={id} onClick={() => go(routes.launch(p.id, last!.id, id))} className="grid min-h-14 grid-cols-[minmax(0,1fr)_auto_16px] items-center gap-3 border-b px-1 py-2 text-left hover:bg-muted/30">
                     <span className="grid min-w-0 gap-0.5"><span className="text-[14px]">{SHORT[id]}: {plural(n, "problem", "problems")}</span>{hard.length > 0 && <span className="truncate text-[13px] text-muted-foreground">{hard.slice(0, 2).map((i) => i.text).join(", ")}</span>}</span>
-                    <span className="text-[13px] text-destructive">{p.launch && today() >= p.launch ? "Fix now" : "Fix before launch"}</span>
+                    <span className="text-[13px] text-destructive">{p.launched ? "Fix now" : "Fix before launch"}</span>
                     <ChevronRight className="size-3.5 text-muted-foreground" />
                   </button>
                 )

@@ -14,6 +14,8 @@ export const waited = (x: Pick<PItem, "asked">) => {
   return `asked ${fmtDay(dayOf(x.asked))}, ${days === 0 ? "today" : days === 1 ? "yesterday" : `${days} days ago`}`
 }
 const daysBetween = (a: string, b: string) => Math.round((parse(b).getTime() - parse(a).getTime()) / 86400000)
+/** A YYYY-MM-DD day moved by `n` days. */
+export const addDaysTo = (d: string, n: number) => { const x = parse(d); x.setDate(x.getDate() + n); return iso(x) }
 
 /** "Oct 6", or "Tue, Oct 6" with the weekday. */
 export const fmtDay = (d?: string | null, weekday = false) => (d ? parse(d).toLocaleDateString([], { ...(weekday ? { weekday: "short" } : {}), month: "short", day: "numeric" }) : "")

@@ -4,7 +4,7 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { ToolCard } from "@/components/project/ToolCard"
 import { api, type GoogleLists, type GoogleRange, type GoogleStatus, type Project, type TrafficImport } from "@/lib/api"
-import { hostOfUrl, today } from "@/lib/project"
+import { hostOfUrl } from "@/lib/project"
 import { go, routes } from "@/lib/router"
 
 const day = (t: number) => new Date(t).toLocaleDateString([], { month: "short", day: "numeric" })
@@ -77,7 +77,7 @@ function suggestSite(sites: string[], domain: string) {
 function GooglePulls({ p, setP, g }: { p: Project; setP: (x: Project) => void; g: GoogleStatus }) {
   const [lists, setLists] = React.useState<GoogleLists | null>(null)
   const [loading, setLoading] = React.useState(false)
-  const [kind, setKind] = React.useState<GoogleRange>(p.repeat ? "month" : p.launch && p.launch <= today() ? "since" : "before")
+  const [kind, setKind] = React.useState<GoogleRange>(p.repeat ? "month" : p.launched ? "since" : "before")
   const [pulling, setPulling] = React.useState<"gsc" | "ga4" | null>(null)
   const load = React.useCallback(async (fresh = false) => { setLoading(true); try { setLists(await api.googleLists(fresh)) } catch (e) { toast.error((e as Error).message) } finally { setLoading(false) } }, [])
   React.useEffect(() => { load() }, [load])
@@ -97,7 +97,7 @@ function GooglePulls({ p, setP, g }: { p: Project; setP: (x: Project) => void; g
   }
   const base = domain.split(".")[0]
   const props = (lists?.properties || []).slice().sort((a, b) => Number(b.name.toLowerCase().includes(base)) - Number(a.name.toLowerCase().includes(base)))
-  const launched = !!p.launch && p.launch <= today()
+  const launched = !!p.launched
   const RANGES: [GoogleRange, string, boolean][] = [["before", p.launch ? "3 months before launch" : "Last 3 months", true], ["since", "First 28 days after launch", launched], ["month", "Last month", true], ["last28", "Last 28 days", true]]
   const sel = "h-8 min-w-0 rounded-md border border-input bg-card px-2 text-[13px]"
   return (
