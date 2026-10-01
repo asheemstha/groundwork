@@ -80,6 +80,8 @@ export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Ta
         </DropdownMenu>
       </TopBar>
       <div className="scrollbar-thin min-h-0 flex-1 overflow-auto">
+        {/* The project's own pages share one centred column; the tool pages below centre themselves at their own widths. */}
+        <div className="mx-auto w-full max-w-6xl">
         {!sub_label(tab) && (
           <header className="px-12 pt-7">
             <SiteIcon runId={p.tools.iconRun || undefined} name={p.name} className="size-10 rounded-lg text-lg" />
@@ -114,6 +116,7 @@ export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Ta
         {tab === "checklist" && <ChecklistTab p={p} setItem={setItem} setP={setP} reload={load} openItem={item} openPhase={sub} />}
         {tab === "client" && <ClientTab key={sub || ""} p={p} setItem={setItem} setP={setP} mode={sub === "remind" || sub === "update" ? sub : undefined} />}
         {tab === "tools" && <ToolsTab p={p} reload={load} onEdit={() => setEditing(true)} />}
+        </div>
         {tab === "launch" && <LaunchReportPage key={sub || ""} p={p} sub={sub} reload={load} />}
         {tab === "redirects" && <RedirectsPage p={p} reload={load} />}
         {tab === "inventory" && <InventoryPage p={p} reload={load} />}
@@ -784,7 +787,7 @@ function ToolsTab({ p, reload, onEdit }: { p: Project; reload: () => void; onEdi
   const keys: SiteKey[] = audit ? ["live"] : SITE_KEYS
   const label = (r: Run) => (DONE(r.status) ? (r.output === "live" ? "Heading plan (tags only)" : "Heading plan (tags and rewrites)") : r.status === "scanning" ? "Scanning" : r.status === "running" ? "Planning headings" : r.status === "scan_failed" ? "Scan failed" : r.status === "failed" ? "Heading plan failed" : "Scan") + (r.seo && DONE(r.seo.status) ? ", SEO plan" : r.seo?.status === "running" ? ", planning SEO" : "")
   return (
-    <div className="grid mx-auto w-full max-w-3xl gap-3 px-12 pt-6 pb-10">
+    <div className="grid gap-3 px-12 pt-6 pb-10">
       <p className="text-[14px] text-muted-foreground">{audit ? `Groundwork’s tools for ${p.name}.` : `Groundwork’s tools for ${p.name}. Their results tick checklist items for you.`}</p>
       <h2 className="mt-2 text-[13px] font-medium text-muted-foreground">{audit ? "Site" : "Websites"}</h2>
       <div className="overflow-hidden rounded-xl border bg-card">
