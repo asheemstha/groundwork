@@ -263,7 +263,7 @@ export interface InventoryRow { path: string; name: string; title: string; words
 export interface Inventory { at: number; runId: string; host: string; ai: boolean; rows: InventoryRow[] }
 export interface InventorySummary { at: number; total: number; review: number; keep: number; rewrite: number; merge: number; remove: number; ai: boolean }
 export interface DueRule { from: "kickoff" | "launch"; days: number }
-export type LaunchCheckId = "indexing" | "placeholders" | "links" | "seo" | "canonicals" | "legal" | "https" | "a11y" | "speed"
+export type LaunchCheckId = "indexing" | "placeholders" | "links" | "seo" | "canonicals" | "legal" | "https" | "a11y" | "speed" | "tracking"
 export interface TItem { id: string; title: string; who: "us" | "client"; done: string; part: string | null; platforms?: PlatformId[] | null; tool: ToolId | null; check?: LaunchCheckId | "plan" | "live" | "map" | "after" | "recrawl" | null; due: DueRule | null }
 export interface TGroup { id: string; name: string; items: TItem[] }
 export interface TPhase { id: string; name: string; due: DueRule | null; groups: TGroup[]; handoff: { title: string; needs: "us" | "client"; items: TItem[] } }
@@ -314,6 +314,14 @@ export interface Project {
   rate: string; billTo: string
   /** Payments marked paid and paid hours invoices, added up in one currency. */
   paid: { amount: number; currency: Currency; mixed: boolean } | null
+  /** The live domain's SSL certificate and registration, checked once a day. */
+  renewals: Renewals | null
+}
+export interface Renewals {
+  host: string; at: number; hosted: boolean
+  ssl: { expires?: string; issuer?: string; trusted?: boolean; auto?: boolean; error?: string }
+  domain: { domain: string; expires?: string | null; registrar?: string | null; error?: string }
+  warnings: { what: "ssl" | "domain"; name: string; expires: string; days: number; late: boolean; auto?: boolean; by?: string | null }[]
 }
 export interface Currency { before: string; after: string }
 export interface InvoiceLine { text: string; sub?: string; qty?: number; unit?: number; amount: number }
@@ -345,7 +353,7 @@ export type Rating = "good" | "fix" | "poor" | null
 export interface SpeedResult { path: string; error?: string; status?: number; lcp: number | null; cls: number; tbt: number; fcp: number | null; lcpEl: string; bytes: number; requests: number; heavy: { name: string; type: string; bytes: number }[]; rating: { lcp: Rating; cls: Rating; tbt: Rating } }
 export interface LaunchReport {
   id: string; projectId: string; url: string; started: number; ended?: number; status: "running" | "done" | "failed" | "cancelled"; error?: string
-  progress: { step: "site" | "pages" | "links" | "speed"; done: number; total: number; started?: number; stepAt?: number; times?: Record<string, number> }
+  progress: { step: "site" | "pages" | "links" | "tracking" | "speed"; done: number; total: number; started?: number; stepAt?: number; times?: Record<string, number> }
   /** Whether this check runs the speed test, and the day after launch it re-checked (3, 7 or 30), if any. */
   speed?: boolean; watch?: number | null
   host?: string; liveHost?: string; staging?: boolean; oldSite?: boolean; pagesChecked?: number; linksChecked?: number; checks?: LaunchCheck[]
@@ -354,10 +362,19 @@ export interface LaunchReport {
     phones: { page: string; number: string }[]; forms: { page: string; count: number }[]; mixed: { page: string; count: number }[]
     external: { checked: number; broken: { url: string; status: number; page: string }[]; social: number }
     speed?: SpeedResult[] | null; a11yPages?: number
+    /** What the tracking check saw, and whether Search Console's verification tag is on the home page. */
+    tracking?: TrackingInfo; trackingError?: string; searchConsole?: "meta" | null
   }
   pages?: { path: string; status: number; title: string; error: string | null }[]
   /** The last check of the same site, and what was fixed since. */
   previous?: { id: string; at: number }; fixed?: { check: LaunchCheckId; text: string; pages: number }[]
+}
+export interface TrackingInfo {
+  tags: { tag: string; name: string; ids: string[]; pages: number; of: number }[]
+  banner: string | null; buttons: { accept: string | null; reject: string | null } | null; consentMode: boolean
+  /** The tags that tracked on a first visit, after rejecting and after accepting cookies. Null when that wasn't tested. */
+  firstVisit: string[] | null; afterReject: string[] | null; afterAccept: string[] | null
+  redirects: { from: string; to: string; kept: boolean }[]; blocked: number
 }
 export interface ProjectSummary {
   id: string; kind: "project" | "audit"; name: string; templateId: string | null; sample?: boolean; website?: boolean; host: string | null; url: string | null; launch: string | null; iconRun: string | null
@@ -377,7 +394,7 @@ export interface ShiftPreview {
   days: number; launch: { from: string | null; to: string | null }; late: { before: number; after: number }
   next: { title: string; due: string } | null; phases: { name: string; from: string | null; to: string; clash: boolean }[]
 }
-export interface NextUp { key: string; kind: "item" | "client" | "ask" | "signoff" | "watch"; projectId: string; itemId?: string; checkId?: string; title: string; phaseId?: string; phaseName?: string; due: string | null; late: boolean; asked?: boolean; ready?: boolean; leftover?: boolean }
+export interface NextUp { key: string; kind: "item" | "client" | "ask" | "signoff" | "watch" | "renewal"; projectId: string; itemId?: string; checkId?: string; title: string; phaseId?: string; phaseName?: string; due: string | null; late: boolean; asked?: boolean; ready?: boolean; leftover?: boolean }
 /** Home: this week's work for one project, most urgent first. */
 export interface HomeGroup { projectId: string; projectName: string; iconRun: string | null; rows: NextUp[]; more: number; late: number }
 /** Messages to send today for one project: items to ask for, reminders, the weekly update and invoices. */
@@ -525,6 +542,8 @@ export const api = {
   saveInvoice: (id: string, d: InvoiceDraft) => req<{ invoice: InvoiceSummary; project: Project }>("POST", `/api/projects/${id}/invoices`, d),
   setInvoice: (id: string, invId: string, b: { paid: boolean }) => req<Project>("POST", `/api/projects/${id}/invoices/${invId}`, b),
   removeInvoice: (id: string, invId: string) => req<Project>("DELETE", `/api/projects/${id}/invoices/${invId}`),
+  /** Reads the live domain's SSL certificate and domain expiry now. */
+  checkRenewals: (id: string) => req<Project>("POST", `/api/projects/${id}/renewals`),
 }
 export const invoiceUrl = (id: string, invId: string, html = false) => `/api/projects/${id}/invoices/${invId}${html ? "?format=html" : ""}`
 /** "$2,400.00", "1,250.50 EUR". */

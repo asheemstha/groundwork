@@ -862,6 +862,7 @@ const server = http.createServer(async (req, res) => {
         }
         if (sub === '/inventory/rows' && M === 'POST') return json(res, P.setInventory(id, await body(req)));
         if (sub === '/inventory/apply' && M === 'POST') return json(res, { changed: P.applyInventory(id) });
+        if (sub === '/renewals' && M === 'POST') { try { await P.checkRenewals(id); } catch (e) { return json(res, { error: e.message }, 400); } return json(res, P.get(id)); }
         if (sub === '/scan' && M === 'POST') {
           // Scan one of the project's sites: the old one, staging or live.
           const b = await body(req), raw = P.readRaw(id), sites = P.sitesOf(raw);
@@ -1100,5 +1101,9 @@ Promise.all([import('./shared/checks.mjs'), import('./shared/seo.mjs')]).then(([
     const idle = () => { try { return process.versions.electron ? require('electron').powerMonitor.getSystemIdleTime() : null; } catch { return null; } };
     const tick = () => { try { T.tick(idle()); } catch (e) { console.log('timer check failed', e.message); } };
     tick(); setInterval(tick, 60e3).unref?.();
+    // SSL and domain renewal dates: each project's live domain once a day, a few at a time.
+    const renew = async () => { for (const id of P.renewalsDue().slice(0, 3)) { try { await P.checkRenewals(id); } catch (e) { console.log('renewal check failed', id, e.message); } } };
+    setTimeout(renew, 90e3).unref?.();
+    setInterval(renew, 60 * 60e3).unref?.();
   });
 });

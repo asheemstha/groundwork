@@ -883,7 +883,7 @@ function ToolsTab({ p, reload, onEdit }: { p: Project; reload: () => void; onEdi
       <p className="text-[14px] text-muted-foreground">{audit ? `Groundwork’s tools for ${p.name}.` : `Groundwork’s tools for ${p.name}. Their results tick checklist items for you.`}</p>
       <h2 className="mt-2 text-[13px] font-medium text-muted-foreground">{audit ? "Site" : "Websites"}</h2>
       <div className="overflow-hidden rounded-xl border bg-card">
-        {keys.map((k) => <SiteTools key={k} p={p} k={k} label={audit ? "Site" : SITE_NAME[k]} busy={busy === k} onScan={() => scan(k)} onEdit={onEdit} />)}
+        {keys.map((k) => <SiteTools key={k} p={p} k={k} label={audit ? "Site" : SITE_NAME[k]} busy={busy === k} onScan={() => scan(k)} onEdit={onEdit} reload={reload} />)}
       </div>
       <p className="text-[12.5px] text-muted-foreground">Scans run on your Mac with no AI. The heading and SEO plans use your {subName(status)} subscription.</p>
       <h2 className="mt-4 text-[13px] font-medium text-muted-foreground">Checks</h2>
@@ -913,7 +913,7 @@ function ToolsTab({ p, reload, onEdit }: { p: Project; reload: () => void; onEdi
 }
 
 /** One website on the Tools tab: its latest scan, and the heading and SEO plans made from its scans. */
-function SiteTools({ p, k, label, busy, onScan, onEdit }: { p: Project; k: SiteKey; label: string; busy: boolean; onScan: () => void; onEdit: () => void }) {
+function SiteTools({ p, k, label, busy, onScan, onEdit, reload }: { p: Project; k: SiteKey; label: string; busy: boolean; onScan: () => void; onEdit: () => void; reload: () => void }) {
   const url = p.sites[k]
   const runs = p.tools.runs.filter((r) => r.site === k)
   const scanning = runs.find((r) => r.status === "scanning")
@@ -964,6 +964,25 @@ function SiteTools({ p, k, label, busy, onScan, onEdit }: { p: Project; k: SiteK
         {seo && <Button size="xs" variant="ghost" onClick={() => go(seo.seo!.status === "running" ? routes.run(seo.id, "seo") : routes.seo(seo.id))}>Open</Button>}
         {scan && (!seo || seo.id !== scan.id) && <Button size="xs" variant="outline" onClick={() => go(routes.run(scan.id, "seo"))}>{seo ? "Plan the latest scan" : "Plan SEO"}</Button>}
       </Row>
+      {k === "live" && <RenewalsRow p={p} reload={reload} />}
+    </div>
+  )
+}
+
+/** When the live domain's SSL certificate and registration run out, read once a day. */
+function RenewalsRow({ p, reload }: { p: Project; reload: () => void }) {
+  const [busy, setBusy] = React.useState(false)
+  const r = p.renewals
+  const long = (d?: string | null) => (d ? new Date(d + "T00:00").toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" }) : "")
+  const check = async () => { setBusy(true); try { await api.checkRenewals(p.id); reload() } catch (e) { toast.error((e as Error).message) } finally { setBusy(false) } }
+  const warn = (what: "ssl" | "domain") => r?.warnings.find((w) => w.what === what)
+  const ssl = !r ? null : r.ssl.error ? <span>SSL: {r.ssl.error}</span> : <span className={cn(warn("ssl")?.late && "text-destructive", warn("ssl") && !warn("ssl")!.late && "text-foreground")}>SSL until {long(r.ssl.expires)}{r.ssl.auto || r.hosted ? " (renews itself)" : r.ssl.issuer ? ` (${r.ssl.issuer})` : ""}</span>
+  const dom = !r ? null : r.domain.error ? <span>Domain: {r.domain.error}</span> : r.domain.expires ? <span className={cn(warn("domain")?.late && "text-destructive", warn("domain") && !warn("domain")!.late && "text-foreground")}>Domain until {long(r.domain.expires)}{r.domain.registrar ? ` (${r.domain.registrar})` : ""}</span> : <span>The registry doesn’t publish {r.domain.domain}’s expiry date</span>
+  return (
+    <div className="grid min-h-10 grid-cols-[110px_minmax(0,1fr)_auto] items-center gap-3 text-[13.5px]">
+      <span className="text-muted-foreground">Renewals</span>
+      <span className="min-w-0 truncate text-muted-foreground" title={r ? `Checked ${ago(r.at)}` : undefined}>{r ? <>{ssl} · {dom}</> : "Not checked yet"}</span>
+      <span className="flex items-center gap-1.5"><Button size="xs" variant="ghost" onClick={check} disabled={busy}>{busy && <Loader2 className="animate-spin" />}Check now</Button></span>
     </div>
   )
 }

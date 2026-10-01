@@ -8,18 +8,19 @@ import { Spinner } from "@/components/common/bits"
 import { ToolCard } from "@/components/project/ToolCard"
 import { useApp } from "@/hooks/useApp"
 import { Checkbox } from "@/components/ui/checkbox"
-import { api, type LaunchCheck, type LaunchCheckId, type LaunchIssue, type LaunchReport, type LaunchSummary, type PItem, type Project, type Rating, type SpeedResult } from "@/lib/api"
+import { api, type LaunchCheck, type LaunchCheckId, type LaunchIssue, type LaunchReport, type LaunchSummary, type PItem, type Project, type Rating, type SpeedResult, type TrackingInfo } from "@/lib/api"
 import { store } from "@/lib/store"
 import { go, routes } from "@/lib/router"
 import { hostOfUrl, today } from "@/lib/project"
 import { stagingExample } from "@/lib/platforms"
 import { CloudflareHelp, isCloudflare } from "@/components/common/CloudflareHelp"
 
-const ORDER: LaunchCheckId[] = ["indexing", "placeholders", "links", "seo", "a11y", "speed", "canonicals", "legal", "https"]
+const ORDER: LaunchCheckId[] = ["indexing", "placeholders", "links", "seo", "a11y", "speed", "tracking", "canonicals", "legal", "https"]
 const STEPS = [
   { id: "site", label: "robots.txt, sitemap and redirects" },
   { id: "pages", label: "Opening pages and checking accessibility" },
   { id: "links", label: "Testing links" },
+  { id: "tracking", label: "Tags and cookie consent" },
   { id: "speed", label: "Speed test of three key pages on a phone" },
 ] as const
 /** Whether the next check runs the speed test. It adds a minute or two, so quick re-runs can skip it. */
@@ -125,7 +126,7 @@ export function LaunchCard({ p, reload }: { p: Project; reload: () => void }) {
   return (
     <ToolCard
       title="Launch check" cost="runs on your Mac, no AI"
-      status={running ? "Checking now." : last ? <>Last check {day(last.at)}{last.staging ? " on staging" : ""}: {fails ? `${fails} ${fails === 1 ? "check needs" : "checks need"} fixing` : "ready"}. <button onClick={() => go(routes.launch(p.id, last.id))} className="text-foreground/80 underline underline-offset-2 hover:text-foreground">Open the report</button></> : "Reads the site the way Google and a visitor would: noindex, placeholder text, broken links, titles, accessibility, speed on a phone, canonicals, legal pages and redirects. Use staging before launch and the live domain after. After launch, Groundwork checks the live site again on days 3, 7 and 30 while the app is open."}
+      status={running ? "Checking now." : last ? <>Last check {day(last.at)}{last.staging ? " on staging" : ""}: {fails ? `${fails} ${fails === 1 ? "check needs" : "checks need"} fixing` : "ready"}. <button onClick={() => go(routes.launch(p.id, last.id))} className="text-foreground/80 underline underline-offset-2 hover:text-foreground">Open the report</button></> : "Reads the site the way Google and a visitor would: noindex, placeholder text, broken links, titles, accessibility, speed on a phone, analytics tags and cookie consent, canonicals, legal pages and redirects. Use staging before launch and the live domain after. After launch, Groundwork checks the live site again on days 3, 7 and 30 while the app is open."}
       action={running ? <Button size="sm" variant="outline" onClick={() => api.cancelLaunch(p.id, running.id).catch(() => {})}>Stop</Button> : <Button size="sm" variant="outline" onClick={async () => { setBusy(true); await startLaunch(p, url, reload, speed); setBusy(false) }} disabled={busy || !url.trim()}>{busy && <Loader2 className="animate-spin" />}{last ? "Run again" : "Run the check"}</Button>}
     >
       {running && r?.status === "running" ? (
@@ -241,6 +242,7 @@ function Report({ p, r, focus, busy, onRun, head, speed, setSpeed }: { p: Projec
       ))}
       {(r.fixed || []).length > 0 && <Fixed r={r} />}
       {!!info.speed?.length && <Speed r={r} list={info.speed} carried={r.checks!.find((c) => c.id === "speed")?.carried} />}
+      {info.tracking && <Tracking t={info.tracking} error={info.trackingError} />}
 
       <section className="grid gap-1">
         <h2 className="mb-1 text-sm font-medium">Also found</h2>
@@ -253,6 +255,7 @@ function Report({ p, r, focus, busy, onRun, head, speed, setSpeed }: { p: Projec
           <Fact label="Other sites" bad={info.external.broken.length > 0} list={info.external.broken.map((x) => ({ page: x.page, text: `${x.url} (${x.status ? "HTTP " + x.status : "no response"})` }))} base={r.url}>
             {info.external.checked} links checked, {info.external.broken.length ? `${info.external.broken.length} broken` : "none broken"}.{info.external.social > 0 && ` ${info.external.social} social links skipped, those sites block automated checks.`}
           </Fact>
+          {!r.staging && <Fact label="Search Console">{info.searchConsole ? "Verified with a meta tag on the home page. Keep it, or the verification stops." : "No verification tag on the home page. It may be verified through DNS instead: check Search Console lists the live domain."}</Fact>}
           <Fact label="Mixed content" bad={info.mixed.length > 0} list={info.mixed.map((x) => ({ page: x.page, text: `${x.count} http:// ${x.count === 1 ? "file" : "files"}` }))} base={r.url}>{info.mixed.length ? `${info.mixed.length} ${info.mixed.length === 1 ? "page loads" : "pages load"} files over http://` : "None"}</Fact>
         </div>
       </section>
@@ -332,7 +335,38 @@ function Fixed({ r }: { r: LaunchReport }) {
     </section>
   )
 }
-const CHECK_NAMES: Record<LaunchCheckId, string> = { indexing: "Google can index the site", placeholders: "No placeholder text or dummy links", links: "Links work", seo: "Titles, descriptions, H1s, alt text, OG images, favicon", a11y: "Accessibility basics (WCAG 2.2 AA)", speed: "Speed on a phone (Core Web Vitals)", canonicals: "Canonicals point to the live domain", legal: "Legal pages linked", https: "SSL and redirects" }
+const CHECK_NAMES: Record<LaunchCheckId, string> = { indexing: "Google can index the site", placeholders: "No placeholder text or dummy links", links: "Links work", seo: "Titles, descriptions, H1s, alt text, OG images, favicon", a11y: "Accessibility basics (WCAG 2.2 AA)", speed: "Speed on a phone (Core Web Vitals)", tracking: "Tracking: tags, cookie consent and ad clicks", canonicals: "Canonicals point to the live domain", legal: "Legal pages linked", https: "SSL and redirects" }
+
+// ---------- tracking ----------
+/** What's installed, and what the home page did with no cookie choice, after Reject and after Accept. */
+function Tracking({ t, error }: { t: TrackingInfo; error?: string }) {
+  const names = (x: string[]) => x.join(", ")
+  const verb = (x: string[], one: string, many: string) => (x.length === 1 ? one : many)
+  const dropped = t.redirects.filter((x) => !x.kept)
+  return (
+    <section className="grid gap-1">
+      <h2 className="mb-1 flex items-baseline gap-2 text-sm font-medium">What’s installed<span className="text-[12.5px] font-normal text-muted-foreground">{t.blocked ? `${t.blocked} tracking requests blocked during the check, so nothing reached the client’s accounts` : "as a visitor’s browser sees it"}</span></h2>
+      <div className="overflow-hidden rounded-xl border bg-card text-[13.5px]">
+        {t.tags.length ? t.tags.map((x) => (
+          <div key={x.tag} className="grid min-h-10 grid-cols-[minmax(0,1fr)_minmax(0,1fr)_120px] items-center gap-3 border-t px-4 py-2 first:border-t-0">
+            <span>{x.name}</span>
+            <span className="truncate text-muted-foreground">{x.ids.join(", ") || "No ID seen"}</span>
+            <span className={cn("text-right tabular", x.pages < x.of && x.tag !== "ads" ? "text-foreground" : "text-muted-foreground")}>{x.pages === x.of ? `Every page (${x.of})` : `${x.pages} of ${x.of} pages`}</span>
+          </div>
+        )) : <p className="px-4 py-3 text-muted-foreground">No analytics or ad tags found on the pages checked.</p>}
+      </div>
+      <div className="mt-2 overflow-hidden rounded-xl border bg-card text-[13.5px]">
+        <Fact label="Cookie banner">{t.banner ? `${t.banner}${t.buttons && !t.buttons.reject ? ", with no Reject button on its first screen" : ""}` : "None found"}</Fact>
+        <Fact label="First visit" bad={!!t.banner && !!t.firstVisit?.length}>{t.firstVisit == null ? "Not tested" : t.firstVisit.length ? `${names(t.firstVisit)} ${t.banner ? verb(t.firstVisit, "tracks", "track") + " before a choice is made" : verb(t.firstVisit, "tracks", "track") + " straight away"}` : "Nothing tracks before a choice"}</Fact>
+        {t.banner && <Fact label="After Reject" bad={!!t.afterReject?.length}>{t.afterReject == null ? "Couldn’t find a Reject button to press" : t.afterReject.length ? `${names(t.afterReject)} still ${verb(t.afterReject, "tracks", "track")}` : "Nothing tracks"}</Fact>}
+        {t.banner && <Fact label="After Accept">{t.afterAccept == null ? "Couldn’t find an Accept button to press" : t.afterAccept.length ? `${names(t.afterAccept)} ${verb(t.afterAccept, "starts", "start")}` : "Nothing starts"}</Fact>}
+        <Fact label="Consent mode">{t.consentMode ? "Google tags send consent mode signals" : "Not in use"}</Fact>
+        <Fact label="Ad click IDs" bad={dropped.length > 0}>{!t.redirects.length ? "No redirects to test" : dropped.length ? `${dropped.length} of ${t.redirects.length} redirects drop gclid and UTM tags` : `Kept through ${t.redirects.length} ${t.redirects.length === 1 ? "redirect" : "redirects"}`}</Fact>
+      </div>
+      {error && <p className="text-[12.5px] text-muted-foreground">The cookie test couldn’t finish: {error}</p>}
+    </section>
+  )
+}
 
 // ---------- speed ----------
 const TONE: Record<string, string> = { good: "text-muted-foreground", fix: "text-foreground", poor: "text-destructive" }

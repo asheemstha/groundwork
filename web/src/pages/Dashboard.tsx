@@ -180,6 +180,7 @@ const KIND: Record<NextUp["kind"], (n: NextUp) => React.ReactNode> = {
   ask: () => <span className="inline-flex items-center gap-1"><Mail className="size-3" />Time to ask the client</span>,
   signoff: (n) => <span className="inline-flex items-center gap-1"><Stamp className="size-3" />{n.ready ? "Everything’s done" : `${n.phaseName} phase`}</span>,
   watch: () => <span className="inline-flex items-center gap-1"><Radar className="size-3" />Groundwork checked the live site again</span>,
+  renewal: () => <span className="inline-flex items-center gap-1"><CalendarClock className="size-3" />Renewal date</span>,
 }
 
 // Two lines, so the title gets the full width: what to do, then what kind of work it is. Your own items can go on
@@ -187,7 +188,7 @@ const KIND: Record<NextUp["kind"], (n: NextUp) => React.ReactNode> = {
 function NextRow({ n }: { n: NextUp }) {
   const { now } = useTimer()
   const running = useRunningOn({ projectId: n.projectId, itemId: n.itemId })
-  const open = () => go(n.kind === "watch" && n.checkId ? routes.launch(n.projectId, n.checkId) : n.kind === "client" || n.kind === "ask" ? routes.project(n.projectId, "client") : n.itemId ? routes.item(n.projectId, n.itemId) : routes.project(n.projectId))
+  const open = () => go(n.kind === "renewal" ? routes.project(n.projectId, "tools") : n.kind === "watch" && n.checkId ? routes.launch(n.projectId, n.checkId) : n.kind === "client" || n.kind === "ask" ? routes.project(n.projectId, "client") : n.itemId ? routes.item(n.projectId, n.itemId) : routes.project(n.projectId))
   const due = n.kind === "watch" ? fmtDay(n.due) : n.kind === "signoff" && n.ready ? "Ready" : n.kind === "ask" ? (n.due ? `due ${fmtDay(n.due)}` : "") : dueLabel({ due: n.due, late: n.late, status: "todo" })
   const ours = n.kind === "item" && !!n.itemId
   const addTask = async (e: React.MouseEvent) => { e.stopPropagation(); try { await api.addTask({ title: n.title, projectId: n.projectId, itemId: n.itemId }); toast("Added to my tasks"); timeChanged() } catch (err) { toast((err as Error).message) } }
