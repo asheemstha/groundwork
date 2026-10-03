@@ -1,6 +1,6 @@
 import * as React from "react"
 import { cn } from "cn"
-import { Ban, BarChart3, CalendarDays, Globe, LayoutDashboard, ListChecks, Star, Wallet, FileText, Check, ChevronDown, ChevronRight, ChevronUp, Copy, Download, ExternalLink, FolderPlus, Hourglass, Info, Play, Layers, Link2, Loader2, Mail, MessageSquare, MoreHorizontal, Paperclip, Pencil, Plus, Receipt, RefreshCw, Stamp, Timer, Trash2, Undo2, User, X } from "lucide-react"
+import { Ban, BarChart3, CalendarDays, Globe, Tag, LayoutDashboard, ListChecks, Star, Wallet, FileText, Check, ChevronDown, ChevronRight, ChevronUp, Copy, Download, ExternalLink, FolderPlus, Hourglass, Info, Play, Layers, Link2, Loader2, Mail, MessageSquare, MoreHorizontal, Paperclip, Pencil, Plus, Receipt, RefreshCw, Stamp, Timer, Trash2, Undo2, User, X } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -344,10 +344,17 @@ function ChecklistTab({ p, setItem, setP, reload, openItem, openPhase }: { p: Pr
             <span className="flex-1" />
             <label className="inline-flex items-center gap-2 text-[13px] text-muted-foreground"><Checkbox checked={hideDone} onCheckedChange={(v) => setHideDone(!!v)} />Hide done</label>
           </div>
+          {/* Column names, like a Notion table's header. */}
+          <div className="-mx-2 mb-2 grid h-8 grid-cols-[18px_minmax(0,1fr)_180px_60px_78px] items-center gap-3 border-b px-2 text-[12.5px] text-muted-foreground">
+            <span /><span className="flex items-center gap-1.5"><span className="text-[11px] font-medium">Aa</span>Item</span>
+            <span className="flex items-center justify-end gap-1.5"><Tag className="size-3.5" />Tag</span>
+            <span className="flex items-center justify-end gap-1.5"><Timer className="size-3.5" />Time</span>
+            <span className="flex items-center justify-end gap-1.5"><CalendarDays className="size-3.5" />Due</span>
+          </div>
           {ph.groups.map((g) => {
             const items = g.items.filter(match)
             if (!items.length) return null
-            return <Group key={g.id} name={g.name} done={g.items.filter((x) => x.status !== "todo").length} total={g.items.length}>{items.map((it) => <ItemRow key={it.id} projectId={p.id} it={it} active={itemId === it.id} onToggle={() => toggle(it)} onOpen={() => setItemId(it.id)} />)}</Group>
+            return <Group key={g.id} name={g.name} done={g.items.filter((x) => x.status !== "todo").length} total={g.items.length}>{items.map((it) => <ItemRow key={it.id} projectId={p.id} it={it} active={itemId === it.id} onToggle={() => toggle(it)} onOpen={() => setItemId(it.id)} />)}<NewItemRow p={p} phaseId={ph.id} groupId={g.id} who={g.items.every((x) => x.who === "client") ? "client" : "us"} onAdded={(x) => { setP(x); refreshProjects().catch(() => {}) }} /></Group>
           })}
           <SignoffCard p={p} ph={ph} setP={setP} onReview={() => setSigning(true)} onUndo={async () => setP(await api.unsign(p.id, ph.id))} onOpen={setItemId} match={match} toggle={toggle} />
         </div>
@@ -395,6 +402,24 @@ function ChecklistTab({ p, setItem, setP, reload, openItem, openPhase }: { p: Pr
 }
 
 // A group, Notion style: a toggle triangle, the name and a count, and plain rows under it.
+/** "+ New item" at the end of a group, like the row at the bottom of a Notion table. Enter adds it and keeps typing. */
+function NewItemRow({ p, phaseId, groupId, who, onAdded }: { p: Project; phaseId: string; groupId: string; who: "us" | "client"; onAdded: (x: Project) => void }) {
+  const [on, setOn] = React.useState(false)
+  const [title, setTitle] = React.useState("")
+  const add = async () => {
+    const t = title.trim(); if (!t) return
+    try { onAdded(await api.addItem(p.id, { phaseId, groupId, title: t, who })); setTitle("") } catch (e) { toast.error((e as Error).message) }
+  }
+  if (!on) return <button onClick={() => setOn(true)} className="-mx-2 flex h-[34px] w-[calc(100%+16px)] items-center gap-3 rounded-md px-2 text-left text-[13.5px] text-muted-foreground hover:bg-muted/50"><Plus className="size-4" />New item</button>
+  return (
+    <div className="-mx-2 grid h-[34px] grid-cols-[18px_minmax(0,1fr)_auto] items-center gap-3 rounded-md bg-muted/40 px-2">
+      <Plus className="size-4 text-muted-foreground" />
+      <input autoFocus value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") add(); if (e.key === "Escape") { setTitle(""); setOn(false) } }} onBlur={() => { if (!title.trim()) setOn(false) }} placeholder={who === "client" ? "What the client needs to send or do" : "What needs doing"} className="min-w-0 bg-transparent text-[13.5px] outline-none placeholder:text-muted-foreground/70" />
+      <span className="text-[12px] text-muted-foreground">{who === "client" ? "Client’s" : "Yours"}, Enter to add</span>
+    </div>
+  )
+}
+
 function Group({ name, done, total, children }: { name: string; done: number; total: number; children: React.ReactNode }) {
   const [open, setOpen] = React.useState(true)
   return (
@@ -556,7 +581,7 @@ function ItemSheet({ p, it, onClose, setItem, reload, order, onMove }: { p: Proj
   const activity = x ? [
     ...(x.auto && t?.text ? [{ at: 0, what: `Ticked by Groundwork: ${t.text}` }] : []),
     ...x.hist.map((h) => ({ ...h, what: h.what.replace(/(\d{4}-\d{2}-\d{2})/, (d) => fmtDay(d, true)) })),
-    { at: p.created, what: `Added with the project, from ${p.templateName || "its template"}` },
+    ...(x.custom ? [] : [{ at: p.created, what: `Added with the project, from ${p.templateName || "its template"}` }]),
   ] : []
   const status = !x ? "" : x.status === "done" ? (x.auto ? "Done by Groundwork" : "Done") : x.status === "na" ? "Not needed" : x.late ? "Late" : "To do"
   return (
@@ -570,13 +595,15 @@ function ItemSheet({ p, it, onClose, setItem, reload, order, onMove }: { p: Proj
               {pos >= 0 && <span className="px-1.5 text-xs tabular">{pos + 1} of {order.length}</span>}
               <Button variant="ghost" size="icon-sm" disabled={!prev} onClick={() => prev && onMove(prev)} aria-label="Previous item" title="Previous (k)"><ChevronUp /></Button>
               <Button variant="ghost" size="icon-sm" disabled={!next} onClick={() => next && onMove(next)} aria-label="Next item" title="Next (j)"><ChevronDown /></Button>
+              {x.custom && <Button variant="ghost" size="icon-sm" aria-label="Delete this item" title="Delete this item" onClick={async () => { if (!window.confirm(`Delete “${x.title}”? Its notes and history go with it.`)) return; try { await api.removeItem(p.id, x.id); onClose(); reload() } catch (e) { toast.error((e as Error).message) } }}><Trash2 /></Button>}
               <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close"><X /></Button>
             </div>
             <div className="scrollbar-thin min-h-0 flex-1 overflow-auto">
               <div className="px-12 pt-6 pb-10">
                 <div className="grid grid-cols-[26px_minmax(0,1fr)] items-start gap-3">
                   <span className="mt-1"><StatusIcon it={x} size={24} onClick={() => setItem(x.id, { status: x.status === "done" ? "todo" : "done" })} /></span>
-                  <SheetTitle className="text-[26px] leading-tight font-medium">{x.title}</SheetTitle>
+                  {x.custom ? <SheetTitle render={<input key={x.id} defaultValue={x.title} aria-label="Item title" onBlur={async (e) => { const t = e.target.value.trim(); if (t && t !== x.title) { try { await api.renameItem(p.id, x.id, t); reload() } catch (err) { toast.error((err as Error).message) } } }} onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()} className="w-full bg-transparent text-[26px] leading-tight font-medium outline-none" />} />
+                    : <SheetTitle className="text-[26px] leading-tight font-medium">{x.title}</SheetTitle>}
                 </div>
                 <dl className="mt-6 grid gap-y-0.5 text-[13.5px]">
                   <Prop icon={<Check className="size-3.5" />} label="Status"><span className={cn("inline-flex h-6 items-center rounded-md px-2 text-[12.5px]", x.status === "todo" ? (x.late ? "bg-destructive/10 text-destructive" : "bg-muted") : "bg-done/40 text-foreground/80")}>{status}</span></Prop>

@@ -59,7 +59,7 @@ export function Dashboard() {
                 {data?.groups.length ? <div className="grid gap-4">{data.groups.map((g) => <WeekGroup key={g.projectId} g={g} />)}</div> : <p className="py-3 text-[14px] text-muted-foreground">Nothing due this week.</p>}
               </section>
               <section>
-                <h2 className="mb-1.5 flex items-baseline gap-2 text-[14px] font-medium">Projects<span className="text-[13px] font-normal text-muted-foreground">by launch date</span></h2>
+                <h2 className="mb-1.5 flex items-baseline gap-2 text-[14px] font-medium">Projects<span className="text-[13px] font-normal text-muted-foreground">by launch date</span><span className="flex-1" /><button onClick={() => go(routes.projects())} className="text-[13px] font-normal text-muted-foreground hover:text-foreground">Open as a table or board</button></h2>
                 <div className="-mx-2">{(data?.projects || projects).filter((p) => p.kind !== "audit").map((p) => <ProjectCard key={p.id} p={p} />)}</div>
               </section>
             </>

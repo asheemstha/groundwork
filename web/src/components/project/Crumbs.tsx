@@ -15,7 +15,7 @@ export function Crumbs({ projectId, label, children }: { projectId: string | nul
   return (
     <div className="flex min-w-0 items-center gap-1.5 text-[14px]">
       {/* On a project's own pages the trail starts at Projects; deeper pages start at the project, to leave room. */}
-      {(!p || !label) && <button onClick={() => go(routes.home)} className="shrink-0 rounded-md px-1.5 py-0.5 text-muted-foreground hover:bg-muted/70 hover:text-foreground">Projects</button>}
+      {(!p || !label) && <button onClick={() => go(routes.projects())} className="shrink-0 rounded-md px-1.5 py-0.5 text-muted-foreground hover:bg-muted/70 hover:text-foreground">Projects</button>}
       {p && (
         <>
           {!label && <Sep />}

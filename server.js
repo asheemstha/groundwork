@@ -901,6 +901,11 @@ const server = http.createServer(async (req, res) => {
         const exm = sub.match(/^\/extras\/([a-z0-9]+)$/);
         if (exm && M === 'POST') { P.setExtra(id, exm[1], await body(req)); return json(res, P.get(id)); }
         if (exm && M === 'DELETE') { P.setExtra(id, exm[1], { remove: true }); return json(res, P.get(id)); }
+        // Items you add yourself to the checklist, rename and delete.
+        if (sub === '/items' && M === 'POST') { try { return json(res, P.addItem(id, await body(req))); } catch (e) { return json(res, { error: e.message }, 400); } }
+        const cim = sub.match(/^\/items\/([a-z0-9]+)$/);
+        if (cim && M === 'PATCH') { try { return json(res, P.renameItem(id, cim[1], (await body(req)).title)); } catch (e) { return json(res, { error: e.message }, 400); } }
+        if (cim && M === 'DELETE') return json(res, P.removeItem(id, cim[1]));
         // Launch day: a look at the live domain, then marking it launched, which checks it straight away.
         if (sub === '/launched/look' && M === 'POST') { try { return json(res, await P.lookLive(id, (await body(req)).live)); } catch (e) { return json(res, { error: e.message }, 400); } }
         if (sub === '/launched' && M === 'POST') {

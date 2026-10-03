@@ -293,7 +293,7 @@ export interface MessageTemplate { id: string; kind: "message" | "email"; name: 
 export type Template = ChecklistTemplate | MessageTemplate
 export interface TemplateSummary extends TemplateMeta { id: string; kind: Template["kind"]; name: string; updated: number; used: number; items?: number; phases?: number; subject?: string; preview?: string; use?: string[] }
 export interface ToolInfo { id: ToolId; name: string; ready: boolean; text?: string; runId?: string; progress?: { done: number; total: number }; check?: LaunchCheckId | "plan" | "live" | "map" | "after" | "recrawl" | "brand" | "content"; checkName?: string; issues?: number }
-export interface PItem { id: string; title: string; check: LaunchCheckId | "plan" | "live" | "map" | "after" | "recrawl" | "brand" | "content" | null; doneMeans: string; who: "us" | "client"; part: string | null; tool: ToolId | null; toolInfo: ToolInfo | null; due: string | null; status: "todo" | "done" | "na"; auto: boolean; at: number | null; note: string; link: string; asked: number | null; nudged: number | null; hist: { at: number; what: string }[]; manualDue: boolean; phaseId: string; phaseName: string; late: boolean; carriedFrom?: string; askBy?: string | null; remindDue?: boolean
+export interface PItem { id: string; title: string; custom?: boolean; check: LaunchCheckId | "plan" | "live" | "map" | "after" | "recrawl" | "brand" | "content" | null; doneMeans: string; who: "us" | "client"; part: string | null; tool: ToolId | null; toolInfo: ToolInfo | null; due: string | null; status: "todo" | "done" | "na"; auto: boolean; at: number | null; note: string; link: string; asked: number | null; nudged: number | null; hist: { at: number; what: string }[]; manualDue: boolean; phaseId: string; phaseName: string; late: boolean; carriedFrom?: string; askBy?: string | null; remindDue?: boolean
   /** The estimate and the time logged on the item, in minutes. */
   est: number | null; mins: number }
 export interface Signoff { by: string; date: string; note: string; link: string; file: { name: string; stored: string } | null; at: number }
@@ -434,6 +434,10 @@ export interface ProjectSummary {
   stage: "progress" | "care" | "check" | "closed"
   /** When it last changed, for Today's "Jump back in". */
   updated?: number
+  /** For the Projects table and board: the client, hours logged, and the day it went live. */
+  clientName?: string
+  mins?: number
+  launched?: string | null
   /** What's running for the project now ("Launch check", "SEO plan"…), or null. */
   running: string | null
 }
@@ -553,6 +557,10 @@ export const api = {
   nextCycle: (id: string) => req<Project>("POST", `/api/projects/${id}/next-cycle`),
   previewShift: (id: string, b: { days: number; launch: boolean }) => req<ShiftPreview>("POST", `/api/projects/${id}/shift`, { ...b, dryRun: true }),
   removeProject: (id: string) => req<{ ok: boolean }>("DELETE", `/api/projects/${id}`),
+  /** An item you add yourself at the end of a phase's group; yours to rename and delete. */
+  addItem: (id: string, b: { phaseId: string; groupId?: string; groupName?: string; title: string; who?: "us" | "client" }) => req<Project & { itemId: string }>("POST", `/api/projects/${id}/items`, b),
+  renameItem: (id: string, itemId: string, title: string) => req<Project>("PATCH", `/api/projects/${id}/items/${itemId}`, { title }),
+  removeItem: (id: string, itemId: string) => req<Project>("DELETE", `/api/projects/${id}/items/${itemId}`),
   setItem: (id: string, itemId: string, b: Partial<{ status: PItem["status"]; note: string; link: string; asked: boolean | number; nudged: boolean; due: string | null; est: number | null }>) => req<Project>("POST", `/api/projects/${id}/items/${itemId}`, b),
   askItems: (id: string, items: string[], nudge = false) => req<Project>("POST", `/api/projects/${id}/ask`, { items, nudge }),
   signoff: (id: string, phaseId: string, b: SignoffInput) => req<Project>("POST", `/api/projects/${id}/signoff/${phaseId}`, b),
