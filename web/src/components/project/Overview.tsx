@@ -3,7 +3,8 @@ import { cn } from "cn"
 import { Button } from "@/components/ui/button"
 import { PlayButton, useRunningOn } from "@/components/time/TimeBits"
 import { fmtMoney, type PItem, type Project } from "@/lib/api"
-import { addDaysTo, dueLabel, fmtDay, hostOfUrl, today } from "@/lib/project"
+import { Globe, Receipt, Timer } from "lucide-react"
+import { SITE_KEYS, addDaysTo, dayOf, dueLabel, fmtDay, today } from "@/lib/project"
 import { fmtMins } from "@/lib/time"
 import { go, routes } from "@/lib/router"
 
@@ -39,10 +40,10 @@ export function standLine(p: Project) {
 }
 
 /**
- * The Overview: where the project stands in a sentence, what's next for you, what the client owes, and the time,
- * money and site in one line each.
+ * The Overview, in two columns like Linear's project page. On the left, the phases as a track, what's next for you and
+ * what the client owes; on the right, the project's details, then its money, time and site, each a click from its tab.
  */
-export function OverviewTab({ p, setItem }: { p: Project; setItem: (id: string, b: { status: "todo" | "done" }) => void }) {
+export function OverviewTab({ p, setItem, details }: { p: Project; setItem: (id: string, b: { status: "todo" | "done" }) => void; details: React.ReactNode }) {
   const all = itemsOf(p)
   // Yours, late first, then by date; items with no date last.
   const mine = all.filter((x) => x.who === "us" && x.status === "todo").sort((a, b) => Number(b.late) - Number(a.late) || (a.due || "9999").localeCompare(b.due || "9999")).slice(0, 5)
@@ -50,10 +51,13 @@ export function OverviewTab({ p, setItem }: { p: Project; setItem: (id: string, 
   const m = p.money
   const last = p.tools.launch
   const fails = last ? Object.values(last.checks).filter((c) => c && !c.ok).length : 0
+  const cur = p.phases.find((ph) => ph.id === p.current)
   return (
-    <div className="grid gap-8 px-12 pt-2 pb-12">
+    <div className="grid items-start gap-8 px-12 pt-5 pb-12 lg:grid-cols-[minmax(0,1fr)_300px]">
+      <div className="grid min-w-0 gap-8">
+      {p.phases.length > 1 && <PhaseTrack p={p} />}
       <section className="grid">
-        <h2 className="mb-1.5 text-[15px] font-medium">Next for you</h2>
+        <h2 className="mb-1 flex items-baseline gap-2 text-[15px] font-medium"><span className="flex-1">Next for you</span>{cur && <span className="text-[12.5px] font-normal text-muted-foreground tabular">{cur.name}, {cur.done} of {cur.total} done</span>}</h2>
         {mine.length ? mine.map((x) => <NextItem key={x.id} p={p} x={x} onDone={() => setItem(x.id, { status: "done" })} />)
           : <p className="py-2 text-[14px] text-muted-foreground">{p.current ? "Nothing of yours is open in this phase." : "Nothing of yours is open."} <button onClick={() => go(routes.project(p.id, "checklist"))} className="underline underline-offset-2 hover:text-foreground">Open the checklist</button></p>}
       </section>
@@ -64,30 +68,47 @@ export function OverviewTab({ p, setItem }: { p: Project; setItem: (id: string, 
           {theirs.length > 0 && <Button size="xs" variant="outline" onClick={() => go(routes.project(p.id, "client"))}>{theirs.length === 1 ? "Ask for it" : `Ask for all ${theirs.length}`}</Button>}
         </h2>
         {theirs.length ? theirs.slice(0, 5).map((x) => (
-          <button key={x.id} onClick={() => go(routes.project(p.id, "client"))} className="grid h-[42px] grid-cols-[18px_minmax(0,1fr)_auto] items-center gap-3 border-b border-border/60 px-1 text-left text-[14px] hover:bg-muted/30">
+          <button key={x.id} onClick={() => go(routes.project(p.id, "client"))} className="grid h-[42px] grid-cols-[18px_minmax(0,1fr)_auto_32px] items-center gap-3 border-b border-border/60 px-1 text-left text-[14px] hover:bg-muted/30">
             <svg width="16" height="16" viewBox="0 0 18 18" aria-hidden><circle cx="9" cy="9" r="7.75" fill="none" className="stroke-client" strokeWidth="1.5" strokeDasharray={x.asked ? undefined : "2.5 2.5"} /></svg>
             <span className="truncate">{x.title}</span>
             <span className={cn("text-[13px]", x.late ? "text-destructive" : "text-muted-foreground")}>{x.late ? dueLabel(x) : x.asked ? `Asked ${new Date(x.asked).toLocaleDateString([], { month: "short", day: "numeric" })}` : x.due ? `Due ${fmtDay(x.due)}` : "Not asked yet"}</span>
+            <span />
           </button>
         )) : <p className="py-2 text-[14px] text-muted-foreground">{first(p)[0].toUpperCase() + first(p).slice(1)} doesn’t owe you anything right now.</p>}
         {theirs.length > 5 && <button onClick={() => go(routes.project(p.id, "client"))} className="mt-1 w-fit text-[13px] text-muted-foreground hover:text-foreground">{theirs.length - 5} more</button>}
       </section>
 
-      <div className={cn("grid gap-6 border-t pt-4 text-[13px]", p.website ? "sm:grid-cols-3" : "sm:grid-cols-2")}>
-        <Stat label="Time" onClick={() => go(routes.time(p.id))}>{p.repeat && p.time.month != null ? `${fmtMins(p.time.month)}${p.planHours ? ` of ${p.planHours}h` : ""} this month` : p.time.mins ? `${fmtMins(p.time.mins)} logged` : "None logged yet"}</Stat>
-        <Stat label="Money" onClick={() => go(routes.project(p.id, "money"))}>{!m ? "No payments set yet" : m.toInvoice > 0 ? `${money(m.toInvoice, m.currency)} ready to invoice` : m.waiting > 0 ? `${money(m.waiting, m.currency)} waiting on payment` : m.planned ? `${money(m.paid, m.currency)} of ${money(m.planned, m.currency)} paid` : "No payments set yet"}</Stat>
-        {p.website && <Stat label="Site" onClick={() => go(routes.project(p.id, "site"))}>{p.tools.launchRunning ? "Checking now" : last ? (fails ? `${plural(fails, "check needs", "checks need")} fixing` : "Every check passed") : p.tools.oldScan ? `Old site scanned, ${plural(p.tools.oldScan.urls, "address", "addresses")}` : p.tools.scan ? `Scanned, ${plural(p.tools.scan.urls, "address", "addresses")}` : "Not checked yet"}</Stat>}
       </div>
 
+      <aside className="grid gap-4">
+        <section className="rounded-xl border bg-card px-3.5 pt-3 pb-1.5">
+          <h2 className="pb-1 text-[12.5px] font-medium text-muted-foreground">Details</h2>
+          {details}
+        </section>
+        <section className="overflow-hidden rounded-xl border bg-card">
+          <h2 className="px-3.5 pt-3 pb-1.5 text-[12.5px] font-medium text-muted-foreground">At a glance</h2>
+          <Glance icon={<Receipt />} label="Money" onClick={() => go(routes.project(p.id, "money"))}
+            value={!m || !m.planned && !m.toInvoice && !m.waiting ? "No payments yet" : m.toInvoice > 0 ? money(m.toInvoice, m.currency) : m.waiting > 0 ? money(m.waiting, m.currency) : `${money(m.paid, m.currency)} paid`}
+            sub={!m || !m.planned && !m.toInvoice && !m.waiting ? "Set a deposit and a payment with each sign-off" : m.toInvoice > 0 ? `ready to invoice${m.waiting > 0 ? `, ${money(m.waiting, m.currency)} waiting on payment` : ""}` : m.waiting > 0 ? "waiting on payment" : `of ${money(m.planned, m.currency)} in payments`} />
+          <Glance icon={<Timer />} label="Time" onClick={() => go(routes.time(p.id))}
+            value={p.repeat && p.time.month != null ? `${fmtMins(p.time.month)}${p.planHours ? ` of ${p.planHours}h` : ""}` : p.time.mins ? fmtMins(p.time.mins) : "None yet"}
+            sub={p.repeat && p.time.month != null ? "this month" : p.time.mins ? (p.time.billable === p.time.mins ? "logged, all billable" : `logged, ${fmtMins(p.time.billable)} billable`) : "Start a timer from any item"} />
+          {p.website && <Glance icon={<Globe />} label="Site" onClick={() => go(routes.project(p.id, "site"))}
+            value={p.tools.launchRunning ? "Checking now" : last ? (fails ? plural(fails, "check to fix", "checks to fix") : "Every check passed") : p.tools.oldScan ? "Old site scanned" : p.tools.scan ? "Scanned" : "Not checked yet"}
+            sub={last ? `Checked ${fmtDay(dayOf(last.at))}` : p.tools.oldScan ? plural(p.tools.oldScan.urls, "address saved", "addresses saved") : p.tools.scan ? plural(p.tools.scan.urls, "address", "addresses") : SITE_KEYS.some((k) => p.sites[k]) ? "Scan it from the Site tab" : "Add the addresses to scan the old site"} />}
+        </section>
+      </aside>
     </div>
   )
 }
 
-function Stat({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
+/** A line in "At a glance": what it is, the figure, and a note under it. Opens its tab. */
+function Glance({ icon, label, value, sub, onClick }: { icon: React.ReactNode; label: string; value: React.ReactNode; sub: React.ReactNode; onClick: () => void }) {
   return (
-    <button onClick={onClick} className="grid gap-0.5 text-left">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="text-[15px] hover:underline">{children}</span>
+    <button onClick={onClick} className="grid w-full gap-0.5 border-t px-3.5 py-2.5 text-left hover:bg-muted/40">
+      <span className="flex items-center gap-1.5 text-[12.5px] text-muted-foreground [&_svg]:size-3.5">{icon}{label}</span>
+      <span className="text-[15px] font-medium tabular">{value}</span>
+      <span className="text-[12.5px] text-muted-foreground">{sub}</span>
     </button>
   )
 }
@@ -104,20 +125,22 @@ function NextItem({ p, x, onDone }: { p: Project; x: PItem; onDone: () => void }
   )
 }
 
-/** The phases in a row, the current one in bold, and the launch date at the end. */
-export function PhaseStrip({ p }: { p: Project }) {
-  // The launch date goes beside the phase called Launch, when there is one.
-  const launchPhase = p.repeat ? null : p.phases.find((ph) => /^launch/i.test(ph.name)) || null
+/** The phases as a track: a bar for each (green once signed off, orange for how far the current one is), with its
+ *  name and its sign-off date under it. Each opens the checklist at that phase. */
+export function PhaseTrack({ p }: { p: Project }) {
   return (
-    <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[13px] text-muted-foreground">
-      {p.phases.map((ph, i) => (
-        <React.Fragment key={ph.id}>
-          {i > 0 && <span className={cn("h-0.5 w-6 rounded-full", ph.state === "upcoming" ? "bg-border" : "bg-muted-foreground/40")} />}
-          <span className={cn(ph.state === "current" && "font-medium text-foreground")}>{ph.name}{ph === launchPhase && p.launch && <span className="text-muted-foreground">{p.launched ? `, live ${fmtDay(p.launched.on)}` : `, ${fmtDay(p.launch)}`}</span>}</span>
-        </React.Fragment>
-      ))}
-      {p.launch && !p.repeat && !launchPhase && <><span className="h-0.5 w-6 rounded-full bg-border" /><span>{p.launched ? `Live ${fmtDay(p.launched.on)}` : `${p.labels?.launch || "Launch"} ${fmtDay(p.launch)}`}</span></>}
-      {p.sites.live && <a href={p.sites.live} target="_blank" rel="noreferrer" className="ml-2 hover:text-foreground hover:underline">{hostOfUrl(p.sites.live)}</a>}
+    <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${p.phases.length}, minmax(0, 1fr))` }}>
+      {p.phases.map((ph) => {
+        const frac = ph.state === "signed" ? 1 : ph.total ? ph.done / ph.total : 0
+        const launch = !p.repeat && /^launch/i.test(ph.name)
+        return (
+          <button key={ph.id} onClick={() => go(routes.phase(p.id, ph.id))} className="group grid min-w-0 gap-1.5 text-left">
+            <span className="h-1 overflow-hidden rounded-full bg-muted"><span className={cn("block h-full rounded-full", ph.state === "signed" ? "bg-done" : "bg-brand")} style={{ width: `${frac * 100}%` }} /></span>
+            <span className={cn("truncate text-[13px] group-hover:underline", ph.state === "current" ? "font-medium" : "text-muted-foreground")}>{ph.name}</span>
+            <span className="truncate text-[12px] text-muted-foreground tabular">{ph.signoff ? `Signed off ${fmtDay(ph.signoff.date)}` : launch && p.launched ? `Live ${fmtDay(p.launched.on)}` : launch && p.launch ? fmtDay(p.launch) : ph.due ? (ph.state === "current" ? `Sign-off ${fmtDay(ph.due)}` : fmtDay(ph.due)) : ""}</span>
+          </button>
+        )
+      })}
     </div>
   )
 }

@@ -192,15 +192,16 @@ function NavItem({ icon: Icon, label, active, onClick, hint, count }: { icon: Re
   )
 }
 
-/** A project in the sidebar: its current phase number and how far that phase is, and a ⋯ menu on hover. */
+/** A project in the sidebar: a red dot when something is late, a ring for how far the current phase is, and a ⋯ menu on hover. */
 function ProjectRow({ p, active }: { p: ProjectSummary; active: boolean }) {
   const c = p.current
+  const late = p.kind !== "audit" && p.stage !== "closed" && (p.behind?.items || 0) > 0
   return (
     <div className="group/row relative">
-      <button onClick={() => go(routes.project(p.id))} title={p.kind === "audit" ? undefined : c ? `Phase ${c.index + 1} of ${p.phases.length}: ${c.name}, ${c.done} of ${c.total} done` : "Every phase is signed off"} className={cn("grid h-[30px] w-full grid-cols-[20px_minmax(0,1fr)_18px_14px] items-center gap-2 rounded-md px-2 text-left text-[14px] text-foreground/85 hover:bg-sidebar-accent", active && "bg-sidebar-accent text-foreground")}>
+      <button onClick={() => go(routes.project(p.id))} title={p.kind === "audit" ? undefined : (c ? `Phase ${c.index + 1} of ${p.phases.length}: ${c.name}, ${c.done} of ${c.total} done` : "Every phase is signed off") + (late ? `. ${p.behind.items} late` : "")} className={cn("grid h-[30px] w-full grid-cols-[20px_minmax(0,1fr)_6px_14px] items-center gap-2 rounded-md px-2 text-left text-[14px] text-foreground/85 hover:bg-sidebar-accent", active && "bg-sidebar-accent text-foreground")}>
         <SiteIcon runId={p.iconRun || undefined} name={p.name} color={p.color} className="size-5 rounded-[5px] text-[10px]" />
         <span className="truncate">{p.name}</span>
-        <span className="text-right text-[11px] text-muted-foreground tabular group-hover/row:opacity-0">{p.kind !== "audit" && c ? String(c.index + 1).padStart(2, "0") : ""}</span>
+        <span className="group-hover/row:opacity-0">{late && <span className="block size-1.5 rounded-full bg-destructive" aria-label={`${p.behind.items} late`} />}</span>
         <span className="grid place-items-center group-hover/row:opacity-0" title={p.running ? `${p.running} running` : undefined}>{p.running ? <Spinner className="size-3" /> : p.kind === "audit" ? null : c ? <Ring done={c.ready ? 1 : c.done} total={c.ready ? 1 : c.total} size={13} /> : <Ring done={1} total={1} size={13} />}</span>
       </button>
       <RowMenu p={p} />

@@ -30,7 +30,7 @@ import { HandoffDialog } from "@/components/project/HandoffDoc"
 import { AccountsSection } from "@/components/project/Accounts"
 import { FilesSection } from "@/components/project/Files"
 import { CareReportDialog } from "@/components/project/CareReport"
-import { OverviewTab, PhaseStrip, standLine } from "@/components/project/Overview"
+import { OverviewTab, standLine } from "@/components/project/Overview"
 import { SiteTab } from "@/components/project/SiteTab"
 import { MarkLaunchedDialog } from "@/components/project/MarkLaunched"
 import { AskClaudeDialog } from "@/components/project/AskClaude"
@@ -85,7 +85,7 @@ export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Ta
   const covered = !sub_label(tab) && (tab === "overview" || audit)
   // The project's addresses and dates, at the bottom of the Overview.
   const details = (
-            <dl className="grid max-w-2xl gap-y-0.5 text-[14px] [--prop-w:130px] lg:max-w-5xl lg:grid-cols-2 lg:gap-x-12">
+            <dl className="grid text-[13px] [--prop-w:96px]">
               {p.website ? <>
               {(audit ? (["live"] as const) : SITE_KEYS).filter((k) => audit || p.sites[k]).map((k) => (
                 <Prop key={k} icon={<Link2 className="size-3.5" />} label={audit ? "Site" : SITE_NAME[k]}>{p.sites[k] ? <a href={p.sites[k]!} target="_blank" rel="noreferrer" className="hover:underline">{hostOfUrl(p.sites[k])}</a> : <button onClick={() => setEditing(true)} className="text-muted-foreground hover:text-foreground">Empty</button>}</Prop>
@@ -143,14 +143,14 @@ export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Ta
       <div className="scrollbar-thin min-h-0 flex-1 overflow-auto">
         {/* The project's own pages share one centred column; the tool pages below centre themselves at their own widths. */}
         {/* The Overview opens on a cover in the project's colour, with its icon sitting on the edge, like a Notion page. */}
-        {covered && <Cover color={p.color} />}
+        {covered && <Cover color={p.color} className="h-[88px]" />}
         <div className="mx-auto w-full max-w-6xl">
         {!sub_label(tab) && (
           <header className={cn("px-12", covered ? "pt-0" : "pt-7")}>
             {tab === "overview" && <>
               <SiteIcon runId={p.tools.iconRun || undefined} name={p.name} color={p.color} className={COVER_ICON} />
-              <h1 className="mt-3 text-[36px] leading-tight font-medium">{p.name}</h1>
-              <p className="mt-2 max-w-3xl text-[16px] leading-normal">{standLine(p)}</p>
+              <h1 className="mt-2.5 text-[30px] leading-tight font-medium">{p.name}</h1>
+              <p className="mt-1 max-w-3xl text-[15px] leading-normal">{standLine(p)}</p>
               {!p.closed && p.website && !p.repeat && !p.launched && p.launch && p.launch <= addDaysTo(today(), 3) && (
                 <div className="mt-3 flex max-w-3xl flex-wrap items-center gap-3 rounded-lg bg-muted/60 px-3.5 py-2.5 text-[14px]">
                   <span className="flex-1">{p.launch < today() ? `The plan said ${p.name} would launch on ${fmtDay(p.launch)}. Is it live?` : p.launch === today() ? "Launch day is today. Mark it once the new site is live." : `Launch day is ${fmtDay(p.launch, true)}. Mark it once the new site is live.`}</span>
@@ -158,9 +158,6 @@ export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Ta
                 </div>
               )}
               {p.closed && <div className="mt-3 flex max-w-3xl items-center gap-3 rounded-lg bg-muted/60 px-3.5 py-2.5 text-[14px]"><span className="flex-1">This project is closed.</span><Button size="sm" variant="outline" onClick={async () => { setP(await api.setClosed(id, false)); refreshProjects() }}>Reopen</Button></div>}
-              <div className="mt-2.5"><PhaseStrip p={p} /></div>
-              {/* The project's properties, the way a Notion page lists them under its title. */}
-              <div className="mt-4 border-t pt-3">{details}</div>
             </>}
             {!audit && tab !== "overview" && (
               <div className="flex items-center gap-2.5 pb-3">
@@ -178,7 +175,7 @@ export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Ta
                 </div>
               </>
             ) : (
-              <nav aria-label="Project" className={cn("flex gap-1 border-b pb-2", tab === "overview" ? "mt-5" : "mt-0")}>
+              <nav aria-label="Project" className={cn("flex gap-1 border-b pb-2", tab === "overview" ? "mt-4" : "mt-0")}>
                 <TabLink on={tab === "overview"} onClick={() => go(routes.project(id))}><LayoutDashboard />Overview</TabLink>
                 <TabLink on={tab === "checklist"} onClick={() => go(routes.project(id, "checklist"))}><ListChecks />Checklist</TabLink>
                 <TabLink on={tab === "client"} onClick={() => go(routes.project(id, "client"))}><User />Client {open > 0 && <span className="text-xs text-muted-foreground tabular">{open}</span>}{p.client.late.length > 0 && <span className="size-1.5 rounded-full bg-destructive" aria-label={`${p.client.late.length} late`} />}</TabLink>
@@ -188,7 +185,7 @@ export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Ta
             )}
           </header>
         )}
-        {tab === "overview" && <OverviewTab p={p} setItem={(itemId, b) => setItem(itemId, b)} />}
+        {tab === "overview" && <OverviewTab p={p} setItem={(itemId, b) => setItem(itemId, b)} details={details} />}
         {tab === "checklist" && <ChecklistTab p={p} setItem={setItem} setP={setP} reload={load} openItem={item} openPhase={sub} />}
         {tab === "client" && <ClientTab key={sub || ""} p={p} setItem={setItem} setP={setP} mode={sub === "remind" || sub === "update" ? sub : undefined} />}
         {tab === "client" && <FilesSection p={p} setP={setP} focus={sub === "files"} />}
@@ -252,7 +249,7 @@ function TabLink({ on, onClick, children }: { on: boolean; onClick: () => void; 
 
 // ---------- status icon ----------
 /** The project's icon on the edge of its cover, with a ring in the page colour so it sits clear of the dots. */
-const COVER_ICON = "relative -mt-8 size-[60px] rounded-[14px] text-[26px] shadow-[0_0_0_3px_var(--background)]"
+const COVER_ICON = "relative -mt-7 size-14 rounded-[14px] text-[24px] shadow-[0_0_0_3px_var(--background)]"
 
 function StatusIcon({ it, onClick, size = 18 }: { it: PItem; onClick?: () => void; size?: number }) {
   const prog = it.toolInfo?.progress

@@ -1,6 +1,6 @@
 import * as React from "react"
 import { cn } from "cn"
-import { ChevronRight, Loader2 } from "lucide-react"
+import { ArrowRight, ChevronRight, CircleCheck, Loader2, Plus, Route, ScanLine } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { useApp } from "@/hooks/useApp"
@@ -86,13 +86,7 @@ function Checks({ p, setP, reload, onEdit }: { p: Project; setP: (x: Project) =>
     setBusy("scan")
     try { const { runId } = await api.scanProject(p.id, site); await refreshRuns(); reload(); go(routes.run(runId)) } catch (e) { toast.error((e as Error).message); setBusy(null) }
   }
-  if (!url) return (
-    <div className="grid gap-2 py-6">
-      <h1 className="text-[22px] font-medium">No website yet</h1>
-      <p className="text-[14px] text-muted-foreground">Add the staging address, the live domain or the old site, and Groundwork can scan and check it.</p>
-      <div><Button size="sm" variant="outline" onClick={onEdit}>Add a website</Button></div>
-    </div>
-  )
+  if (!url) return <NoSiteYet platform={platformOf(p.platform)?.name} onAdd={onEdit} />
   // Scans, launch checks and after-launch checks of this site, newest first.
   const timeline = [
     ...checks.map((h) => ({ at: h.at, key: "c" + h.id, text: h.status === "cancelled" ? "Launch check stopped" : h.status === "failed" ? "Launch check didn’t finish" : `${h.watch ? `Day ${h.watch} after launch` : h.oldSite ? "Check of the old site" : "Launch check"}: ${tally(h)} passed`, bad: h.status !== "done", open: () => go(routes.launch(p.id, h.id)) })),
@@ -284,6 +278,40 @@ function Verdict({ p, r }: { p: Project; r: LaunchReport }) {
         </section>
       )}
       <p className="text-[12.5px] text-muted-foreground">Win the redesign, and this check’s scans move into the new project, where they start the content inventory and the redirect map.</p>
+    </div>
+  )
+}
+
+/** Before a project has an address: what the Site tab will do, in three steps with a small preview of each. */
+function NoSiteYet({ platform, onAdd }: { platform?: string; onAdd: () => void }) {
+  const line = (w: string) => <span className="block h-1.5 rounded-full bg-muted" style={{ width: w }} />
+  const steps: [React.ReactNode, string, string, React.ReactNode][] = [
+    [<ScanLine />, "Scan the old site", "Every page and its links, saved before anything changes, so nothing gets lost in the move.",
+      <div className="grid gap-2">{["78%", "60%", "70%", "48%"].map((w, i) => <span key={i} className="grid grid-cols-[12px_minmax(0,1fr)_28px] items-center gap-2"><span className="size-3 rounded-full bg-done" />{line(w)}<span className="text-right text-[10.5px] text-muted-foreground tabular">{i === 2 ? 301 : 200}</span></span>)}</div>],
+    [<CircleCheck />, "Check before launch", "Search settings, links, tracking and the basics, with a verdict and a PDF for the client.",
+      <div className="grid gap-2"><span className="text-[12px] font-medium">7 of 9 checks pass</span>{[["70%", "Passed"], ["55%", "1 to fix"], ["80%", "Passed"]].map(([w, t], i) => <span key={i} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">{line(w!)}<span className={cn("text-[10.5px]", i === 1 ? "text-destructive" : "text-muted-foreground")}>{t}</span></span>)}</div>],
+    [<Route />, "Map the redirects", `Old addresses matched to new ones, ready to paste into ${platform || "your platform"}, then tested after launch.`,
+      <div className="grid gap-1.5 text-[10.5px] text-muted-foreground">{[["/team.html", "/about"], ["/services/", "/treatments"], ["/blog/2019/…", "/news/…"], ["/contact-us", "/contact"]].map(([a, b]) => <span key={a} className="grid grid-cols-[minmax(0,1fr)_12px_minmax(0,1fr)] items-center gap-1.5"><span className="truncate">{a}</span><ArrowRight className="size-3" /><span className="truncate">{b}</span></span>)}</div>],
+  ]
+  return (
+    <div className="pt-8 pb-12">
+      <div className="max-w-2xl">
+        <h2 className="text-[22px] leading-tight font-medium">Check the site at every step, without leaving the project</h2>
+        <p className="mt-2 text-[14.5px] leading-relaxed text-muted-foreground">Add the addresses you have: the old site, the staging link or the live domain. Groundwork scans and checks them on your Mac, and ticks the checklist items they prove.</p>
+        <Button className="mt-4" onClick={onAdd}><Plus />Add the addresses</Button>
+      </div>
+      <div className="mt-8 grid gap-4 md:grid-cols-3">
+        {steps.map(([icon, title, body, preview], i) => (
+          <div key={title} className="overflow-hidden rounded-xl border bg-card">
+            <div className="h-[148px] border-b bg-muted/40 p-4"><div className="rounded-lg border bg-card px-3 py-2.5">{preview}</div></div>
+            <div className="grid gap-1 px-4 pt-3 pb-4">
+              <span className="flex items-center gap-1.5 text-[12.5px] text-muted-foreground [&_svg]:size-3.5">{icon}Step {i + 1}</span>
+              <span className="text-[15px] font-medium">{title}</span>
+              <span className="text-[13px] leading-normal text-muted-foreground">{body}</span>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

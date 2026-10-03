@@ -5,7 +5,7 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { TopBar } from "@/components/common/bits"
+import { SiteIcon, TopBar } from "@/components/common/bits"
 import { DateField } from "@/components/common/DateField"
 import { EditTimeDialog, ProjectSelect, openRef } from "@/components/time/TimeBits"
 import { useApp } from "@/hooks/useApp"
@@ -14,7 +14,7 @@ import { api, fmtMoney, timeCsvUrl, type Project, type TimeEntry } from "@/lib/a
 import { makeInvoice } from "@/components/project/InvoiceDialog"
 import { Invoices } from "@/components/project/Invoices"
 import { today } from "@/lib/project"
-import { clockOf, fmtMins, longDay, parseDur, periodLabel, rangeOf, runMins, shiftPeriod, timeOf, type Period } from "@/lib/time"
+import { addDays, clockOf, fmtMins, longDay, parseDur, periodLabel, rangeOf, runMins, shiftPeriod, timeOf, type Period } from "@/lib/time"
 import { store } from "@/lib/store"
 import { go, routes } from "@/lib/router"
 
@@ -56,7 +56,15 @@ export function TimePage({ project }: { project?: string }) {
   for (const e of list) { const k = e.projectId || ""; const x = by.get(k) || { id: e.projectId, name: e.pname || "No project", mins: 0 }; x.mins += e.mins; by.set(k, x) }
   if (live) { const k = live.projectId || ""; const x = by.get(k) || { id: live.projectId, name: live.pname || "No project", mins: 0 }; x.mins += runMins(live, now); by.set(k, x) }
   const bars = [...by.values()].sort((a, b) => b.mins - a.mins)
-  const max = Math.max(1, ...bars.map((b) => b.mins))
+  // Each project in its own colour; time with no project in grey.
+  const colorOf = (id: string | null) => { const c = id ? projects.find((p) => p.id === id)?.color : null; return c ? `var(--p-${c})` : "var(--input)" }
+  // Minutes by day and project, for the chart.
+  const perDay = new Map<string, Map<string, number>>()
+  const addTo = (d: string, k: string, m: number) => { const x = perDay.get(d) || new Map<string, number>(); x.set(k, (x.get(k) || 0) + m); perDay.set(d, x) }
+  for (const e of list) addTo(e.day, e.projectId || "", e.mins)
+  if (live) addTo(today(), live.projectId || "", runMins(live, now))
+  const span: string[] = []
+  for (let d = range.from; d <= range.to; d = addDays(d, 1)) span.push(d)
 
   // Entries by day, newest first.
   const days = new Map<string, TimeEntry[]>()
@@ -76,7 +84,7 @@ export function TimePage({ project }: { project?: string }) {
         <Button size="sm" variant="outline" nativeButton={false} render={<a href={timeCsvUrl({ ...range, project })} download />}><Download />Export CSV</Button>
       </TopBar>
       <div className="scrollbar-thin flex-1 overflow-auto">
-        <div className="mx-auto flex w-full max-w-4xl flex-col gap-8 px-12 pt-9 pb-14">
+        <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-10 pt-9 pb-14">
           <div className="flex items-end gap-4">
             <div className="grid min-w-0 flex-1 gap-1">
               <div className="flex items-center gap-1 text-[13px] text-muted-foreground">
@@ -92,16 +100,26 @@ export function TimePage({ project }: { project?: string }) {
             </div>
           </div>
 
-          {bars.length > (proj ? 0 : 1) && !proj && (
-            <section aria-label="By project" className="grid gap-2.5">
-              {bars.map((b) => (
-                <button key={b.id || "none"} onClick={() => b.id && go(routes.time(b.id))} disabled={!b.id} className="grid grid-cols-[170px_minmax(0,1fr)_72px] items-center gap-3.5 rounded-md text-left enabled:hover:[&>span:first-child]:underline">
-                  <span className="truncate text-[13.5px] underline-offset-2">{b.name}</span>
-                  <span className="h-2 overflow-hidden rounded-full bg-muted"><span className="block h-full rounded-full bg-foreground/70" style={{ width: `${Math.max(2, (100 * b.mins) / max)}%` }} /></span>
-                  <span className="text-right text-[13.5px] tabular">{fmtMins(b.mins)}</span>
-                </button>
-              ))}
-            </section>
+          {total > 0 && (period !== "day" || !proj) && (
+            <div className={cn("grid items-start gap-5", period !== "day" && !proj && "lg:grid-cols-[minmax(0,1fr)_320px]")}>
+              {period !== "day" && <DayChart span={span} perDay={perDay} order={bars.map((b) => b.id || "")} colorOf={colorOf} period={period} onDay={(d) => { setAt(d); pick("day") }} />}
+              {!proj && (
+                <section aria-label="By project" className="rounded-xl border bg-card px-4 pt-3.5 pb-1.5">
+                  <h2 className="text-[12.5px] font-medium text-muted-foreground">By project</h2>
+                  <div className="mt-2.5 flex h-2.5 gap-[2px] overflow-hidden rounded-full">{bars.map((b) => <span key={b.id || "none"} style={{ width: `${(100 * b.mins) / total}%`, background: colorOf(b.id) }} />)}</div>
+                  <div className="mt-2.5">
+                    {bars.map((b) => { const sp = b.id ? projects.find((p) => p.id === b.id) : null; return (
+                      <button key={b.id || "none"} onClick={() => b.id && go(routes.time(b.id))} disabled={!b.id} className="grid h-9 w-full grid-cols-[20px_minmax(0,1fr)_auto_36px] items-center gap-2.5 border-t text-left enabled:hover:[&>span:nth-child(2)]:underline">
+                        {sp ? <SiteIcon runId={sp.iconRun || undefined} name={sp.name} color={sp.color} className="size-5 rounded-[5px] text-[10px]" /> : <span className="size-5 rounded-[5px] bg-muted" />}
+                        <span className="truncate text-[13.5px] underline-offset-2">{b.name}</span>
+                        <span className="text-right text-[13.5px] tabular">{fmtMins(b.mins)}</span>
+                        <span className="text-right text-[12.5px] text-muted-foreground tabular">{Math.round((100 * b.mins) / total)}%</span>
+                      </button>
+                    ) })}
+                  </div>
+                </section>
+              )}
+            </div>
           )}
 
           {pj && <Invoices p={pj} onChange={setPj} />}
@@ -136,6 +154,29 @@ export function TimePage({ project }: { project?: string }) {
   )
 }
 
+/** Hours by day as stacked bars, a colour per project, biggest at the bottom. A bar opens that day. */
+function DayChart({ span, perDay, order, colorOf, period, onDay }: { span: string[]; perDay: Map<string, Map<string, number>>; order: string[]; colorOf: (id: string | null) => string; period: Period; onDay: (d: string) => void }) {
+  const totals = span.map((d) => [...(perDay.get(d)?.values() || [])].reduce((a, b) => a + b, 0))
+  const max = Math.max(60, ...totals)
+  const week = period === "week"
+  const label = (d: string, i: number) => week ? new Date(d + "T00:00").toLocaleDateString([], { weekday: "short" }) : i % 7 === 0 ? String(Number(d.slice(8))) : ""
+  return (
+    <section aria-label="By day" className="rounded-xl border bg-card px-4 pt-4 pb-3">
+      <div className={cn("grid h-[176px] items-end", week ? "gap-3" : "gap-[3px]")} style={{ gridTemplateColumns: `repeat(${span.length}, minmax(0, 1fr))` }}>
+        {span.map((d, i) => (
+          <button key={d} onClick={() => onDay(d)} title={`${longDay(d)}: ${totals[i] ? fmtMins(totals[i]!) : "nothing logged"}`} className="flex h-full min-w-0 flex-col justify-end gap-[2px] rounded-sm hover:opacity-85">
+            {week && totals[i]! > 0 && <span className="pb-1 text-center text-[11.5px] text-muted-foreground tabular">{fmtMins(totals[i]!)}</span>}
+            {order.slice().reverse().map((k) => { const m = perDay.get(d)?.get(k) || 0; return m > 0 && <span key={k} className="block shrink-0 rounded-[3px]" style={{ height: `${Math.max(2, (148 * m) / max)}px`, background: colorOf(k || null) }} /> })}
+          </button>
+        ))}
+      </div>
+      <div className={cn("mt-2 grid", week ? "gap-3" : "gap-[3px]")} style={{ gridTemplateColumns: `repeat(${span.length}, minmax(0, 1fr))` }}>
+        {span.map((d, i) => <span key={d} className={cn("text-center text-[12px] text-muted-foreground tabular", d === today() && "font-medium text-foreground")}>{label(d, i)}</span>)}
+      </div>
+    </section>
+  )
+}
+
 /** What the time was for, and what it's linked to: a checklist item or a task. */
 function Title({ e, onOpen }: { e: Pick<TimeEntry, "title" | "item" | "taskId" | "itemId" | "projectId"> & { extraId?: string | null }; onOpen: () => void }) {
   const ref = e.item ? `Checklist item · ${e.item.phase}` : e.itemId ? "Checklist item" : e.extraId ? "Extra request" : e.taskId ? "Task" : ""
@@ -148,6 +189,8 @@ function Title({ e, onOpen }: { e: Pick<TimeEntry, "title" | "item" | "taskId" |
 }
 
 function EntryRow({ e, showProject, onEdit }: { e: TimeEntry; showProject: boolean; onEdit: () => void }) {
+  const { projects } = useApp()
+  const sp = e.projectId ? projects.find((p) => p.id === e.projectId) : null
   const flip = async () => { try { await api.editTime(e.id, { billable: !e.billable }); timeChanged() } catch (err) { toast.error((err as Error).message) } }
   const remove = async () => {
     try {
@@ -159,7 +202,7 @@ function EntryRow({ e, showProject, onEdit }: { e: TimeEntry; showProject: boole
     <div onDoubleClick={onEdit} className="group grid min-h-[50px] grid-cols-[minmax(0,1fr)_170px_150px_72px_28px] items-center gap-3 border-b border-border/60 py-1.5">
       <Title e={e} onOpen={() => openRef(e)} />
       <span className="flex min-w-0 items-center gap-1.5 text-[13px] text-muted-foreground">
-        {showProject ? (e.projectId && !e.gone ? <button onClick={() => go(routes.time(e.projectId))} className="truncate hover:text-foreground hover:underline">{e.pname}</button> : <span className="truncate">{e.gone ? `${e.pname || "A project"} (deleted)` : "No project"}</span>) : null}
+        {showProject ? (e.projectId && !e.gone ? <button onClick={() => go(routes.time(e.projectId))} className="flex min-w-0 items-center gap-1.5 hover:text-foreground">{sp && <SiteIcon runId={sp.iconRun || undefined} name={sp.name} color={sp.color} className="size-4 shrink-0 rounded text-[8px]" />}<span className="truncate">{e.pname}</span></button> : <span className="truncate">{e.gone ? `${e.pname || "A project"} (deleted)` : "No project"}</span>) : null}
         {!e.billable && <span className="shrink-0 rounded bg-muted px-1.5 text-[11.5px] leading-5">Not billable</span>}
         {e.invoice && <span className="shrink-0 rounded bg-muted px-1.5 text-[11.5px] leading-5">Invoiced</span>}
       </span>
