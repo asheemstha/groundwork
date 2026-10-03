@@ -56,10 +56,18 @@ export function MoneyTab({ p, setP }: { p: Project; setP: (x: Project) => void }
 
       {p.invoices.length > 0 && <Invoices p={p} onChange={setP} />}
 
+      <section className="grid">
+        <div className="flex h-9 items-baseline gap-2 border-b"><h2 className="flex-1 text-[14px] font-medium">Hours</h2><span className="text-[13px] text-muted-foreground">for invoicing by the hour</span></div>
+        <div className="flex flex-wrap items-center gap-2 pt-3 text-[13.5px]">
+          <span className="flex-1">{p.time.mins ? <>{fmtMins(p.time.mins)} logged<span className="text-muted-foreground">, {p.time.billable === p.time.mins ? "all billable" : `${fmtMins(p.time.billable)} billable`}</span></> : <span className="text-muted-foreground">No time logged yet. Start a timer from any checklist item.</span>}</span>
+          <Button size="sm" variant="ghost" onClick={() => go(routes.time(p.id))}>Open the time log</Button>
+          <Button size="sm" variant="outline" onClick={() => makeInvoice({ projectId: p.id, kind: "hours" })}><Receipt />Invoice hours</Button>
+        </div>
+      </section>
+
       <section className="flex flex-wrap items-center gap-2 border-t pt-4 text-[13px]">
-        <span className="flex-1 text-muted-foreground">{fmtMins(p.time.mins)} logged, {fmtMins(p.time.billable)} billable.</span>
-        <Button size="sm" variant="ghost" onClick={() => go(routes.time(p.id))}>Open the Time page</Button>
-        <Button size="sm" variant="outline" onClick={() => makeInvoice({ projectId: p.id, kind: "hours" })}><Receipt />Invoice hours</Button>
+        <span className="flex-1 text-muted-foreground">Every project’s payments and invoices are on the Money page.</span>
+        <Button size="sm" variant="ghost" onClick={() => go(routes.money)}>Open Money</Button>
         <Button size="sm" variant="outline" nativeButton={false} render={<a href={invoicesCsvUrl({ project: p.id })} download />}><Download />Invoices CSV</Button>
       </section>
     </div>

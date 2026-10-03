@@ -13,6 +13,7 @@ import { ReviewPage } from "@/pages/ReviewPage"
 import { SeoPage } from "@/pages/SeoPage"
 import { SettingsPage } from "@/pages/SettingsPage"
 import { ProjectsPage } from "@/pages/ProjectsPage"
+import { MoneyPage } from "@/pages/MoneyPage"
 import { Dashboard } from "@/pages/Dashboard"
 import { ProjectPage } from "@/pages/ProjectPage"
 import { TemplatesPage } from "@/pages/TemplatesPage"
@@ -46,6 +47,7 @@ function Routes() {
   if (r.name === "project") return <ProjectPage key={r.id} id={r.id} tab={r.tab} sub={r.sub} item={r.item} />
   if (r.name === "time") return <TimePage key={r.project || ""} project={r.project} />
   if (r.name === "projects") return <ProjectsPage view={r.view} />
+  if (r.name === "money") return <MoneyPage />
   if (r.name === "templates") return <TemplatesPage />
   if (r.name === "template") return <TemplatePage key={r.id} id={r.id} />
   return <Dashboard />

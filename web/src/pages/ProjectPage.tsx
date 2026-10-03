@@ -59,6 +59,8 @@ export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Ta
   const [closing, setClosing] = React.useState(false)
   React.useEffect(() => { if (asked === "overview" && sub === "launched") setLaunchOpen(true) }, [asked, sub, id])
   const [careOpen, setCareOpen] = React.useState(false)
+  // The phase being signed off from the Overview or the Client tab (the checklist has its own).
+  const [signPhase, setSignPhase] = React.useState<string | null>(null)
   React.useEffect(() => { const on = () => setStatusOpen(true); window.addEventListener("gw:status-page", on); return () => window.removeEventListener("gw:status-page", on) }, [])
   const [removing, setRemoving] = React.useState(false)
   // A project that's been deleted says so; anything else (the app restarting, a bad file) can be retried.
@@ -81,8 +83,9 @@ export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Ta
   // An audit has no checklist, so it only has the Site tab; a project without a website has no Site tab.
   if (audit && (tab === "overview" || tab === "checklist" || tab === "client" || tab === "money")) tab = "site"
   if (!audit && !p.website && tab === "site") tab = "overview"
-  const open = p.client.late.length + p.client.soon.length
+  const open = p.client.owed
   const covered = !sub_label(tab) && (tab === "overview" || audit)
+  const cur = p.phases.find((x) => x.id === p.current) || null
   // The project's addresses and dates, at the bottom of the Overview.
   const details = (
             <dl className="grid text-[13px] [--prop-w:96px]">
@@ -116,10 +119,12 @@ export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Ta
             <DropdownMenuTrigger render={<Button variant="outline" size="sm" className="ml-1" />}>Send to client<ChevronDown /></DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-60">
               <DropdownMenuItem onClick={() => go(routes.clientUpdate(p.id))}><Mail /> Weekly update…</DropdownMenuItem>
+              {cur && cur.handoff.needs === "client" && !cur.signoff && <DropdownMenuItem onClick={() => go(routes.approval(p.id, cur.id))}><Stamp /> Ask to approve {cur.name}…</DropdownMenuItem>}
               <DropdownMenuItem onClick={() => setStatusOpen(true)}><FileText /> Status page…</DropdownMenuItem>
               {p.website && !p.repeat && <DropdownMenuItem onClick={() => setHandoffOpen(true)}><FileText /> Handoff document…</DropdownMenuItem>}
               {p.repeat && <DropdownMenuItem onClick={() => setCareOpen(true)}><FileText /> Care report…</DropdownMenuItem>}
-              <DropdownMenuItem onClick={() => makeInvoice({ projectId: p.id, kind: "hours" })}><Receipt /> Invoice for hours…</DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => go(routes.project(p.id, "client"))}><User /> Everything sent and owed</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         )}
@@ -185,9 +190,9 @@ export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Ta
             )}
           </header>
         )}
-        {tab === "overview" && <OverviewTab p={p} setItem={(itemId, b) => setItem(itemId, b)} details={details} />}
+        {tab === "overview" && <OverviewTab p={p} setItem={(itemId, b) => setItem(itemId, b)} details={details} onSignoff={setSignPhase} />}
         {tab === "checklist" && <ChecklistTab p={p} setItem={setItem} setP={setP} reload={load} openItem={item} openPhase={sub} />}
-        {tab === "client" && <ClientTab key={sub || ""} p={p} setItem={setItem} setP={setP} mode={sub === "remind" || sub === "update" ? sub : undefined} />}
+        {tab === "client" && <ClientTab key={sub || ""} p={p} setItem={setItem} setP={setP} mode={sub === "remind" || sub === "update" ? sub : sub?.startsWith("approval") ? "approval" : undefined} approvalPhase={sub?.startsWith("approval-") ? sub.slice(9) : undefined} onSignoff={setSignPhase} onDoc={(d) => (d === "status" ? setStatusOpen(true) : d === "handoff" ? setHandoffOpen(true) : setCareOpen(true))} />}
         {tab === "client" && <FilesSection p={p} setP={setP} focus={sub === "files"} />}
         {tab === "client" && <AccountsSection p={p} setP={setP} />}
         {tab === "site" && <SiteTab p={p} setP={setP} reload={load} onEdit={() => setEditing(true)} view={sub} />}
@@ -200,6 +205,7 @@ export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Ta
       <EditDialog p={p} open={editing} onClose={() => setEditing(false)} onSaved={(x) => { setP(x); refreshProjects() }} />
       {!audit && <StatusPageDialog p={p} open={statusOpen} onClose={() => setStatusOpen(false)} />}
       {!audit && <HandoffDialog p={p} open={handoffOpen} onClose={() => setHandoffOpen(false)} />}
+      {signPhase && p.phases.some((x) => x.id === signPhase) && <SignoffDialog p={p} ph={p.phases.find((x) => x.id === signPhase)!} open onClose={() => setSignPhase(null)} onDone={(x) => { setP(x); setSignPhase(null); refreshProjects().catch(() => {}) }} />}
       {!audit && p.repeat && <CareReportDialog p={p} open={careOpen} onClose={() => setCareOpen(false)} />}
       {!audit && <AskClaudeDialog p={p} open={askOpen} onClose={() => setAskOpen(false)} />}
       {!audit && <MarkLaunchedDialog p={p} open={launchOpen} onClose={() => { setLaunchOpen(false); if (sub === "launched") go(routes.project(id)) }} onDone={(x) => { setP(x); refreshProjects() }} />}
@@ -291,9 +297,8 @@ function ChecklistTab({ p, setItem, setP, reload, openItem, openPhase }: { p: Pr
   const allItems = p.phases.flatMap((x) => [...x.groups.flatMap((g) => g.items), ...x.handoff.items])
   const item = itemId ? allItems.find((x) => x.id === itemId) || null : null
   const toggle = (it: PItem) => setItem(it.id, { status: it.status === "done" ? "todo" : "done" })
-  // Waiting means asked and not received yet. Late items nobody has asked for are counted separately.
-  const waiting = [...p.client.late, ...p.client.soon].filter((x) => x.asked)
-  const lateUnasked = p.client.late.filter((x) => !x.asked).length
+  // What the client owes: late, asked, and not asked once it's time to ask. The same list everywhere.
+  const owed = [...p.client.late, ...p.client.soon, ...p.client.notAsked.filter((x) => !x.askBy || x.askBy <= today())]
   const toolCount = all.filter((x) => x.tool).length
   // The phase in one line: on track, at risk or behind, and why.
   const todayIso = today()
@@ -384,17 +389,16 @@ function ChecklistTab({ p, setItem, setP, reload, openItem, openPhase }: { p: Pr
             </dl>
           </section>
           <section className="flex flex-col gap-1 rounded-xl border bg-card p-4">
-            <div className="mb-1.5 flex items-center gap-2"><h3 className="text-[13.5px] font-medium">Waiting on the client</h3><span className="text-[12.5px] text-muted-foreground tabular">{waiting.length}</span></div>
-            {lateUnasked > 0 && <button onClick={() => go(routes.project(p.id, "client"))} className="-mx-2 mb-1 rounded-md px-2 py-1.5 text-left text-[12.5px] text-destructive hover:bg-muted/50">{lateUnasked} late {lateUnasked === 1 ? "item hasn’t" : "items haven’t"} been asked for yet</button>}
-            {waiting.length ? waiting.slice(0, 5).map((x) => (
+            <div className="mb-1.5 flex items-center gap-2"><h3 className="text-[13.5px] font-medium">Owed by the client</h3><span className="text-[12.5px] text-muted-foreground tabular">{p.client.owed}</span></div>
+            {owed.length ? owed.slice(0, 5).map((x) => (
               <button key={x.id} onClick={() => setItemId(x.id)} className="-mx-2 grid gap-0.5 rounded-md px-2 py-1.5 text-left hover:bg-muted/50">
                 <span className="truncate text-[13px]">{x.title}</span>
-                <span className={cn("text-xs", x.late ? "text-destructive" : "text-muted-foreground")}>{waited(x).replace(/^./, (c) => c.toUpperCase())}{x.nudged ? `, nudged ${fmtDay(dayOf(x.nudged))}` : ""}{x.late ? ", late" : ""}</span>
+                <span className={cn("text-xs", x.late ? "text-destructive" : "text-muted-foreground")}>{x.asked ? waited(x).replace(/^./, (c) => c.toUpperCase()) : "Not asked yet"}{x.nudged ? `, nudged ${fmtDay(dayOf(x.nudged))}` : ""}{x.late ? ", late" : ""}</span>
               </button>
-            )) : <p className="text-[13px] text-muted-foreground">Nothing you’ve asked for is outstanding.</p>}
-            {waiting.length > 5 && <span className="text-xs text-muted-foreground">and {waiting.length - 5} more</span>}
+            )) : <p className="text-[13px] text-muted-foreground">The client doesn’t owe you anything right now.</p>}
+            {owed.length > 5 && <span className="text-xs text-muted-foreground">and {owed.length - 5} more</span>}
             <div className="mt-2 flex gap-2">
-              {waiting.some((x) => x.late) && <Button size="sm" className="flex-1" onClick={() => go(routes.remind(p.id))}><Mail />Remind</Button>}
+              {owed.some((x) => x.late && x.asked) && <Button size="sm" className="flex-1" onClick={() => go(routes.remind(p.id))}><Mail />Remind</Button>}
               <Button variant="outline" size="sm" className="flex-1" onClick={() => go(routes.project(p.id, "client"))}>Client tab</Button>
             </div>
           </section>
@@ -477,13 +481,14 @@ function SignoffCard({ p, ph, setP, onReview, onUndo, onOpen, match, toggle }: {
         <div className="grid gap-0.5">
           <span className="font-medium">{h.title}</span>
           <span className="text-[12.5px] text-muted-foreground">
-            {s ? <>Signed off {fmtDay(s.date)}{s.by ? ` by ${s.by}` : ""}{s.note ? `. ${s.note}` : ""}</> : <>{h.items.length ? `${h.items.length} deliverables, ${ready === h.items.length ? "all ready" : ready ? `${ready} ready` : "none ready yet"}. ` : ""}{h.needs === "client" ? "Needs the client’s written approval." : "You sign this one off yourself."}</>}
+            {s ? <>Signed off {fmtDay(s.date)}{s.by ? ` by ${s.by}` : ""}{s.note ? `. ${s.note}` : ""}</> : <>{h.items.length ? `${h.items.length} ${h.items.length === 1 ? "thing" : "things"} to approve, ${ready === h.items.length ? "all ready" : ready ? `${ready} ready` : "none ready yet"}. ` : ""}{h.needs === "client" ? (ph.approval ? `Sent for approval ${fmtDay(dayOf(ph.approval.sent))}, waiting on the yes.` : "Needs the client’s approval in writing.") : "You sign this one off yourself."}</>}
           </span>
           {s && (s.file || s.link) && <span className="mt-0.5 flex flex-wrap gap-3 text-[12.5px]">{s.file && <a href={proofUrl(p.id, s.file.stored)} className="inline-flex items-center gap-1 underline underline-offset-2"><Paperclip className="size-3" />{s.file.name}</a>}{s.link && <a href={s.link} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 underline underline-offset-2"><Link2 className="size-3" />Proof link</a>}</span>}
         </div>
         <div className="flex items-center gap-1.5">
-          {h.items.length > 0 && <Button variant="ghost" size="sm" onClick={() => setOpen(!open)}>{open ? "Hide" : "Deliverables"}<ChevronRight className={cn("transition-transform", open && "rotate-90")} /></Button>}
-          {s ? <Button variant="outline" size="sm" onClick={onUndo}><Undo2 />Undo</Button> : ph.state !== "upcoming" || ph.ready ? <Button variant="outline" size="sm" onClick={onReview}>Review handoff</Button> : null}
+          {h.items.length > 0 && <Button variant="ghost" size="sm" onClick={() => setOpen(!open)}>{open ? "Hide" : "What’s included"}<ChevronRight className={cn("transition-transform", open && "rotate-90")} /></Button>}
+          {!s && h.needs === "client" && ph.state === "current" && <Button variant="ghost" size="sm" onClick={() => go(routes.approval(p.id, ph.id))}>{ph.approval ? "Ask again" : "Ask for approval"}</Button>}
+          {s ? <Button variant="outline" size="sm" onClick={onUndo}><Undo2 />Undo</Button> : ph.state !== "upcoming" || ph.ready ? <Button variant="outline" size="sm" onClick={onReview}>Record sign-off</Button> : null}
         </div>
       </div>
       {open && <div className="border-t bg-card/60 px-3.5 pb-1">{h.items.filter(match).map((it) => <ItemRow key={it.id} projectId={p.id} it={it} onToggle={() => toggle(it)} onOpen={() => onOpen(it.id)} />)}</div>}
@@ -798,7 +803,7 @@ function SignoffDialog({ p, ph, open, onClose, onDone }: { p: Project; ph: PPhas
         <div className="scrollbar-thin grid max-h-[62vh] gap-4 overflow-auto px-6 py-5">
           {ph.handoff.items.length > 0 && (
             <div className="grid gap-2">
-              <div className="flex items-baseline gap-2"><span className="text-[13px] font-medium">Deliverables</span><span className="text-[12.5px] text-muted-foreground tabular">{ph.handoff.items.filter((x) => x.status !== "todo").length} of {ph.handoff.items.length} ready</span></div>
+              <div className="flex items-baseline gap-2"><span className="text-[13px] font-medium">What’s included</span><span className="text-[12.5px] text-muted-foreground tabular">{ph.handoff.items.filter((x) => x.status !== "todo").length} of {ph.handoff.items.length} ready</span></div>
               <div className="rounded-xl border bg-card px-3.5 py-1">
                 {ph.handoff.items.map((x) => <div key={x.id} className="grid h-[30px] grid-cols-[16px_minmax(0,1fr)] items-center gap-2.5 text-[13px]"><StatusIcon it={x} size={16} /><span className={cn("truncate", x.status !== "todo" && "text-muted-foreground")}>{x.title}</span></div>)}
               </div>
@@ -847,13 +852,19 @@ function SignoffDialog({ p, ph, open, onClose, onDone }: { p: Project; ph: PPhas
 }
 
 // ---------- client ----------
-// Everything the client owes, with a checkbox per item for the request message. Late ones, ones due soon and ones
-// it's time to ask for start ticked.
-function ClientTab({ p, setItem, setP, mode }: { p: Project; setItem: SetItem; setP: (x: Project) => void; mode?: "remind" | "update" }) {
+// Everything between you and the client: what they owe you (a checkbox per item for the request message), the
+// approvals, what's been sent and the documents to send. The panel writes the request, the weekly update or the
+// approval request.
+function ClientTab({ p, setItem, setP, mode, approvalPhase, onSignoff, onDoc }: { p: Project; setItem: SetItem; setP: (x: Project) => void; mode?: "remind" | "update" | "approval"; approvalPhase?: string; onSignoff: (phaseId: string) => void; onDoc: (d: "status" | "handoff" | "care") => void }) {
   const { prefs, setPrefs } = useApp()
   const remind = mode === "remind"
   // The panel writes a request or reminder about ticked items, or the weekly update.
-  const [kind, setKind] = React.useState<"ask" | "update">(mode === "update" ? "update" : "ask")
+  const [kind, setKind] = React.useState<"ask" | "update" | "approval">(mode === "update" ? "update" : mode === "approval" ? "approval" : "ask")
+  // The phases the client approves, and the one the approval request is for.
+  const approvals = p.phases.filter((x) => x.handoff.needs === "client")
+  const approvable = approvals.filter((x) => !x.signoff)
+  const [aph, setAph] = React.useState(() => approvalPhase || (approvable.find((x) => x.id === p.current) || approvable[0])?.id || "")
+  const aphase = p.phases.find((x) => x.id === aph) || null
   const [ai, setAi] = React.useState<{ from: string; text: string } | null>(null) // the AI rewrite and the text it came from
   const [rewriting, setRewriting] = React.useState(false)
   const [voice, setVoice] = React.useState(prefs.voice || "")
@@ -884,11 +895,14 @@ function ClientTab({ p, setItem, setP, mode }: { p: Project; setItem: SetItem; s
   const reminderTpl = (tpls.find((t) => t.id === "reminder") || tpls.find((t) => /remind|nudge/i.test(t.name)))?.id
   const requestTpl = (tpls.find((t) => t.use?.includes("client-request")) || tpls[0])?.id
   const updateTpl = (tpls.find((t) => t.use?.includes("weekly-update")) || tpls.find((t) => /update/i.test(t.name)))?.id
-  const auto = kind === "update" ? updateTpl : chosen.length > 0 && !fresh.length && reminderTpl ? reminderTpl : requestTpl
+  const approvalTpl = (tpls.find((t) => t.id === "signoff-request") || tpls.find((t) => /sign-?off|approv/i.test(t.name)))?.id
+  const auto = kind === "update" ? updateTpl : kind === "approval" ? approvalTpl : chosen.length > 0 && !fresh.length && reminderTpl ? reminderTpl : requestTpl
   React.useEffect(() => { if (!picked && auto) setTid(auto) }, [auto, picked])
   React.useEffect(() => { setPicked(false) }, [kind])
   const update = weeklyUpdate(p)
-  const msg = tpl ? renderMessage(tpl, p, prefs.appliedBy || "", kind === "update" ? [] : chosen, kind === "update" ? update.extra : {}) : null
+  // The approval request lists what's included: the phase's own deliverables.
+  const included = aphase ? aphase.handoff.items.filter((x) => x.who === "us").map((x) => `• ${x.title}`).join("\n") || `• The ${aphase.name} work` : ""
+  const msg = tpl ? renderMessage(tpl, p, prefs.appliedBy || "", kind === "ask" ? chosen : [], kind === "update" ? update.extra : kind === "approval" && aphase ? { phase: aphase.name, items: included } : {}) : null
   const plain = msg ? (tpl?.kind === "email" && msg.subject ? `Subject: ${msg.subject}\n\n${msg.body}` : msg.body) : ""
   const rewritten = ai && ai.from === plain ? ai.text : null // a different message drops the rewrite
   const text = rewritten ?? plain
@@ -896,10 +910,24 @@ function ClientTab({ p, setItem, setP, mode }: { p: Project; setItem: SetItem; s
     setRewriting(true)
     try { const r = await api.rewrite(plain, voice); setAi({ from: plain, text: r.text }); setPrefs({ voice }) } catch (e) { toast.error((e as Error).message) } finally { setRewriting(false) }
   }
-  const received = p.phases.flatMap((ph) => [...ph.groups.flatMap((g) => g.items), ...ph.handoff.items]).filter((x) => x.who === "client" && x.status === "done")
+  const clientItems = p.phases.flatMap((ph) => [...ph.groups.flatMap((g) => g.items), ...ph.handoff.items]).filter((x) => x.who === "client")
+  const received = clientItems.filter((x) => x.status === "done")
+  const first = p.clientName ? p.clientName.split(" ")[0] : "the client"
+  const byDay = (list: number[], text: (n: number) => string, key: string) => [...list.reduce((m, at) => m.set(dayOf(at), [...(m.get(dayOf(at)) || []), at]), new Map<string, number[]>()).entries()].map(([d, ats]) => ({ key: key + d, at: Math.max(...ats), text: text(ats.length) }))
+  const sent = [
+    ...(p.lastUpdate ? [{ key: "u", at: p.lastUpdate, text: "Weekly update" }] : []),
+    ...p.phases.filter((x) => x.approval).map((x) => ({ key: "a" + x.id, at: x.approval!.sent, text: `Approval request for ${x.name}` })),
+    ...byDay(clientItems.filter((x) => x.asked).map((x) => +new Date(x.asked!)), (n) => `Asked for ${n} ${n === 1 ? "item" : "items"}`, "k"),
+    ...byDay(clientItems.filter((x) => x.nudged).map((x) => +new Date(x.nudged!)), (n) => `Reminder about ${n} ${n === 1 ? "item" : "items"}`, "n"),
+  ].sort((a, b) => b.at - a.at).slice(0, 8)
   const toggle = (id: string, on: boolean) => setPick((s) => { const n = new Set(s); if (on) n.add(id); else n.delete(id); return n })
   const copy = async () => {
     navigator.clipboard.writeText(text)
+    if (kind === "approval") {
+      if (!record || !aphase) return toast("Copied the approval request")
+      try { setP(await api.setApproval(p.id, aphase.id, true)); toast("Copied the approval request", { description: "When the yes comes in, record the sign-off on the Overview or below." }) } catch (e) { toast.error((e as Error).message) }
+      return
+    }
     if (kind === "update") {
       if (!record) return toast("Copied the update")
       try { setP(await api.updateSent(p.id)); toast("Copied the update", { description: "The next one is due in a week." }) } catch (e) { toast.error((e as Error).message) }
@@ -944,8 +972,8 @@ function ClientTab({ p, setItem, setP, mode }: { p: Project; setItem: SetItem; s
   return (
     <div className="grid gap-10 px-12 pt-6 pb-10 lg:grid-cols-[minmax(0,1fr)_360px]">
       <div className="min-w-0 text-[13.5px]">
-        <h2 className="text-[16px] font-medium">Waiting on the client</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Everything {p.name} owes you, from every phase. Tick the items to ask for or remind about, and press Received when one arrives. An item is late once its due date passes, whether or not you’ve asked yet.</p>
+        <h2 className="text-[16px] font-medium">Owed to you</h2>
+        <p className="mt-1 text-sm text-muted-foreground">Everything {p.name} still has to send, from every phase. Tick items to put them in the message, and press Received when one arrives. An item is late once its due date passes, asked or not.</p>
         <label className="mt-2 mb-4 block text-[13px] leading-7 text-muted-foreground">Remind the client{" "}
           <select value={p.remindEvery} onChange={async (e) => { try { setP(await api.updateProject(p.id, { remindEvery: +e.target.value })) } catch (err) { toast.error((err as Error).message) } }} className="mx-0.5 h-7 rounded-md border border-input bg-card px-1.5 text-[13px] text-foreground">
             {[[0, "never"], [2, "every 2 days"], [3, "every 3 days"], [5, "every 5 days"], [7, "once a week"]].map(([v, l]) => <option key={v} value={v}>{l}</option>)}
@@ -961,12 +989,53 @@ function ClientTab({ p, setItem, setP, mode }: { p: Project; setItem: SetItem; s
         {!open.length && <p className="mt-6 text-sm text-muted-foreground">The client doesn’t owe you anything right now.</p>}
         {received.length > 0 && <button onClick={() => setShowReceived(!showReceived)} className="mt-4 flex h-8 items-center gap-2 font-medium"><ChevronRight className={cn("size-3.5 text-muted-foreground transition-transform", showReceived && "rotate-90")} />Received <span className="text-[12.5px] font-normal text-muted-foreground tabular">{received.length}</span></button>}
         {showReceived && received.map((x) => <Row key={x.id} x={x} select={false} right={<span className="text-muted-foreground">{x.at ? `Received ${new Date(x.at).toLocaleDateString([], { month: "short", day: "numeric" })}` : "Received"}</span>} />)}
+
+        {approvals.length > 0 && (
+          <section className="mt-10">
+            <div className="flex h-9 items-baseline gap-2 border-b"><h2 className="text-[16px] font-medium">Approvals</h2><span className="text-[12.5px] text-muted-foreground">each phase {first} signs off</span></div>
+            {approvals.map((x) => {
+              const now = x.id === p.current
+              const state = x.signoff ? `Signed off ${fmtDay(x.signoff.date)}${x.signoff.by ? ` by ${x.signoff.by}` : ""}` : x.approval ? `Sent ${fmtDay(dayOf(x.approval.sent))}, waiting on the yes` : now ? (x.ready ? "Ready to send" : "Once the work is in") : x.due ? `Planned for ${fmtDay(x.due)}` : "Later"
+              return (
+                <div key={x.id} className="grid min-h-12 grid-cols-[18px_minmax(0,1fr)_auto] items-center gap-3 border-b border-border/60 py-1">
+                  {x.signoff ? <svg width="16" height="16" viewBox="0 0 18 18" aria-label="Signed off"><circle cx="9" cy="9" r="8.5" className="fill-done" /><path d="m5.5 9.2 2.3 2.3 4.7-4.7" fill="none" className="stroke-background" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg> : x.approval ? <Hourglass className="size-4 text-client" /> : <Stamp className={cn("size-4", now ? "text-foreground/70" : "text-muted-foreground/60")} />}
+                  <span className="grid min-w-0"><span className={cn("truncate", !now && !x.signoff && !x.approval && "text-muted-foreground")}>{x.handoff.title} <span className="text-muted-foreground">· {x.name}</span></span><span className="text-[12.5px] text-muted-foreground">{state}</span></span>
+                  <span className="flex gap-1.5">
+                    {!x.signoff && (now || x.approval) && <Button size="xs" variant="ghost" onClick={() => { setKind("approval"); setAph(x.id); panel.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }) }}>{x.approval ? "Ask again" : "Ask for approval"}</Button>}
+                    {!x.signoff && (now || x.approval) && <Button size="xs" variant="outline" onClick={() => onSignoff(x.id)}>Record sign-off</Button>}
+                  </span>
+                </div>
+              )
+            })}
+          </section>
+        )}
+
+        {sent.length > 0 && (
+          <section className="mt-10">
+            <div className="flex h-9 items-baseline gap-2 border-b"><h2 className="text-[16px] font-medium">Sent</h2><span className="text-[12.5px] text-muted-foreground">what you’ve copied from here and recorded</span></div>
+            {sent.map((x) => <div key={x.key} className="grid min-h-10 grid-cols-[88px_minmax(0,1fr)] items-center gap-3 border-b border-border/60"><span className="text-muted-foreground tabular">{fmtDay(dayOf(x.at))}</span><span className="truncate">{x.text}</span></div>)}
+          </section>
+        )}
+
+        <section className="mt-10">
+          <div className="flex h-9 items-baseline gap-2 border-b"><h2 className="text-[16px] font-medium">Documents to send</h2><span className="text-[12.5px] text-muted-foreground">saved as a PDF or a web page, for you to send</span></div>
+          <div className="grid gap-2.5 pt-3 sm:grid-cols-3">
+            <DocCard title="Status page" sub="Where the project stands, for the client" onClick={() => onDoc("status")} />
+            {p.website && !p.repeat && <DocCard title="Handoff document" sub="Everything about the site, for whoever runs it next" onClick={() => onDoc("handoff")} />}
+            {p.repeat && <DocCard title="Care report" sub="This month’s work and how the site is" onClick={() => onDoc("care")} />}
+          </div>
+        </section>
       </div>
       <section ref={panel} className="flex scroll-mt-4 flex-col gap-3.5 self-start rounded-xl border bg-card p-[18px]">
-        <div role="group" aria-label="Message" className="grid grid-cols-2 gap-0.5 rounded-lg bg-muted p-0.5">
-          {([["ask", "Ask or remind"], ["update", "Weekly update"]] as const).map(([k, l]) => <button key={k} aria-pressed={kind === k} onClick={() => { setKind(k); if (k === "ask" && !pick.size) setPick(firstPick()) }} className={cn("h-7 rounded-md text-[13px]", kind === k ? "bg-card font-medium shadow-sm" : "text-muted-foreground")}>{l}</button>)}
+        <div role="group" aria-label="Message" className={cn("grid gap-0.5 rounded-lg bg-muted p-0.5", approvable.length > 0 || kind === "approval" ? "grid-cols-3" : "grid-cols-2")}>
+          {([["ask", "Ask or remind"], ["update", "Weekly update"], ["approval", "Approval"]] as const).filter(([k]) => k !== "approval" || approvable.length > 0 || kind === "approval").map(([k, l]) => <button key={k} aria-pressed={kind === k} onClick={() => { setKind(k); if (k === "ask" && !pick.size) setPick(firstPick()) }} className={cn("h-7 rounded-md text-[13px]", kind === k ? "bg-card font-medium shadow-sm" : "text-muted-foreground")}>{l}</button>)}
         </div>
-        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2.5"><div className="grid gap-0.5"><h2 className="text-sm font-medium">{kind === "update" ? "Weekly update" : "Message to the client"}</h2><span className="text-[12.5px] text-muted-foreground">{kind === "update" ? `Since ${p.lastUpdate ? `the last update, ${fmtDay(dayOf(p.lastUpdate))}` : fmtDay(dayOf(update.since))}: ${update.counts.done} done, ${update.counts.next} up next, ${update.counts.waiting} waiting on them` : chosen.length ? `${chosen.length} ${chosen.length === 1 ? "item" : "items"} ticked${!fresh.length ? ", all asked before" : ""}` : "No items ticked. Tick items on the left to list them."}</span></div>{tid && <button onClick={() => go(routes.template(tid))} className="text-[12.5px] text-foreground/70 underline underline-offset-2">Edit template</button>}</div>
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2.5"><div className="grid gap-0.5"><h2 className="text-sm font-medium">{kind === "update" ? "Weekly update" : kind === "approval" ? "Approval request" : "Message to the client"}</h2><span className="text-[12.5px] text-muted-foreground">{kind === "approval" ? (aphase ? `${aphase.name}: ${aphase.approval ? `asked ${fmtDay(dayOf(aphase.approval.sent))}, this asks again` : "asks the client to approve it in writing"}` : "Every approval is recorded") : kind === "update" ? `Since ${p.lastUpdate ? `the last update, ${fmtDay(dayOf(p.lastUpdate))}` : fmtDay(dayOf(update.since))}: ${update.counts.done} done, ${update.counts.next} up next, ${update.counts.waiting} waiting on them` : chosen.length ? `${chosen.length} ${chosen.length === 1 ? "item" : "items"} ticked${!fresh.length ? ", all asked before" : ""}` : "No items ticked. Tick items on the left to list them."}</span></div>{tid && <button onClick={() => go(routes.template(tid))} className="text-[12.5px] text-foreground/70 underline underline-offset-2">Edit template</button>}</div>
+        {kind === "approval" && approvable.length > 1 && (
+          <label className="grid gap-1.5 text-[12.5px] text-muted-foreground">Phase
+            <select value={aph} onChange={(e) => setAph(e.target.value)} className="h-9 rounded-lg border border-input bg-card px-2.5 text-[13.5px] text-foreground">{approvable.map((x) => <option key={x.id} value={x.id}>{x.name}: {x.handoff.title}</option>)}</select>
+          </label>
+        )}
         <label className="grid gap-1.5 text-[12.5px] text-muted-foreground">Template
           <select value={tid} onChange={(e) => { setPicked(true); setTid(e.target.value) }} className="h-9 rounded-lg border border-input bg-card px-2.5 text-[13.5px] text-foreground">{tpls.map((t) => <option key={t.id} value={t.id}>{t.name}{t.kind === "email" ? " (email)" : ""}</option>)}</select>
         </label>
@@ -980,11 +1049,22 @@ function ClientTab({ p, setItem, setP, mode }: { p: Project; setItem: SetItem; s
         </div>
         {kind === "update" && <button onClick={() => window.dispatchEvent(new Event("gw:status-page"))} className="flex items-center gap-1.5 text-left text-[12.5px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"><FileText className="size-3.5" />Or send a status page as a PDF</button>}
         {kind === "update" && <label className="flex items-start gap-2 text-[13px]"><Checkbox checked={record} onCheckedChange={(v) => setRecord(!!v)} className="mt-0.5" /><span>Record it as sent today <span className="text-muted-foreground">(the next one is due in a week)</span></span></label>}
+        {kind === "approval" && aphase && <label className="flex items-start gap-2 text-[13px]"><Checkbox checked={record} onCheckedChange={(v) => setRecord(!!v)} className="mt-0.5" /><span>Record it as sent today <span className="text-muted-foreground">(the Overview then waits for the yes)</span></span></label>}
         {kind === "ask" && chosen.length > 0 && <label className="flex items-start gap-2 text-[13px]"><Checkbox checked={record} onCheckedChange={(v) => setRecord(!!v)} className="mt-0.5" /><span>Record it as sent today <span className="text-muted-foreground">({[fresh.length ? `${fresh.length} asked` : "", chosen.length - fresh.length ? `${chosen.length - fresh.length} nudged` : ""].filter(Boolean).join(", ")})</span></span></label>}
         <Button onClick={copy} disabled={!text}><Copy />Copy message</Button>
         <p className="text-[12.5px] leading-relaxed text-muted-foreground">Groundwork doesn’t send anything. Paste the message wherever you talk to the client.{!prefs.appliedBy && " Add your name in Settings to sign it."}</p>
       </section>
     </div>
+  )
+}
+
+/** A document to make for the client: opens the dialog that saves it. */
+function DocCard({ title, sub, onClick }: { title: string; sub: string; onClick: () => void }) {
+  return (
+    <button onClick={onClick} className="grid content-start gap-1 rounded-xl border bg-card px-3.5 py-3 text-left hover:shadow-[0_2px_8px_rgba(22,23,22,0.07)]">
+      <span className="flex items-center gap-1.5 text-[13.5px] font-medium"><FileText className="size-3.5 text-muted-foreground" />{title}</span>
+      <span className="text-[12.5px] leading-normal text-muted-foreground">{sub}</span>
+    </button>
   )
 }
 

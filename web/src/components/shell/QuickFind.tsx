@@ -1,5 +1,5 @@
 import * as React from "react"
-import { FileText, FolderKanban, LayoutTemplate, Plus, Rocket, Search, Settings, Sun, Timer, Wrench, Users } from "lucide-react"
+import { FileText, FolderKanban, LayoutTemplate, Plus, Rocket, Search, Settings, Sun, Timer, Wallet, Wrench, Users } from "lucide-react"
 import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandShortcut } from "@/components/ui/command"
 import { SiteIcon } from "@/components/common/bits"
 import { newProject } from "@/components/project/NewProjectDialog"
@@ -36,6 +36,7 @@ export function QuickFind() {
         <CommandGroup heading="Go to">
           <CommandItem value="today home" onSelect={() => run(() => go(routes.home))}><Sun />Today</CommandItem>
           <CommandItem value="time log timer hours" onSelect={() => run(() => go(routes.time()))}><Timer />Time</CommandItem>
+          <CommandItem value="money invoices payments paid owed" onSelect={() => run(() => go(routes.money))}><Wallet />Money</CommandItem>
           <CommandItem value="templates" onSelect={() => run(() => go(routes.templates))}><LayoutTemplate />Templates</CommandItem>
           <CommandItem value="settings engines skills" onSelect={() => run(() => go(routes.settings()))}><Settings />Settings<CommandShortcut>⌘,</CommandShortcut></CommandItem>
         </CommandGroup>

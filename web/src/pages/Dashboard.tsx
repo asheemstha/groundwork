@@ -59,9 +59,9 @@ export function Dashboard() {
               <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                 <Glance icon={<ListChecks />} label="Yours this week" value={(s?.dueThisWeek ?? 0) + (s?.overdue ?? 0)} onClick={() => setTab(s?.overdue ? "late" : "week")}
                   sub={<>{s?.overdue ? <span className="text-destructive">{s.overdue} late</span> : "None late"}{s?.dueToday ? `, ${s.dueToday} due today` : ""}</>} />
-                <Glance icon={<User />} label="Waiting on clients" value={s?.waiting ?? 0} onClick={() => setTab("week")}
+                <Glance icon={<User />} label="Owed by clients" value={s?.waiting ?? 0} onClick={() => setTab("week")}
                   sub={<>{s?.late ? <span className="text-destructive">{s.late} late</span> : "None late"}{s?.toAsk ? `, ${s.toAsk} to ask for` : ""}</>} />
-                <Glance icon={<Receipt />} label="Invoices to send" value={inv.make} onClick={inv.first ? () => go(routes.project(inv.first!, "money")) : undefined}
+                <Glance icon={<Receipt />} label="Invoices to send" value={inv.make} onClick={() => go(routes.money)}
                   sub={inv.unpaid ? `${inv.unpaid} waiting on payment` : "Nothing waiting on payment"} />
                 <Glance icon={<Rocket />} label="Next launch" value={s?.nextLaunch ? fmtDay(s.nextLaunch.date) : "None"} onClick={s?.nextLaunch ? () => go(routes.project(s.nextLaunch!.id)) : undefined}
                   sub={s?.nextLaunch ? <span className="flex min-w-0 items-center gap-1.5"><SiteIcon runId={s.nextLaunch.iconRun || undefined} name={s.nextLaunch.name} color={s.nextLaunch.color} className="size-4 rounded text-[8px]" /><span className="truncate">{s.nextLaunch.name}, {inDays(s.nextLaunch.date)}</span></span> : "No launch date set"} />

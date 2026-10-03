@@ -299,7 +299,7 @@ export interface PItem { id: string; title: string; custom?: boolean; check: Lau
 export interface Signoff { by: string; date: string; note: string; link: string; file: { name: string; stored: string } | null; at: number }
 /** A payment due at a phase's sign-off: invoiced once the phase is signed off, then paid. */
 export interface Payment { label: string; amount: string; invoiced: number | null; paid: number | null }
-export interface PPhase { id: string; name: string; index: number; payment: Payment | null; due: string | null; groups: { id: string; name: string; items: PItem[] }[]; handoff: { title: string; needs: "us" | "client"; items: PItem[] }; signoff: Signoff | null; state: "signed" | "current" | "upcoming"; done: number; total: number; ready: boolean }
+export interface PPhase { id: string; name: string; index: number; payment: Payment | null; due: string | null; groups: { id: string; name: string; items: PItem[] }[]; handoff: { title: string; needs: "us" | "client"; items: PItem[] }; signoff: Signoff | null; approval: { sent: number } | null; state: "signed" | "current" | "upcoming"; done: number; total: number; ready: boolean }
 export type SiteKey = "old" | "staging" | "live"
 export type Sites = Record<SiteKey, string | null>
 export interface ProjectRun { id: string; site: SiteKey | null; status: RunStatus; created: number; pages: number; scanned: number; output: Output | null; progress: RunProgress | null; hasIcon: boolean; seo: { status: SeoStatus; progress: Counts | null } | null; error: string | null; url: string }
@@ -316,7 +316,8 @@ export interface Project {
   /** The template has changed since the project was made or last updated from it. */
   templateChanged: boolean
   phases: PPhase[]; current: string | null
-  client: { late: PItem[]; soon: PItem[]; notAsked: PItem[]; received: number }
+  /** What the client owes: late, asked for, and not asked yet. `owed` counts the late, the asked and those it's time to ask for. */
+  client: { late: PItem[]; soon: PItem[]; notAsked: PItem[]; received: number; owed: number }
   tools: {
     runs: ProjectRun[]; scan: { runId: string; urls: number; at: number } | null; plan: { runId: string; done: number; total: number; at: number; output: Output | null } | null; iconRun: string | null
     launch: LaunchSummary | null; launchRunning: { id: string } | null; launchHistory: LaunchSummary[]
@@ -427,6 +428,9 @@ export interface TrackingInfo {
   firstVisit: string[] | null; afterReject: string[] | null; afterAccept: string[] | null
   redirects: { from: string; to: string; kept: boolean }[]; blocked: number
 }
+/** A payment or invoice on the Money page, with its project. */
+export interface MoneyRow { projectId: string; projectName: string; color: ProjectColor; iconRun: string | null; clientName: string; source: "payment" | "invoice"; key: string; label: string; amount: string; number: string | null; invoiceId: string | null; at?: number; due?: string | null; why?: string }
+export interface MoneyAll { toInvoice: MoneyRow[]; waiting: MoneyRow[]; upcoming: MoneyRow[]; paid: MoneyRow[]; totals: { toInvoice: string[]; waiting: string[]; upcoming: string[]; paid30: string[] } }
 export interface ProjectSummary {
   id: string; kind: "project" | "audit"; name: string; templateId: string | null; sample?: boolean; website?: boolean; host: string | null; url: string | null; launch: string | null; iconRun: string | null; color: ProjectColor
   current: { index: number; id: string; name: string; done: number; total: number; ready: boolean; needs: "us" | "client"; handoffTitle: string } | null
@@ -565,6 +569,8 @@ export const api = {
   removeItem: (id: string, itemId: string) => req<Project>("DELETE", `/api/projects/${id}/items/${itemId}`),
   setItem: (id: string, itemId: string, b: Partial<{ status: PItem["status"]; note: string; link: string; asked: boolean | number; nudged: boolean; due: string | null; est: number | null }>) => req<Project>("POST", `/api/projects/${id}/items/${itemId}`, b),
   askItems: (id: string, items: string[], nudge = false) => req<Project>("POST", `/api/projects/${id}/ask`, { items, nudge }),
+  setApproval: (id: string, phaseId: string, sent: boolean) => req<Project>("POST", `/api/projects/${id}/approval/${phaseId}`, { sent }),
+  money: () => req<MoneyAll>("GET", "/api/money"),
   signoff: (id: string, phaseId: string, b: SignoffInput) => req<Project>("POST", `/api/projects/${id}/signoff/${phaseId}`, b),
   unsign: (id: string, phaseId: string) => req<Project>("DELETE", `/api/projects/${id}/signoff/${phaseId}`),
   scanProject: (id: string, site?: SiteKey, url?: string) => req<{ runId: string }>("POST", `/api/projects/${id}/scan`, { site, url }),

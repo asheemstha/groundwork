@@ -1,11 +1,11 @@
 import * as React from "react"
 import { cn } from "cn"
-import { ArrowRight, ChevronRight, CircleCheck, Loader2, Plus, Route, ScanLine } from "lucide-react"
+import { ArrowRight, ChevronDown, ChevronRight, CircleCheck, Loader2, Plus, Route, ScanLine } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { useApp } from "@/hooks/useApp"
 import { api, type LaunchCheckId, type LaunchReport, type Project, type SiteKey } from "@/lib/api"
-import { SITE_KEYS, SITE_NAME, fmtDay, hostOfUrl, subName } from "@/lib/project"
+import { SITE_KEYS, SITE_NAME, addDaysTo, fmtDay, hostOfUrl, subName, today } from "@/lib/project"
 import { ago } from "@/lib/format"
 import { go, routes } from "@/lib/router"
 import { platformOf } from "@/lib/platforms"
@@ -26,39 +26,114 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 // "6 of 10": the checks that count on that site (on staging, the two that wait for the live domain don't).
 const tally = (h: Project["tools"]["launchHistory"][number]) => { const ids = (Object.keys(h.checks) as LaunchCheckId[]).filter((id) => !(h.staging && LATER.includes(id))); return `${ids.filter((id) => h.checks[id]!.ok).length} of ${ids.length}` }
 
+/** The addresses the launch check can use: on a project, the staging and live sites (the old site's scan is under
+ *  Before launch), or the old site when it's the only one saved. A site check has its one address. */
+const siteKeys = (p: Project): SiteKey[] => {
+  if (p.kind === "audit") return p.sites.live ? ["live"] : []
+  const fresh = (["staging", "live"] as SiteKey[]).filter((k) => p.sites[k])
+  return fresh.length ? fresh : p.sites.old ? ["old"] : []
+}
+
 /** Which of the project's sites the tab opens on: the one the launch check would use, else the first there is. */
 function firstSite(p: Project): SiteKey | null {
-  const keys = (p.kind === "audit" ? (["live"] as SiteKey[]) : SITE_KEYS).filter((k) => p.sites[k])
+  const keys = siteKeys(p)
   const want = defaultUrl(p)
   return keys.find((k) => hostOfUrl(p.sites[k]) === hostOfUrl(want)) || keys[0] || null
 }
 
+type Moment = "before" | "launch" | "after"
+
 /**
- * The Site tab: a website's problems first, then one timeline of its scans and checks. On a redesign, "Moving from
- * the old site" holds the content inventory, the redirect map and search traffic.
+ * The Site tab, in the order the tools are used: before launch (on a redesign: the old site's scan, the content
+ * inventory and search traffic), launch (the launch check and the redirect map), and after launch (the checks on day
+ * 3, 7 and 30, uptime and renewals). The stage the project is in opens on its own. A site check has only its checks.
  */
 export function SiteTab({ p, setP, reload, onEdit, view }: { p: Project; setP: (x: Project) => void; reload: () => void; onEdit: () => void; view?: string }) {
   const audit = p.kind === "audit"
   const redesign = !audit && !!p.sites.old
-  const moving = redesign && view === "moving"
+  const now: Moment = p.launched ? "after" : redesign && !p.tools.oldScan ? "before" : "launch"
+  const [open, setOpen] = React.useState<Record<Moment, boolean>>(() => ({ before: view === "moving" || now === "before", launch: now === "launch", after: now === "after" }))
+  const flip = (m: Moment) => setOpen((o) => ({ ...o, [m]: !o[m] }))
+  if (audit) return <div className="grid max-w-[920px] gap-6 px-12 pt-6 pb-12"><Checks p={p} setP={setP} reload={reload} onEdit={onEdit} /></div>
+  if (!SITE_KEYS.some((k) => p.sites[k]) && !p.tools.launchHistory.length) return <div className="grid max-w-[920px] gap-6 px-12 pt-6 pb-12"><NoSiteYet platform={platformOf(p.platform)?.name} onAdd={onEdit} /></div>
+  const state = (m: Moment): "done" | "now" | "next" => (m === now ? "now" : (m === "before" && now !== "before") || (m === "launch" && now === "after") ? "done" : "next")
+  const lastLaunch = p.tools.launchHistory.find((h) => h.status === "done" && !h.watch)
   return (
-    <div className="grid max-w-[920px] gap-6 px-12 pt-6 pb-12">
+    <div className="grid max-w-[920px] gap-3 px-12 pt-6 pb-12">
       {redesign && (
-        <div role="group" aria-label="Site" className="flex w-fit gap-0.5 rounded-lg bg-muted p-0.5">
-          {([["checks", "Checks"], ["moving", "Moving from the old site"]] as const).map(([k, l]) => (
-            <button key={k} aria-pressed={(k === "moving") === moving} onClick={() => go(k === "moving" ? routes.site(p.id, "moving") : routes.site(p.id))} className={cn("h-7 rounded-md px-3 text-[13px]", (k === "moving") === moving ? "bg-card font-medium shadow-sm" : "text-muted-foreground")}>{l}</button>
-          ))}
-        </div>
+        <Stage title="Before launch" state={state("before")} open={open.before} onToggle={() => flip("before")}
+          sub={p.tools.oldScan ? `Old site scanned ${ago(p.tools.oldScan.at)}: ${plural(p.tools.oldScan.urls, "address", "addresses")}` : "Save what the old site has, then decide every page"}>
+          <Moving p={p} setP={setP} reload={reload} />
+        </Stage>
       )}
-      {moving ? <Moving p={p} setP={setP} onEdit={onEdit} reload={reload} /> : <Checks p={p} setP={setP} reload={reload} onEdit={onEdit} />}
+      <Stage title="Launch" state={state("launch")} open={open.launch} onToggle={() => flip("launch")}
+        sub={lastLaunch ? `Last launch check ${day(lastLaunch.at)}: ${tally(lastLaunch)} passed` : "Check the new site, then move the addresses over"}>
+        <Checks p={p} setP={setP} reload={reload} onEdit={onEdit} />
+        {redesign && <div className="grid gap-2"><h2 className="text-[13px] font-medium text-muted-foreground">Redirect map, tests and before and after</h2><RedirectCard p={p} onEdit={onEdit} /></div>}
+      </Stage>
+      <Stage title="After launch" state={state("after")} open={open.after} onToggle={() => flip("after")}
+        sub={p.launched ? `Live since ${fmtDay(p.launched.on)}` : p.launch ? `From launch day, ${fmtDay(p.launch)}` : "From launch day"}>
+        <AfterLaunch p={p} setP={setP} redesign={redesign} />
+      </Stage>
     </div>
   )
 }
 
-function Checks({ p, setP, reload, onEdit }: { p: Project; setP: (x: Project) => void; reload: () => void; onEdit: () => void }) {
+/** A stage of the Site tab: done, now or later, folded unless it's the one the project is in. */
+function Stage({ title, sub, state, open, onToggle, children }: { title: string; sub: string; state: "done" | "now" | "next"; open: boolean; onToggle: () => void; children: React.ReactNode }) {
+  return (
+    <section className="rounded-xl border bg-card">
+      <button onClick={onToggle} aria-expanded={open} className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left hover:bg-muted/30">
+        {state === "done" ? <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden><circle cx="10" cy="10" r="10" className="fill-done" /><path d="m6 10.3 2.6 2.6 5.4-5.4" fill="none" className="stroke-background" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          : state === "now" ? <span className="grid size-5 place-items-center rounded-full shadow-[inset_0_0_0_2px_var(--brand)]"><span className="size-2 rounded-full bg-brand" /></span>
+          : <span className="size-5 rounded-full shadow-[inset_0_0_0_1.5px_var(--input)]" />}
+        <span className="grid min-w-0 flex-1"><span className="text-[15px] font-medium">{title}</span><span className="truncate text-[12.5px] text-muted-foreground">{sub}</span></span>
+        <span className={cn("text-[12.5px]", state === "now" ? "font-medium text-brand-ink" : "text-muted-foreground")}>{state === "done" ? "Done" : state === "now" ? "Now" : "Later"}</span>
+        <ChevronDown className={cn("size-4 text-muted-foreground transition-transform", open && "rotate-180")} />
+      </button>
+      {open && <div className="grid gap-6 border-t px-4 pt-4 pb-5">{children}</div>}
+    </section>
+  )
+}
+
+/** After launch: the checks on day 3, 7 and 30, whether the site answers, renewals, and search traffic. */
+function AfterLaunch({ p, setP, redesign }: { p: Project; setP: (x: Project) => void; redesign: boolean }) {
+  const rn = p.renewals
+  if (!p.launched) return (
+    <div className="grid gap-3">
+      <p className="text-[13.5px] text-muted-foreground">Starts when you mark the site launched. Groundwork then checks it again on day 3, 7 and 30, checks every hour that it answers, and keeps an eye on the domain and certificate renewals.</p>
+      {!p.repeat && !p.closed && <div><Button size="sm" variant="outline" onClick={() => go(routes.markLaunched(p.id))}>Mark launched</Button></div>}
+    </div>
+  )
+  const on = p.launched.on
+  return (
+    <div className="grid gap-5">
+      <div className="grid">
+        <h2 className="mb-1 text-[13px] font-medium text-muted-foreground">Checks after launch</h2>
+        {[3, 7, 30].map((n) => {
+          const d = addDaysTo(on, n), h = p.tools.launchHistory.find((x) => x.watch === n)
+          return (
+            <button key={n} onClick={() => h && go(routes.launch(p.id, h.id))} disabled={!h} className="grid min-h-10 grid-cols-[110px_minmax(0,1fr)] items-center gap-3 border-b border-border/60 text-left text-[13.5px] enabled:hover:bg-muted/30">
+              <span>Day {n}</span>
+              <span className={cn(h && h.status !== "done" ? "text-destructive" : "text-muted-foreground")}>{h ? (h.status === "done" ? `${tally(h)} passed, ${day(h.at)}` : "Didn’t finish") : d <= today() ? "Due now" : `On ${fmtDay(d)}`}</span>
+            </button>
+          )
+        })}
+      </div>
+      <div className="flex flex-wrap gap-x-6 gap-y-1 text-[13px] text-muted-foreground">
+        {p.uptime ? <span className={cn(!p.uptime.last.ok && "text-destructive")}>{p.uptime.last.ok ? `Answered ${ago(p.uptime.last.at)}` : `Didn’t answer ${ago(p.uptime.last.at)}`}{p.uptime.down.length ? `, ${p.uptime.down.length} of ${p.uptime.checks} hourly checks failed in 30 days` : ", every hourly check answered"}</span> : <span>Uptime: the first hourly check is on its way</span>}
+        {rn && !rn.ssl.error && rn.ssl.expires && <span className={cn(rn.warnings.some((w) => w.what === "ssl" && w.late) && "text-destructive")}>SSL {rn.ssl.auto || rn.hosted ? "renews itself, next" : "runs out"} {fmtDay(rn.ssl.expires)}</span>}
+        {rn && rn.domain.expires && <span className={cn(rn.warnings.some((w) => w.what === "domain" && w.late) && "text-destructive")}>Domain renews by {new Date(rn.domain.expires + "T00:00").toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}</span>}
+      </div>
+      {redesign ? <p className="text-[13px] text-muted-foreground">Search traffic, before and after, is under Before launch.</p> : <TrafficCard p={p} setP={setP} />}
+    </div>
+  )
+}
+
+function Checks({ p, reload, onEdit }: { p: Project; setP: (x: Project) => void; reload: () => void; onEdit: () => void }) {
   const { status, refreshRuns } = useApp()
   const audit = p.kind === "audit"
-  const keys = (audit ? (["live"] as SiteKey[]) : SITE_KEYS).filter((k) => p.sites[k])
+  const keys = siteKeys(p)
   const [site, setSite] = React.useState<SiteKey | null>(() => firstSite(p))
   const [speed, setSpeed] = useSpeedOption()
   const [busy, setBusy] = React.useState<"check" | "scan" | null>(null)
@@ -86,7 +161,7 @@ function Checks({ p, setP, reload, onEdit }: { p: Project; setP: (x: Project) =>
     setBusy("scan")
     try { const { runId } = await api.scanProject(p.id, site); await refreshRuns(); reload(); go(routes.run(runId)) } catch (e) { toast.error((e as Error).message); setBusy(null) }
   }
-  if (!url) return <NoSiteYet platform={platformOf(p.platform)?.name} onAdd={onEdit} />
+  if (!url) return <p className="text-[13.5px] text-muted-foreground">Add the staging or live address to check the new site. <button onClick={onEdit} className="underline underline-offset-2 hover:text-foreground">Add an address</button></p>
   // Scans, launch checks and after-launch checks of this site, newest first.
   const timeline = [
     ...checks.map((h) => ({ at: h.at, key: "c" + h.id, text: h.status === "cancelled" ? "Launch check stopped" : h.status === "failed" ? "Launch check didn’t finish" : `${h.watch ? `Day ${h.watch} after launch` : h.oldSite ? "Check of the old site" : "Launch check"}: ${tally(h)} passed`, bad: h.status !== "done", open: () => go(routes.launch(p.id, h.id)) })),
@@ -169,9 +244,9 @@ function Checks({ p, setP, reload, onEdit }: { p: Project; setP: (x: Project) =>
 
       <section className="flex flex-wrap gap-x-6 gap-y-1 text-[13px] text-muted-foreground">
         {platformOf(p.platform) && <span>Built with {platformOf(p.platform)!.name}</span>}
-        {rn && !rn.ssl.error && rn.ssl.expires && <span className={cn(rn.warnings.some((w) => w.what === "ssl" && w.late) && "text-destructive")}>SSL {rn.ssl.auto || rn.hosted ? "renews itself, next" : "runs out"} {fmtDay(rn.ssl.expires)}</span>}
-        {rn && rn.domain.expires && <span className={cn(rn.warnings.some((w) => w.what === "domain" && w.late) && "text-destructive")}>Domain renews by {new Date(rn.domain.expires + "T00:00").toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}</span>}
-        {site === "live" && p.uptime && <span className={cn(!p.uptime.last.ok && "text-destructive")}>{p.uptime.last.ok ? `Answered ${ago(p.uptime.last.at)}` : `Didn’t answer ${ago(p.uptime.last.at)}`}{p.uptime.down.length ? `, ${p.uptime.down.length} of ${p.uptime.checks} hourly checks failed in 30 days` : ""}</span>}
+        {audit && rn && !rn.ssl.error && rn.ssl.expires && <span className={cn(rn.warnings.some((w) => w.what === "ssl" && w.late) && "text-destructive")}>SSL {rn.ssl.auto || rn.hosted ? "renews itself, next" : "runs out"} {fmtDay(rn.ssl.expires)}</span>}
+        {audit && rn && rn.domain.expires && <span className={cn(rn.warnings.some((w) => w.what === "domain" && w.late) && "text-destructive")}>Domain renews by {new Date(rn.domain.expires + "T00:00").toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}</span>}
+        {audit && site === "live" && p.uptime && <span className={cn(!p.uptime.last.ok && "text-destructive")}>{p.uptime.last.ok ? `Answered ${ago(p.uptime.last.at)}` : `Didn’t answer ${ago(p.uptime.last.at)}`}{p.uptime.down.length ? `, ${p.uptime.down.length} of ${p.uptime.checks} hourly checks failed in 30 days` : ""}</span>}
         {!audit && <button onClick={() => setPlans(!plans)} className="underline-offset-2 hover:text-foreground hover:underline">{plans ? "Hide" : "Optional:"} AI heading and SEO plans</button>}
       </section>
       {plans && site && (
@@ -181,13 +256,12 @@ function Checks({ p, setP, reload, onEdit }: { p: Project; setP: (x: Project) =>
           {engine && <p className="text-[12.5px] text-muted-foreground">Optional. They use your {subName(status)} subscription, and you review every change before it goes in.</p>}
         </section>
       )}
-      {!p.sites.old && !audit && <TrafficCard p={p} setP={setP} />}
     </>
   )
 }
 
-/** On a redesign: the old site's scan, then the content inventory, the redirect map and search traffic, in order. */
-function Moving({ p, setP, onEdit, reload }: { p: Project; setP: (x: Project) => void; onEdit: () => void; reload: () => void }) {
+/** Before launch, on a redesign: the old site's scan, then the content inventory and search traffic, in order. */
+function Moving({ p, setP, reload }: { p: Project; setP: (x: Project) => void; reload: () => void }) {
   const { refreshRuns } = useApp()
   const [busy, setBusy] = React.useState(false)
   const old = p.tools.oldScan
@@ -196,10 +270,7 @@ function Moving({ p, setP, onEdit, reload }: { p: Project; setP: (x: Project) =>
   const step = (n: number, title: string) => <h2 className="mt-2 flex items-baseline gap-2 text-[13px] font-medium text-muted-foreground"><span className="tabular">{n}.</span>{title}</h2>
   return (
     <>
-      <div className="grid gap-1.5">
-        <h1 className="text-[22px] font-medium">Moving from {hostOfUrl(p.sites.old)}</h1>
-        <p className="text-[14px] text-muted-foreground">Keep the old site’s pages, links and search traffic: decide what happens to each page, map every old address to a new one, and test the redirects after launch.</p>
-      </div>
+      <p className="text-[14px] text-muted-foreground">Keep what {hostOfUrl(p.sites.old)} has: its pages, links and search traffic. Decide what happens to each page; the redirect map under Launch then moves every old address to a new one.</p>
       <div className="flex flex-wrap items-center gap-3 text-[13.5px]">
         <span className="text-muted-foreground">{scanning ? "Scanning the old site now." : old ? `Old site scanned ${ago(old.at)}: ${plural(old.urls, "address", "addresses")}.` : "Scan the old site first: everything here starts from its list of pages."}</span>
         {scanning ? <Button size="sm" variant="outline" onClick={() => go(routes.run(scanning.id))}><Loader2 className="animate-spin" />Scanning</Button>
@@ -207,9 +278,7 @@ function Moving({ p, setP, onEdit, reload }: { p: Project; setP: (x: Project) =>
       </div>
       {step(1, "Content inventory")}
       <InventoryCard p={p} />
-      {step(2, "Redirect map, tests and before and after")}
-      <RedirectCard p={p} onEdit={onEdit} />
-      {step(3, "Search traffic")}
+      {step(2, "Search traffic")}
       <TrafficCard p={p} setP={setP} />
     </>
   )

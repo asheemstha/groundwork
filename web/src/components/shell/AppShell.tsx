@@ -1,6 +1,6 @@
 import * as React from "react"
 import { cn } from "cn"
-import { Archive, ArrowLeft, ArrowRight, Camera, Check, ChevronDown, ChevronRight, Columns3, Download, LayoutTemplate, Loader2, MessageSquare, MoreHorizontal, PanelLeft, RefreshCw, Search, Settings, Sparkles, SquarePen, Star, Sun, Timer, Trash2 } from "lucide-react"
+import { Archive, ArrowLeft, ArrowRight, Camera, Check, ChevronDown, ChevronRight, Columns3, Download, LayoutTemplate, Loader2, MessageSquare, MoreHorizontal, PanelLeft, RefreshCw, Search, Settings, Sparkles, SquarePen, Star, Sun, Timer, Trash2, Wallet } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -304,7 +304,7 @@ function Sidebar({ floating, open, onHover, panelRef }: { floating?: boolean; op
         <NavItem icon={Sun} label="Today" active={route.name === "home"} onClick={() => go(routes.home)} />
         <NavItem icon={Columns3} label="Projects" active={route.name === "projects"} onClick={() => go(routes.projects())} />
         <NavItem icon={Timer} label="Time" active={route.name === "time"} onClick={() => go(routes.time())} count={timer.state?.today.mins ? fmtMins(timer.state.today.mins) : undefined} />
-        <NavItem icon={LayoutTemplate} label="Templates" active={route.name === "templates" || route.name === "template"} onClick={() => go(routes.templates)} />
+        <NavItem icon={Wallet} label="Money" active={route.name === "money"} onClick={() => go(routes.money)} />
       </nav>
       <div className="scrollbar-thin mt-4 min-h-0 flex-1 overflow-auto">
         {!projects.length && <><div className="px-2 pb-1 text-[12px] font-medium text-muted-foreground">Projects</div><p className="px-2 py-1 text-[13px] text-muted-foreground">Projects you start show up here.</p></>}

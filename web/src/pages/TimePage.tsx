@@ -12,7 +12,6 @@ import { useApp } from "@/hooks/useApp"
 import { timeChanged, useTimeChanged, useTimer } from "@/hooks/useTimer"
 import { api, fmtMoney, timeCsvUrl, type Project, type TimeEntry } from "@/lib/api"
 import { makeInvoice } from "@/components/project/InvoiceDialog"
-import { Invoices } from "@/components/project/Invoices"
 import { today } from "@/lib/project"
 import { addDays, clockOf, fmtMins, longDay, parseDur, periodLabel, rangeOf, runMins, shiftPeriod, timeOf, type Period } from "@/lib/time"
 import { store } from "@/lib/store"
@@ -122,7 +121,7 @@ export function TimePage({ project }: { project?: string }) {
             </div>
           )}
 
-          {pj && <Invoices p={pj} onChange={setPj} />}
+          {pj && pj.invoices.length > 0 && <p className="-mt-3 text-[13px] text-muted-foreground">{pj.name}’s invoices, for hours and payments, are on its <button onClick={() => go(routes.project(pj.id, "money"))} className="underline underline-offset-2 hover:text-foreground">Money tab</button>.</p>}
 
           <section className="grid">
             <AddRow key={addDay} project={project || null} day={addDay} />

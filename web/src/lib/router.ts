@@ -5,6 +5,7 @@ export type Route =
   | { name: "project"; id: string; tab: ProjectTab; sub?: string; item?: string }
   | { name: "time"; project?: string }
   | { name: "projects"; view?: "table" | "board" }
+  | { name: "money" }
   | { name: "templates" }
   | { name: "template"; id: string }
   | { name: "settings"; engine?: "claude" | "codex" | "privacy" | "connectors" }
@@ -21,6 +22,7 @@ function parse(): Route {
   // A project opens on its Overview. "tools" is the Site tab's old name, kept for links saved before.
   if (parts[0] === "project" && parts[1]) { const t = parts[2] === "tools" ? "site" : parts[2]; return { name: "project", id: parts[1], tab: TABS.includes(t as ProjectTab) ? (t as ProjectTab) : parts[2] ? "checklist" : "overview", sub: parts[3] } }
   if (parts[0] === "time") return { name: "time", project: parts[1] }
+  if (parts[0] === "money") return { name: "money" }
   if (parts[0] === "projects") return { name: "projects", view: parts[1] === "board" ? "board" : "table" }
   if (parts[0] === "templates") return parts[1] ? { name: "template", id: parts[1] } : { name: "templates" }
   if (parts[0] === "settings") return { name: "settings", engine: parts[1] === "codex" || parts[1] === "claude" || parts[1] === "privacy" || parts[1] === "connectors" ? parts[1] : undefined }
@@ -71,6 +73,10 @@ export const routes = {
   launch: (id: string, checkId?: string, check?: string) => `/project/${id}/launch${checkId ? "/" + checkId + (check ? "?" + check : "") : ""}`,
   /** Every project as a table, or as a board. */
   projects: (view?: "board") => (view ? `/projects/${view}` : "/projects"),
+  /** Every payment and invoice, across projects. */
+  money: "/money",
+  /** The Client tab set up to ask for a phase's approval. */
+  approval: (id: string, phaseId: string) => `/project/${id}/client/approval-${phaseId}`,
   /** The work log, for every project or just one. */
   time: (project?: string | null) => (project ? `/time/${project}` : "/time"),
   templates: "/templates",

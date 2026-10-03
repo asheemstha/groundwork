@@ -771,6 +771,8 @@ const server = http.createServer(async (req, res) => {
       let tm = p.match(/^\/api\/time\/([a-z0-9]+)$/);
       if (tm && M === 'PATCH') return json(res, T.edit(tm[1], await body(req)));
       if (tm && M === 'DELETE') { T.remove(tm[1]); return json(res, { ok: true }); }
+      // Money across every project, for the Money page.
+      if (p === '/api/money' && M === 'GET') return json(res, P.moneyAll());
       // Every invoice as a CSV for the accountant, for a year or one project.
       if (p === '/api/invoices.csv' && M === 'GET') {
         const q = u.searchParams, rows = P.invoiceRows({ year: q.get('year'), projectId: q.get('project') });
@@ -871,6 +873,8 @@ const server = http.createServer(async (req, res) => {
         if (sub === '/ask' && M === 'POST') { const b = await body(req); P.askItems(id, b.items || [], !!b.nudge); return json(res, P.get(id)); }
         mm = sub.match(/^\/signoff\/([\w-]+)$/);
         if (mm && M === 'POST') { P.signoff(id, mm[1], await body(req)); return json(res, P.get(id)); }
+        mm = sub.match(/^\/approval\/([\w-]+)$/);
+        if (mm && M === 'POST') { const b = await body(req); return json(res, P.setApproval(id, mm[1], b.sent !== false)); }
         if (mm && M === 'DELETE') { P.unsign(id, mm[1]); return json(res, P.get(id)); }
         if (sub === '/launch' && M === 'POST') { const b = await body(req); return json(res, { checkId: P.startLaunch(id, b.url, { speed: b.speed !== false }) }); }
         const lc = sub.match(/^\/launch\/([a-z0-9]+)\/cancel$/);

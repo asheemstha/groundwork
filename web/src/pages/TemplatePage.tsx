@@ -134,11 +134,11 @@ function ChecklistEditor({ t, onChange }: { t: ChecklistTemplate; onChange: (t: 
           <div className="mt-5 rounded-xl border bg-muted/30 px-4 pt-3 pb-1">
             <div className="flex flex-wrap items-center gap-2.5 pb-2">
               <Stamp className="size-4 text-foreground/70" />
-              <input value={ph.handoff.title} onChange={(e) => setPhase({ handoff: { ...ph.handoff, title: e.target.value } })} className="min-w-0 flex-1 bg-transparent text-[13.5px] font-medium outline-none" aria-label="Sign-off name" />
+              <input value={ph.handoff.title} onChange={(e) => setPhase({ handoff: { ...ph.handoff, title: e.target.value } })} className="min-w-0 flex-1 bg-transparent text-[13.5px] font-medium outline-none" aria-label="Approval step name" />
               <span className="text-[12.5px] text-muted-foreground">Approved by</span>
               <div role="group" className="inline-flex gap-0.5 rounded-md bg-muted p-0.5 text-xs">{(["client", "us"] as const).map((n) => <button key={n} onClick={() => setPhase({ handoff: { ...ph.handoff, needs: n } })} className={cn("rounded px-2 py-1", ph.handoff.needs === n ? "bg-card font-medium shadow-sm" : "text-muted-foreground")}>{n === "client" ? "The client, in writing" : "Us"}</button>)}</div>
             </div>
-            <div className="text-[12.5px] text-muted-foreground">Deliverables</div>
+            <div className="text-[12.5px] text-muted-foreground">What’s included in the approval</div>
             {rows(ph.handoff.items, { phase: pi, group: "handoff" })}
           </div>
         </div>

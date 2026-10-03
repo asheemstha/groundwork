@@ -30,7 +30,7 @@ Run one real project in Groundwork from start to finish, or as far as it gets. A
 - The weekly update, or a client status page (the project's ⋯ menu) instead of writing one from scratch.
 - Recording a sign-off with the client's approval, then making the invoice for its payment (add your payment details in Settings, Invoices first).
 - At launch: fill in Accounts and access on the Client tab, then make the handoff document from the project’s ⋯ menu. Would you send it as it is?
-- On a redesign: import a Search Console Pages export, or sign in to Google, under Site, Moving from the old site, then open the redirect map.
+- On a redesign: import a Search Console Pages export, or sign in to Google, under Site, Before launch, then open the redirect map under Launch.
 - Point Files from the client (the Client tab) at the folder your client shares with you, add the usual asks, and copy the list for them. Did the files tick off as they came in?
 - Log the next “could you also…” as an extra request on the Money tab, time it, and invoice it when it’s done.
 - If you run care plans: set the plan’s hours in the project details, then send the month’s care report (the project’s ⋯ menu) with the invoice.
