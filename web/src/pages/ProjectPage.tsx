@@ -11,7 +11,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
-import { Kbd, SiteIcon, Spinner, TopBar } from "@/components/common/bits"
+import { Cover, Kbd, SiteIcon, Spinner, TopBar } from "@/components/common/bits"
+import { ColorSub } from "@/components/common/ProjectColor"
 import { Crumbs } from "@/components/project/Crumbs"
 import { newProject } from "@/components/project/NewProjectDialog"
 import { DateField } from "@/components/common/DateField"
@@ -81,6 +82,7 @@ export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Ta
   if (audit && (tab === "overview" || tab === "checklist" || tab === "client" || tab === "money")) tab = "site"
   if (!audit && !p.website && tab === "site") tab = "overview"
   const open = p.client.late.length + p.client.soon.length
+  const covered = !sub_label(tab) && (tab === "overview" || audit)
   // The project's addresses and dates, at the bottom of the Overview.
   const details = (
             <dl className="grid max-w-2xl gap-y-0.5 text-[14px] [--prop-w:130px] lg:max-w-5xl lg:grid-cols-2 lg:gap-x-12">
@@ -125,6 +127,7 @@ export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Ta
           <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label="Project options" />}><MoreHorizontal /></DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuItem onClick={() => setEditing(true)}><Pencil /> Edit details…</DropdownMenuItem>
+            <ColorSub value={p.color} onPick={async (color) => { try { setP(await api.updateProject(id, { color })); refreshProjects().catch(() => {}) } catch (e) { toast.error((e as Error).message) } }} />
             {!audit && <DropdownMenuItem onClick={shiftPlan}><CalendarDays /> Move dates…</DropdownMenuItem>}
             {!audit && <DropdownMenuItem onClick={updateFromTemplate}><RefreshCw /> Update from the template…{p.templateChanged && <span className="ml-auto size-1.5 rounded-full bg-foreground/60" />}</DropdownMenuItem>}
             {audit && <DropdownMenuItem onClick={() => newProject({ name: p.name, old: p.sites.live || p.url || "" })}><FolderPlus /> Start a project for this site…</DropdownMenuItem>}
@@ -139,11 +142,13 @@ export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Ta
       </TopBar>
       <div className="scrollbar-thin min-h-0 flex-1 overflow-auto">
         {/* The project's own pages share one centred column; the tool pages below centre themselves at their own widths. */}
+        {/* The Overview opens on a cover in the project's colour, with its icon sitting on the edge, like a Notion page. */}
+        {covered && <Cover color={p.color} />}
         <div className="mx-auto w-full max-w-6xl">
         {!sub_label(tab) && (
-          <header className="px-12 pt-7">
+          <header className={cn("px-12", covered ? "pt-0" : "pt-7")}>
             {tab === "overview" && <>
-              <SiteIcon runId={p.tools.iconRun || undefined} name={p.name} className="size-11 rounded-lg text-xl" />
+              <SiteIcon runId={p.tools.iconRun || undefined} name={p.name} color={p.color} className={COVER_ICON} />
               <h1 className="mt-3 text-[36px] leading-tight font-medium">{p.name}</h1>
               <p className="mt-2 max-w-3xl text-[16px] leading-normal">{standLine(p)}</p>
               {!p.closed && p.website && !p.repeat && !p.launched && p.launch && p.launch <= addDaysTo(today(), 3) && (
@@ -159,13 +164,13 @@ export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Ta
             </>}
             {!audit && tab !== "overview" && (
               <div className="flex items-center gap-2.5 pb-3">
-                <SiteIcon runId={p.tools.iconRun || undefined} name={p.name} className="size-7 rounded-md text-[13px]" />
+                <SiteIcon runId={p.tools.iconRun || undefined} name={p.name} color={p.color} className="size-7 rounded-md text-[13px]" />
                 <h1 className="truncate text-[26px] leading-tight font-medium">{p.name}</h1>
               </div>
             )}
             {audit ? (
               <>
-                <SiteIcon runId={p.tools.iconRun || undefined} name={p.name} className="size-10 rounded-lg text-lg" />
+                <SiteIcon runId={p.tools.iconRun || undefined} name={p.name} color={p.color} className={COVER_ICON} />
                 <h1 className="mt-2.5 text-[32px] leading-tight font-medium">{p.name}</h1>
                 <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 border-b pb-4 text-[14px]">
                   <span className="min-w-0 flex-1 text-muted-foreground">A site check: scans and checks for one site, with no checklist. Redesigning it? Start a project and this check’s scans move into it.</span>
@@ -246,13 +251,16 @@ function TabLink({ on, onClick, children }: { on: boolean; onClick: () => void; 
 }
 
 // ---------- status icon ----------
+/** The project's icon on the edge of its cover, with a ring in the page colour so it sits clear of the dots. */
+const COVER_ICON = "relative -mt-8 size-[60px] rounded-[14px] text-[26px] shadow-[0_0_0_3px_var(--background)]"
+
 function StatusIcon({ it, onClick, size = 18 }: { it: PItem; onClick?: () => void; size?: number }) {
   const prog = it.toolInfo?.progress
   let icon: React.ReactNode
   if (it.status === "done") icon = <svg width={size} height={size} viewBox="0 0 18 18"><circle cx="9" cy="9" r="8.5" className={it.auto ? "fill-brand" : "fill-done"} /><path d="m5.5 9.2 2.3 2.3 4.7-4.7" fill="none" className="stroke-background" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
   else if (it.status === "na") icon = <svg width={size} height={size} viewBox="0 0 18 18"><circle cx="9" cy="9" r="7.75" fill="none" className="stroke-input" strokeWidth="1.5" /><path d="M4 14 14 4" className="stroke-input" strokeWidth="1.5" /></svg>
   else if (prog && prog.total && prog.done) icon = <svg width={size} height={size} viewBox="0 0 18 18"><circle cx="9" cy="9" r="7" fill="none" className="stroke-muted" strokeWidth="2" /><circle cx="9" cy="9" r="7" fill="none" className="stroke-brand" strokeWidth="2" strokeDasharray={`${(44 * prog.done) / prog.total} 44`} strokeLinecap="round" transform="rotate(-90 9 9)" /></svg>
-  else icon = <svg width={size} height={size} viewBox="0 0 18 18"><circle cx="9" cy="9" r="7.75" fill="none" className="stroke-input" strokeWidth="1.5" strokeDasharray={it.who === "client" && !it.asked ? "2.5 2.5" : undefined} /></svg>
+  else icon = <svg width={size} height={size} viewBox="0 0 18 18"><circle cx="9" cy="9" r="7.75" fill="none" className={it.who === "client" ? "stroke-client" : "stroke-input"} strokeWidth="1.5" strokeDasharray={it.who === "client" && !it.asked ? "2.5 2.5" : undefined} /></svg>
   if (!onClick) return <span className="grid place-items-center">{icon}</span>
   return <button onClick={(e) => { e.stopPropagation(); onClick() }} className="grid place-items-center rounded-full" aria-label={it.status === "done" ? "Mark not done" : "Mark done"} title={it.status === "done" ? "Mark not done" : "Mark done"}>{icon}</button>
 }

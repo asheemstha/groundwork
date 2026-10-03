@@ -111,7 +111,7 @@ function Table({ list, sort, setSort }: { list: ProjectSummary[]; sort: { by: So
       </div>
       {rows.map((p) => (
         <button key={p.id} onClick={() => go(routes.project(p.id))} className={cn("grid h-10 w-full items-center gap-3 border-b border-border/60 px-2 text-left hover:bg-muted/40", cols)}>
-          <span className="flex min-w-0 items-center gap-2"><SiteIcon runId={p.iconRun || undefined} name={p.name} className="size-5 shrink-0 rounded-[5px] text-[10px]" /><span className="truncate">{p.name}</span></span>
+          <span className="flex min-w-0 items-center gap-2"><SiteIcon runId={p.iconRun || undefined} name={p.name} color={p.color} className="size-5 shrink-0 rounded-[5px] text-[10px]" /><span className="truncate">{p.name}</span></span>
           <span><span className="inline-flex h-6 items-center rounded-md bg-muted px-2 text-[12.5px] text-foreground/80">{stageName(p.stage)}</span></span>
           <PhaseCell p={p} />
           <span className={cn("truncate", !p.clientName && "text-muted-foreground")}>{p.clientName || "Empty"}</span>
@@ -156,7 +156,7 @@ function Board({ list, groupBy }: { list: ProjectSummary[]; groupBy: GroupBy }) 
 function Card({ p }: { p: ProjectSummary }) {
   return (
     <button onClick={() => go(routes.project(p.id))} className="grid gap-1.5 rounded-lg border bg-card p-3 text-left shadow-[0_1px_2px_rgba(22,23,22,0.04)] hover:shadow-[0_2px_8px_rgba(22,23,22,0.08)]">
-      <span className="flex min-w-0 items-center gap-2"><SiteIcon runId={p.iconRun || undefined} name={p.name} className="size-5 shrink-0 rounded-[5px] text-[10px]" /><span className="truncate text-[14px] font-medium">{p.name}</span></span>
+      <span className="flex min-w-0 items-center gap-2"><SiteIcon runId={p.iconRun || undefined} name={p.name} color={p.color} className="size-5 shrink-0 rounded-[5px] text-[10px]" /><span className="truncate text-[14px] font-medium">{p.name}</span></span>
       {p.clientName && <span className="truncate text-[12.5px] text-muted-foreground">{p.clientName}</span>}
       <span className="text-[12.5px]"><PhaseCell p={p} /></span>
       <span className="flex items-center gap-3 text-[12.5px]">

@@ -20,7 +20,7 @@ export function Crumbs({ projectId, label, children }: { projectId: string | nul
         <>
           {!label && <Sep />}
           <button onClick={() => go(routes.project(p.id))} className="flex min-w-0 items-center gap-1.5 rounded-md px-1.5 py-0.5 hover:bg-muted/70">
-            <SiteIcon runId={p.iconRun || undefined} name={p.name} className="size-[18px] rounded text-[9px]" /><span className="truncate">{p.name}</span>
+            <SiteIcon runId={p.iconRun || undefined} name={p.name} color={p.color} className="size-[18px] rounded text-[9px]" /><span className="truncate">{p.name}</span>
           </button>
         </>
       )}

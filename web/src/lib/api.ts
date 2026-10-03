@@ -303,8 +303,10 @@ export interface PPhase { id: string; name: string; index: number; payment: Paym
 export type SiteKey = "old" | "staging" | "live"
 export type Sites = Record<SiteKey, string | null>
 export interface ProjectRun { id: string; site: SiteKey | null; status: RunStatus; created: number; pages: number; scanned: number; output: Output | null; progress: RunProgress | null; hasIcon: boolean; seo: { status: SeoStatus; progress: Counts | null } | null; error: string | null; url: string }
+/** A project's own colour, for its icon and cover (see the --p-* tokens in index.css). */
+export type ProjectColor = "sky" | "iris" | "teal" | "moss" | "amber" | "clay" | "rose" | "slate"
 export interface Project {
-  id: string; kind: "project" | "audit"; name: string; url: string | null; host: string | null; sites: Sites; platform: PlatformId | null;
+  id: string; kind: "project" | "audit"; name: string; url: string | null; host: string | null; sites: Sites; platform: PlatformId | null; color: ProjectColor;
   /** The project has a website (or its kind of work does): it shows the site details and the Site tab. */
   website: boolean
   labels: DateLabels | null; repeat: "monthly" | null; cycle: number; cycles: { at: number; kickoff: string | null; launch: string | null; done: number; total: number }[]; sample: boolean; lastUpdate: number | null; remindEvery: number; created: number; updated: number; kickoff: string | null; launch: string | null
@@ -426,7 +428,7 @@ export interface TrackingInfo {
   redirects: { from: string; to: string; kept: boolean }[]; blocked: number
 }
 export interface ProjectSummary {
-  id: string; kind: "project" | "audit"; name: string; templateId: string | null; sample?: boolean; website?: boolean; host: string | null; url: string | null; launch: string | null; iconRun: string | null
+  id: string; kind: "project" | "audit"; name: string; templateId: string | null; sample?: boolean; website?: boolean; host: string | null; url: string | null; launch: string | null; iconRun: string | null; color: ProjectColor
   current: { index: number; id: string; name: string; done: number; total: number; ready: boolean; needs: "us" | "client"; handoffTitle: string } | null
   phases: { state: PPhase["state"]; done: number; total: number }[]
   clientOpen: number; clientLate: number; behind: Behind
@@ -453,10 +455,10 @@ export interface ShiftPreview {
 }
 export interface NextUp { key: string; kind: "item" | "client" | "ask" | "signoff" | "watch" | "renewal" | "down" | "files" | "launch"; projectId: string; itemId?: string; checkId?: string; title: string; phaseId?: string; phaseName?: string; due: string | null; late: boolean; asked?: boolean; ready?: boolean; leftover?: boolean }
 /** Home: this week's work for one project, most urgent first. */
-export interface HomeGroup { projectId: string; projectName: string; iconRun: string | null; rows: NextUp[]; more: number; late: number }
+export interface HomeGroup { projectId: string; projectName: string; iconRun: string | null; color: ProjectColor; rows: NextUp[]; more: number; late: number }
 /** Messages to send today for one project: items to ask for, reminders, the weekly update and invoices. */
 export interface BriefResult { name: string | null; clientName: string | null; sites: Sites; platform: PlatformId | null; kickoff: string | null; launch: string | null; parts: string[] | null; items: { title: string; who: "us" | "client"; phase: string; done: string }[]; ai: boolean }
-export interface HomeMessages { projectId: string; projectName: string; iconRun: string | null; clientName: string; ask: number; remind: number; update: boolean; lastUpdate: number | null; invoices: { phaseId: string; label: string; amount: string }[]; unpaid: { phaseId: string | null; invoiceId?: string; label: string; amount: string; invoiced: number }[] }
+export interface HomeMessages { projectId: string; projectName: string; iconRun: string | null; color: ProjectColor; clientName: string; ask: number; remind: number; update: boolean; lastUpdate: number | null; invoices: { phaseId: string; label: string; amount: string }[]; unpaid: { phaseId: string | null; invoiceId?: string; label: string; amount: string; invoiced: number }[] }
 export interface HomeData { groups: HomeGroup[]; messages: HomeMessages[]; stats: { dueThisWeek: number; dueToday: number; watchIssues: number; overdue: number; toAsk: number; waiting: number; late: number; signoffs: number; nextLaunch: { name: string; date: string } | null }; projects: ProjectSummary[] }
 export interface NewProject { kind?: "project" | "audit"; platform?: PlatformId | null; extraItems?: BriefResult["items"]; name: string; sites?: Partial<Sites>; templateId?: string; kickoff?: string; launch?: string; parts?: string[]; clientName?: string; startAt?: string }
 export interface SignoffInput { by: string; date: string; note?: string; link?: string; file?: { name: string; data: string } | null; carry?: string[]; skip?: string[] }
@@ -507,7 +509,7 @@ export const api = {
   runs: () => req<RunSummary[]>("GET", "/api/runs"),
   run: (id: string) => req<{ run: Run; progress: Progress | null; seoProgress: Progress | null; log: LogEntry[] }>("GET", `/api/runs/${id}`),
   /** Every checklist item across projects, for quick find. */
-  items: () => req<{ projectId: string; projectName: string; iconRun: string | null; id: string; title: string; phaseName: string; status: PItem["status"]; who: "us" | "client"; late: boolean }[]>("GET", "/api/items"),
+  items: () => req<{ projectId: string; projectName: string; iconRun: string | null; color: ProjectColor; id: string; title: string; phaseName: string; status: PItem["status"]; who: "us" | "client"; late: boolean }[]>("GET", "/api/items"),
   /** Zips the whole data folder into Documents/Groundwork Backups and shows it in Finder. */
   backup: () => req<{ file: string }>("POST", "/api/backup"),
   /** Brings in a project exported from Groundwork (the zip, base64). */
@@ -543,7 +545,7 @@ export const api = {
   projects: () => req<ProjectSummary[]>("GET", "/api/projects"),
   project: (id: string) => req<Project>("GET", `/api/projects/${id}`),
   createProject: (b: NewProject) => req<{ id: string; runId: string | null }>("POST", "/api/projects", b),
-  updateProject: (id: string, b: Partial<{ name: string; kickoff: string | null; launch: string | null; clientName: string; url: string; sites: Partial<Sites>; platform: PlatformId | null; remindEvery: number; rate: string; planHours: number | null }>) => req<Project>("PATCH", `/api/projects/${id}`, b),
+  updateProject: (id: string, b: Partial<{ name: string; kickoff: string | null; launch: string | null; clientName: string; url: string; sites: Partial<Sites>; platform: PlatformId | null; remindEvery: number; rate: string; planHours: number | null; color: ProjectColor }>) => req<Project>("PATCH", `/api/projects/${id}`, b),
   templateUpdate: (id: string, b: { dryRun?: boolean; removeUntouched?: boolean }) => req<TemplateUpdate & { project?: Project }>("POST", `/api/projects/${id}/template`, b),
   shiftPlan: (id: string, b: { days: number; launch: boolean }) => req<Project>("POST", `/api/projects/${id}/shift`, b),
   /** The weekly update was sent today. */

@@ -19,6 +19,7 @@ import { QuickFind, openQuickFind } from "@/components/shell/QuickFind"
 import { HelpButton } from "@/components/shell/HelpButton"
 import { ago, pct, plural } from "@/lib/format"
 import { Bar, Dot, Logo, Ring, SiteIcon, Spinner } from "@/components/common/bits"
+import { ColorSub } from "@/components/common/ProjectColor"
 
 const MAC = /Mac/.test(navigator.platform)
 const DESKTOP = () => document.documentElement.classList.contains("desktop")
@@ -197,7 +198,7 @@ function ProjectRow({ p, active }: { p: ProjectSummary; active: boolean }) {
   return (
     <div className="group/row relative">
       <button onClick={() => go(routes.project(p.id))} title={p.kind === "audit" ? undefined : c ? `Phase ${c.index + 1} of ${p.phases.length}: ${c.name}, ${c.done} of ${c.total} done` : "Every phase is signed off"} className={cn("grid h-[30px] w-full grid-cols-[20px_minmax(0,1fr)_18px_14px] items-center gap-2 rounded-md px-2 text-left text-[14px] text-foreground/85 hover:bg-sidebar-accent", active && "bg-sidebar-accent text-foreground")}>
-        <SiteIcon runId={p.iconRun || undefined} name={p.name} className="size-5 rounded-[5px] text-[10px]" />
+        <SiteIcon runId={p.iconRun || undefined} name={p.name} color={p.color} className="size-5 rounded-[5px] text-[10px]" />
         <span className="truncate">{p.name}</span>
         <span className="text-right text-[11px] text-muted-foreground tabular group-hover/row:opacity-0">{p.kind !== "audit" && c ? String(c.index + 1).padStart(2, "0") : ""}</span>
         <span className="grid place-items-center group-hover/row:opacity-0" title={p.running ? `${p.running} running` : undefined}>{p.running ? <Spinner className="size-3" /> : p.kind === "audit" ? null : c ? <Ring done={c.ready ? 1 : c.done} total={c.ready ? 1 : c.total} size={13} /> : <Ring done={1} total={1} size={13} />}</span>
@@ -217,6 +218,7 @@ function RowMenu({ p }: { p: ProjectSummary }) {
       <DropdownMenuTrigger render={<button aria-label={`Options for ${p.name}`} className="absolute top-1/2 right-1 grid size-6 -translate-y-1/2 place-items-center rounded text-muted-foreground opacity-0 group-hover/row:opacity-100 hover:bg-foreground/10 hover:text-foreground focus-visible:opacity-100 data-[popup-open]:opacity-100" />}><MoreHorizontal className="size-4" /></DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-52">
         <DropdownMenuItem onClick={toggleFav}><Star /> {fav ? "Remove from Favorites" : "Add to Favorites"}</DropdownMenuItem>
+        <ColorSub value={p.color} onPick={async (color) => { await api.updateProject(p.id, { color }).catch(() => {}); refreshProjects() }} />
         {p.kind !== "audit" && (p.stage === "closed"
           ? <DropdownMenuItem onClick={async () => { await api.setClosed(p.id, false); refreshProjects() }}><RefreshCw /> Reopen project</DropdownMenuItem>
           : <DropdownMenuItem onClick={async () => { await api.setClosed(p.id, true); refreshProjects() }}><Archive /> Close project</DropdownMenuItem>)}

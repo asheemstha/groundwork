@@ -47,7 +47,7 @@ export function QuickFind() {
           <CommandGroup heading="Projects">
             {projects.map((p) => (
               <React.Fragment key={p.id}>
-                <CommandItem value={`${p.name} ${p.host || ""} checklist`} onSelect={() => run(() => go(routes.project(p.id)))}><SiteIcon runId={p.iconRun || undefined} name={p.name} className="size-4 rounded text-[8px]" />{p.name}<span className="text-muted-foreground">{p.kind === "audit" ? "Audit" : p.current ? `${p.current.name}, ${p.current.done} of ${p.current.total}` : ""}</span></CommandItem>
+                <CommandItem value={`${p.name} ${p.host || ""} checklist`} onSelect={() => run(() => go(routes.project(p.id)))}><SiteIcon runId={p.iconRun || undefined} name={p.name} color={p.color} className="size-4 rounded text-[8px]" />{p.name}<span className="text-muted-foreground">{p.kind === "audit" ? "Audit" : p.current ? `${p.current.name}, ${p.current.done} of ${p.current.total}` : ""}</span></CommandItem>
                 {p.kind !== "audit" && <>
                 <CommandItem value={`${p.name} client waiting`} onSelect={() => run(() => go(routes.project(p.id, "client")))}><Users /><span className="text-muted-foreground">{p.name} /</span> Client</CommandItem>
                 {p.website !== false && <CommandItem value={`${p.name} site tools`} onSelect={() => run(() => go(routes.project(p.id, "site")))}><Wrench /><span className="text-muted-foreground">{p.name} /</span> Site</CommandItem>}

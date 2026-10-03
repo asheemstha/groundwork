@@ -1,7 +1,7 @@
 import * as React from "react"
 import { cn } from "cn"
 import { Layers } from "lucide-react"
-import type { Row, RunSummary } from "@/lib/api"
+import type { ProjectColor, Row, RunSummary } from "@/lib/api"
 import { isH } from "@/lib/checks"
 
 /** Brand mark: a solid accent square. No gradients. */
@@ -122,8 +122,15 @@ export function ActBadge({ act }: { act: NonNullable<Row["act"]> }) {
   return <span className={cn("inline-flex h-5 items-center rounded-[5px] px-1.5 text-[11px] font-medium whitespace-nowrap", a.cls)}>{a.label}</span>
 }
 
-export function Favicon({ name, className }: { name: string; className?: string }) {
+/** A project's first letter on a tile: in the project's colour when it has one. */
+export function Favicon({ name, color, className }: { name: string; color?: ProjectColor; className?: string }) {
+  if (color) return <span className={cn("grid size-6 shrink-0 place-items-center rounded-md tabular text-[11px] font-medium uppercase", className)} style={{ background: `var(--p-${color}-tint)`, color: `var(--p-${color})` }}>{(name || "?")[0]}</span>
   return <span className={cn("grid size-6 shrink-0 place-items-center rounded-md border bg-card tabular text-[11px] font-medium uppercase", className)}>{(name || "?")[0]}</span>
+}
+
+/** The band across the top of a project page, or a card: the project's tint with a fine dot grid in its colour. */
+export function Cover({ color, className }: { color: ProjectColor; className?: string }) {
+  return <div aria-hidden className={cn("h-28 shrink-0", className)} style={{ backgroundColor: `var(--p-${color}-tint)`, backgroundImage: `radial-gradient(color-mix(in srgb, var(--p-${color}) 30%, transparent) 1px, transparent 1.4px)`, backgroundSize: "14px 14px", backgroundPosition: "7px 7px" }} />
 }
 
 export function TopBar({ children, className }: { children: React.ReactNode; className?: string }) {
@@ -155,13 +162,14 @@ export function Kbd({ children }: { children: React.ReactNode }) {
 }
 
 /** The site's own favicon, falling back to its first letter. */
-export function SiteIcon({ runId, name, className }: { runId?: string; name: string; className?: string }) {
+/** A project's icon: the site's favicon when a scan found one, on the project's tint, or its first letter. */
+export function SiteIcon({ runId, name, color, className }: { runId?: string; name: string; color?: ProjectColor; className?: string }) {
   const [failed, setFailed] = React.useState(false)
   React.useEffect(() => setFailed(false), [runId])
-  if (!runId || failed) return <Favicon name={name} className={className} />
+  if (!runId || failed) return <Favicon name={name} color={color} className={className} />
   return (
-    <span className={cn("grid size-6 shrink-0 place-items-center overflow-hidden rounded-md", className)}>
-      <img src={`/api/runs/${runId}/favicon`} alt="" className="size-full object-contain" onError={() => setFailed(true)} />
+    <span className={cn("grid size-6 shrink-0 place-items-center overflow-hidden rounded-md", className)} style={color ? { background: `var(--p-${color}-tint)` } : undefined}>
+      <img src={`/api/runs/${runId}/favicon`} alt="" className={cn("object-contain", color ? "size-[66%]" : "size-full")} onError={() => setFailed(true)} />
     </span>
   )
 }

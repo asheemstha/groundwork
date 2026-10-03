@@ -10,7 +10,7 @@
 
 /*
   Palette:
-  near-white #fcfcfb · light grey #ebebe9 · dim grey #7f7e7a · charcoal #161716 · accent #ff4500 (neutral, not cream)
+  near-white #fcfcfb · light grey #f4f4f2 (close to the page, so the ground stays quiet) · dim grey #7f7e7a · charcoal #161716 · accent #ff4500 (neutral, not cream)
   plus their near-black #201d1d / #131313 and border greys #e3e2dd / #d1d0cd. No gradients anywhere.
 */
 @theme inline {
@@ -21,6 +21,7 @@
   --color-brand-foreground: var(--brand-foreground);
   --color-brand-ink: var(--brand-ink);
   --color-done: var(--done);
+  --color-client: var(--client);
   --color-strong: var(--strong);
   --color-surface: var(--surface);
   --color-sidebar-ring: var(--sidebar-ring);
@@ -64,7 +65,7 @@
 }
 
 :root {
-  --canvas: #ebebe9;
+  --canvas: #f4f4f2;
   --background: #fcfcfb;
   --foreground: #161716;
   --surface: #f6f6f4;
@@ -84,8 +85,9 @@
   --brand-foreground: #fcfcfb;
   /* orange for small text (the accent itself is too light to read at small sizes) */
   --brand-ink: #b83700;
-  /* soft states: finished items and meters, never solid black */
-  --done: #bebdb9;
+  /* finished items are a soft moss green, never solid black; things from the client are blue */
+  --done: #6f9a60;
+  --client: #3d7fc4;
   --strong: #5e5d5a;
   --destructive: #cc2b2b;
   --border: #e6e6e3;
@@ -97,14 +99,23 @@
   --chart-4: #d4d4d1;
   --chart-5: #ededeb;
   --radius: 0.5rem;
-  --sidebar: #ebebe9;
+  --sidebar: #f4f4f2;
   --sidebar-foreground: #161716;
   --sidebar-primary: #161716;
   --sidebar-primary-foreground: #fcfcfb;
-  --sidebar-accent: rgba(128, 128, 128, 0.15);
+  --sidebar-accent: rgba(128, 128, 128, 0.12);
   --sidebar-accent-foreground: #161716;
   --sidebar-border: #d4d4d1;
   --sidebar-ring: #ff4500;
+  /* Each project's colour: a solid for letters and lines, a tint for tiles and covers. */
+  --p-sky: #3d7fc4; --p-sky-tint: #dde9f6;
+  --p-iris: #6b62c8; --p-iris-tint: #e6e4f6;
+  --p-teal: #2f8a86; --p-teal-tint: #d9eeec;
+  --p-moss: #5f8a4e; --p-moss-tint: #e3eedd;
+  --p-amber: #b9811a; --p-amber-tint: #f6ead2;
+  --p-clay: #c2603e; --p-clay-tint: #f6e2d9;
+  --p-rose: #c2557a; --p-rose-tint: #f6e0e8;
+  --p-slate: #5e6b78; --p-slate-tint: #e4e8ec;
 }
 
 .dark {
@@ -127,7 +138,8 @@
   --brand: #ff4500;
   --brand-foreground: #fcfcfb;
   --brand-ink: #ff7a45;
-  --done: #5c5b58;
+  --done: #5f8a4e;
+  --client: #7fb0e6;
   --strong: #c8c7c3;
   --destructive: #f06060;
   --border: #2c2c2a;
@@ -146,6 +158,14 @@
   --sidebar-accent-foreground: #f4f4f2;
   --sidebar-border: #2c2a28;
   --sidebar-ring: #ff4500;
+  --p-sky: #7fb0e6; --p-sky-tint: #1d2a38;
+  --p-iris: #a39cf0; --p-iris-tint: #26233d;
+  --p-teal: #6cc4bf; --p-teal-tint: #18302f;
+  --p-moss: #9cc488; --p-moss-tint: #222d1d;
+  --p-amber: #e2b45a; --p-amber-tint: #33291a;
+  --p-clay: #ec9575; --p-clay-tint: #36221b;
+  --p-rose: #ec8db0; --p-rose-tint: #36202a;
+  --p-slate: #a3b0bd; --p-slate-tint: #252a30;
 }
 
 @layer base {

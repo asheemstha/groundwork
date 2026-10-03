@@ -64,7 +64,8 @@ export function OverviewTab({ p, setItem }: { p: Project; setItem: (id: string, 
           {theirs.length > 0 && <Button size="xs" variant="outline" onClick={() => go(routes.project(p.id, "client"))}>{theirs.length === 1 ? "Ask for it" : `Ask for all ${theirs.length}`}</Button>}
         </h2>
         {theirs.length ? theirs.slice(0, 5).map((x) => (
-          <button key={x.id} onClick={() => go(routes.project(p.id, "client"))} className="grid h-[42px] grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border/60 px-1 text-left text-[14px] hover:bg-muted/30">
+          <button key={x.id} onClick={() => go(routes.project(p.id, "client"))} className="grid h-[42px] grid-cols-[18px_minmax(0,1fr)_auto] items-center gap-3 border-b border-border/60 px-1 text-left text-[14px] hover:bg-muted/30">
+            <svg width="16" height="16" viewBox="0 0 18 18" aria-hidden><circle cx="9" cy="9" r="7.75" fill="none" className="stroke-client" strokeWidth="1.5" strokeDasharray={x.asked ? undefined : "2.5 2.5"} /></svg>
             <span className="truncate">{x.title}</span>
             <span className={cn("text-[13px]", x.late ? "text-destructive" : "text-muted-foreground")}>{x.late ? dueLabel(x) : x.asked ? `Asked ${new Date(x.asked).toLocaleDateString([], { month: "short", day: "numeric" })}` : x.due ? `Due ${fmtDay(x.due)}` : "Not asked yet"}</span>
           </button>

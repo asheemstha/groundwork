@@ -3,7 +3,7 @@ import { Bell, CalendarClock, History, ListPlus, Mail, Plus, Radar, Receipt, Roc
 import { cn } from "cn"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
-import { SiteIcon, TopBar } from "@/components/common/bits"
+import { Cover, SiteIcon, TopBar } from "@/components/common/bits"
 import { newProject } from "@/components/project/NewProjectDialog"
 import { FirstRun } from "@/components/shell/FirstRun"
 import { MyTasks } from "@/components/time/MyTasks"
@@ -70,7 +70,7 @@ export function Dashboard() {
               <div className="-mx-2">
                 {audits.map((p) => (
                   <button key={p.id} onClick={() => go(routes.project(p.id))} className="flex h-9 w-full items-center gap-2.5 rounded-md px-2 text-left hover:bg-muted/50">
-                    <SiteIcon runId={p.iconRun || undefined} name={p.name} className="size-[18px] rounded text-[9px]" /><span className="text-[13.5px]">{p.name}</span><span className="text-[12.5px] text-muted-foreground">{p.host}</span>
+                    <SiteIcon runId={p.iconRun || undefined} name={p.name} color={p.color} className="size-[18px] rounded text-[9px]" /><span className="text-[13.5px]">{p.name}</span><span className="text-[12.5px] text-muted-foreground">{p.host}</span>
                   </button>
                 ))}
               </div>
@@ -95,8 +95,8 @@ function JumpBackIn({ list }: { list: ProjectSummary[] }) {
       <div className="scrollbar-thin -mx-1 flex gap-3 overflow-x-auto px-1 pb-1">
         {recent.map((p) => (
           <button key={p.id} onClick={() => go(routes.project(p.id))} className="grid w-[150px] shrink-0 content-start overflow-hidden rounded-xl border bg-card text-left transition-shadow hover:shadow-[0_2px_8px_rgba(22,23,22,0.08)]">
-            <span className="h-10 bg-muted/70" />
-            <SiteIcon runId={p.iconRun || undefined} name={p.name} className="-mt-4 ml-3 size-8 rounded-md border-2 border-card text-[13px]" />
+            <Cover color={p.color} className="h-10" />
+            <SiteIcon runId={p.iconRun || undefined} name={p.name} color={p.color} className="-mt-4 ml-3 size-8 rounded-md border-2 border-card text-[13px]" />
             <span className="grid gap-0.5 px-3 pt-1.5 pb-3">
               <span className="truncate text-[13.5px] font-medium">{p.name}</span>
               <span className="truncate text-[12px] text-muted-foreground">{p.current ? `${p.current.name}, ${p.current.done} of ${p.current.total}` : p.stage === "care" ? "Launched" : "Site check"}</span>
@@ -181,7 +181,7 @@ function Messages({ list }: { list: HomeMessages[] }) {
           <button key={r.key} onClick={r.go} className="grid min-h-[46px] w-full grid-cols-[18px_minmax(0,1fr)_minmax(0,180px)] items-center gap-3 rounded-md px-2 py-1.5 text-left hover:bg-muted/50">
             <span className="text-muted-foreground [&_svg]:size-4">{r.icon}</span>
             <span className="grid min-w-0 gap-0.5"><span className="truncate text-[13.5px]">{r.title}</span><span className="truncate text-[12px] text-muted-foreground">{r.sub}</span></span>
-            <span className="flex min-w-0 items-center justify-end gap-1.5 text-[12.5px] text-muted-foreground"><SiteIcon runId={r.m.iconRun || undefined} name={r.m.projectName} className="size-4 rounded text-[8px]" /><span className="truncate">{r.m.projectName}</span></span>
+            <span className="flex min-w-0 items-center justify-end gap-1.5 text-[12.5px] text-muted-foreground"><SiteIcon runId={r.m.iconRun || undefined} name={r.m.projectName} color={r.m.color} className="size-4 rounded text-[8px]" /><span className="truncate">{r.m.projectName}</span></span>
           </button>
         ))}
       </div>
@@ -194,7 +194,7 @@ function WeekGroup({ g }: { g: HomeGroup }) {
   return (
     <div>
       <button onClick={() => go(routes.project(g.projectId))} className="-mx-2 flex h-8 items-center gap-2 rounded-md px-2 text-left hover:bg-muted/50">
-        <SiteIcon runId={g.iconRun || undefined} name={g.projectName} className="size-[18px] rounded text-[9px]" /><span className="text-[13.5px] font-medium">{g.projectName}</span>
+        <SiteIcon runId={g.iconRun || undefined} name={g.projectName} color={g.color} className="size-[18px] rounded text-[9px]" /><span className="text-[13.5px] font-medium">{g.projectName}</span>
         {g.late > 0 && <span className="text-[12.5px] text-destructive">{g.late} late</span>}
       </button>
       <div className="-mx-2">{g.rows.map((n) => <NextRow key={n.key} n={n} />)}</div>
@@ -260,7 +260,7 @@ function ProjectCard({ p }: { p: ProjectSummary }) {
   const c = p.current
   return (
     <button onClick={() => go(routes.project(p.id))} className="flex w-full flex-col gap-2 rounded-md px-2 py-2.5 text-left hover:bg-muted/50">
-      <div className="flex items-center gap-2.5"><SiteIcon runId={p.iconRun || undefined} name={p.name} className="size-[22px] rounded-md text-[10px]" /><span className="text-sm font-medium">{p.name}</span><span className="flex-1" /><span className="text-[12.5px] text-muted-foreground">{p.launch ? `Launch ${fmtDay(p.launch)}` : "No launch date"}</span></div>
+      <div className="flex items-center gap-2.5"><SiteIcon runId={p.iconRun || undefined} name={p.name} color={p.color} className="size-[22px] rounded-md text-[10px]" /><span className="text-sm font-medium">{p.name}</span><span className="flex-1" /><span className="text-[12.5px] text-muted-foreground">{p.launch ? `Launch ${fmtDay(p.launch)}` : "No launch date"}</span></div>
       <PhaseBar p={p} />
       <div className="flex items-center gap-2 text-[12.5px] text-muted-foreground">
         <span>{c ? (c.ready ? `${c.name}: all done, ready for sign-off` : `${c.name} · ${c.done} of ${c.total}`) : "All phases signed off"}</span>
