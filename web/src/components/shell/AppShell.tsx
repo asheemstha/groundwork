@@ -1,12 +1,13 @@
 import * as React from "react"
 import { cn } from "cn"
-import { ArrowLeft, ArrowRight, Camera, Check, ChevronDown, ChevronRight, Download, LayoutTemplate, Loader2, PanelLeft, RefreshCw, Search, Settings, Sparkles, SquarePen, Sun, Timer, Trash2 } from "lucide-react"
+import { Archive, ArrowLeft, ArrowRight, Camera, Check, ChevronDown, ChevronRight, Download, LayoutTemplate, Loader2, MessageSquare, MoreHorizontal, PanelLeft, RefreshCw, Search, Settings, Sparkles, SquarePen, Star, Sun, Timer, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useApp } from "@/hooks/useApp"
 import { useMorningNotice } from "@/hooks/useMorningNotice"
-import { FeedbackDialog } from "@/components/common/Feedback"
+import { FeedbackDialog, sendFeedback } from "@/components/common/Feedback"
+import { store } from "@/lib/store"
 import { TimerCard, TimerCheck } from "@/components/time/TimeBits"
 import { useTimer } from "@/hooks/useTimer"
 import { fmtMins } from "@/lib/time"
@@ -15,6 +16,7 @@ import { api, type ProjectSummary, type RunSummary } from "@/lib/api"
 import { NewProjectDialog, newProject } from "@/components/project/NewProjectDialog"
 import { InvoiceDialog } from "@/components/project/InvoiceDialog"
 import { QuickFind, openQuickFind } from "@/components/shell/QuickFind"
+import { HelpButton } from "@/components/shell/HelpButton"
 import { ago, pct, plural } from "@/lib/format"
 import { Bar, Dot, Logo, Ring, SiteIcon, Spinner } from "@/components/common/bits"
 
@@ -74,7 +76,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </>
       )}
       <main className={cn("min-w-0 flex-1 py-2 pr-2", !sidebar && "pl-2")}>
-        <div className="flex h-full flex-col overflow-hidden rounded-xl border border-border/80 bg-background shadow-[0_1px_2px_rgba(22,23,22,0.04)]">{children}</div>
+        <div className="relative flex h-full flex-col overflow-hidden rounded-xl border border-border/80 bg-background shadow-[0_1px_2px_rgba(22,23,22,0.04)]">{children}<HelpButton /></div>
       </main>
       {/* Last on purpose: in the Mac app, window-drag areas later in the page override earlier ones, so the cluster must come
           after the sidebar and page header (both draggable) or its buttons would start a window drag instead of clicking. */}
@@ -189,30 +191,83 @@ function NavItem({ icon: Icon, label, active, onClick, hint, count }: { icon: Re
   )
 }
 
-/** A project in the sidebar: its current phase number and how far that phase is. An audit has no phases. */
+/** A project in the sidebar: its current phase number and how far that phase is, and a ⋯ menu on hover. */
 function ProjectRow({ p, active }: { p: ProjectSummary; active: boolean }) {
   const c = p.current
-  if (p.kind === "audit") return (
-    <button onClick={() => go(routes.project(p.id))} className={cn("grid h-[30px] w-full grid-cols-[20px_minmax(0,1fr)_auto_14px] items-center gap-2 rounded-md px-2 text-left text-[14px] text-foreground/85 hover:bg-sidebar-accent", active && "bg-sidebar-accent text-foreground")}>
-      <SiteIcon runId={p.iconRun || undefined} name={p.name} className="size-5 rounded-[5px] text-[10px]" />
-      <span className="truncate">{p.name}</span>
-      <span />
-      <span className="grid place-items-center" title={p.running ? `${p.running} running` : undefined}>{p.running ? <Spinner className="size-3" /> : null}</span>
-    </button>
-  )
   return (
-    <button onClick={() => go(routes.project(p.id))} title={c ? `Phase ${c.index + 1} of ${p.phases.length}: ${c.name}, ${c.done} of ${c.total} done` : "Every phase is signed off"} className={cn("grid h-[30px] w-full grid-cols-[20px_minmax(0,1fr)_18px_14px] items-center gap-2 rounded-md px-2 text-left text-[14px] text-foreground/85 hover:bg-sidebar-accent", active && "bg-sidebar-accent text-foreground")}>
-      <SiteIcon runId={p.iconRun || undefined} name={p.name} className="size-5 rounded-[5px] text-[10px]" />
-      <span className="truncate">{p.name}</span>
-      <span className="text-right text-[11px] text-muted-foreground tabular">{c ? String(c.index + 1).padStart(2, "0") : ""}</span>
-      <span className="grid place-items-center" title={p.running ? `${p.running} running` : undefined}>{p.running ? <Spinner className="size-3" /> : c ? <Ring done={c.ready ? 1 : c.done} total={c.ready ? 1 : c.total} size={13} /> : <Ring done={1} total={1} size={13} />}</span>
+    <div className="group/row relative">
+      <button onClick={() => go(routes.project(p.id))} title={p.kind === "audit" ? undefined : c ? `Phase ${c.index + 1} of ${p.phases.length}: ${c.name}, ${c.done} of ${c.total} done` : "Every phase is signed off"} className={cn("grid h-[30px] w-full grid-cols-[20px_minmax(0,1fr)_18px_14px] items-center gap-2 rounded-md px-2 text-left text-[14px] text-foreground/85 hover:bg-sidebar-accent", active && "bg-sidebar-accent text-foreground")}>
+        <SiteIcon runId={p.iconRun || undefined} name={p.name} className="size-5 rounded-[5px] text-[10px]" />
+        <span className="truncate">{p.name}</span>
+        <span className="text-right text-[11px] text-muted-foreground tabular group-hover/row:opacity-0">{p.kind !== "audit" && c ? String(c.index + 1).padStart(2, "0") : ""}</span>
+        <span className="grid place-items-center group-hover/row:opacity-0" title={p.running ? `${p.running} running` : undefined}>{p.running ? <Spinner className="size-3" /> : p.kind === "audit" ? null : c ? <Ring done={c.ready ? 1 : c.done} total={c.ready ? 1 : c.total} size={13} /> : <Ring done={1} total={1} size={13} />}</span>
+      </button>
+      <RowMenu p={p} />
+    </div>
+  )
+}
+
+/** The ⋯ on a sidebar project: favourite it, or close or reopen it. */
+function RowMenu({ p }: { p: ProjectSummary }) {
+  const { prefs, setPrefs, refreshProjects } = useApp()
+  const fav = (prefs.favorites || []).includes(p.id)
+  const toggleFav = () => { const favorites = fav ? (prefs.favorites || []).filter((x) => x !== p.id) : [...(prefs.favorites || []), p.id]; api.savePrefs({ favorites }).catch(() => {}); setPrefs({ favorites }) }
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger render={<button aria-label={`Options for ${p.name}`} className="absolute top-1/2 right-1 grid size-6 -translate-y-1/2 place-items-center rounded text-muted-foreground opacity-0 group-hover/row:opacity-100 hover:bg-foreground/10 hover:text-foreground focus-visible:opacity-100 data-[popup-open]:opacity-100" />}><MoreHorizontal className="size-4" /></DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-52">
+        <DropdownMenuItem onClick={toggleFav}><Star /> {fav ? "Remove from Favorites" : "Add to Favorites"}</DropdownMenuItem>
+        {p.kind !== "audit" && (p.stage === "closed"
+          ? <DropdownMenuItem onClick={async () => { await api.setClosed(p.id, false); refreshProjects() }}><RefreshCw /> Reopen project</DropdownMenuItem>
+          : <DropdownMenuItem onClick={async () => { await api.setClosed(p.id, true); refreshProjects() }}><Archive /> Close project</DropdownMenuItem>)}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+/** The top of the sidebar, like a workspace: the studio's name with its menu, and New project beside it. */
+function Workspace() {
+  const { prefs } = useApp()
+  const name = prefs.agency || "Groundwork"
+  return (
+    <div className="mb-1.5 flex items-center gap-1">
+      <DropdownMenu>
+        <DropdownMenuTrigger render={<button className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left hover:bg-sidebar-accent data-[popup-open]:bg-sidebar-accent" />}>
+          <span className="grid size-5 shrink-0 place-items-center rounded-[5px] bg-foreground text-[11px] font-medium text-background">{name[0]!.toUpperCase()}</span>
+          <span className="truncate text-[14px] font-medium">{name}</span>
+          <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-60">
+          <DropdownMenuGroup>
+            <DropdownMenuLabel>{prefs.appliedBy || "You"}{prefs.who === "studio" ? ", in a studio" : ""}</DropdownMenuLabel>
+            <DropdownMenuItem onClick={() => go(routes.settings())}><Settings /> Settings</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => go(routes.templates)}><LayoutTemplate /> Templates</DropdownMenuItem>
+          </DropdownMenuGroup>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => sendFeedback()}><MessageSquare /> Send feedback</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <Tooltip>
+        <TooltipTrigger render={<button onClick={() => newProject()} aria-label="New project" className="grid size-8 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-sidebar-accent hover:text-foreground" />}><SquarePen className="size-4" /></TooltipTrigger>
+        <TooltipContent>New project <span className="text-muted-foreground">{mod("N")}</span></TooltipContent>
+      </Tooltip>
+    </div>
+  )
+}
+
+/** A sidebar section's label, which folds the section like Notion's. */
+function SectionLabel({ label, count, folded, onToggle }: { label: string; count?: number; folded: boolean; onToggle: () => void }) {
+  return (
+    <button onClick={onToggle} aria-expanded={!folded} className="group/label flex h-7 w-full items-center gap-1 rounded-md px-2 text-left text-[12px] font-medium text-muted-foreground hover:bg-sidebar-accent hover:text-foreground">
+      <span>{label}</span>{count != null && folded && <span className="font-normal tabular">{count}</span>}
+      <ChevronRight className={cn("size-3 opacity-0 transition-transform group-hover/label:opacity-100", !folded && "rotate-90")} />
     </button>
   )
 }
 
 /** The sidebar: pinned beside the page, or floating over it while previewed from the collapsed state. */
 function Sidebar({ floating, open, onHover, panelRef }: { floating?: boolean; open?: boolean; onHover?: (on: boolean) => void; panelRef?: React.Ref<HTMLElement> }) {
-  const { runs, projects, status } = useApp()
+  const { runs, projects, status, prefs } = useApp()
   const timer = useTimer()
   const route = useRoute()
   // A scan or plan page belongs to its project, so the project stays highlighted there.
@@ -220,8 +275,10 @@ function Sidebar({ floating, open, onHover, panelRef }: { floating?: boolean; op
   const curProject = cur ? runs.find((r) => r.id === cur)?.projectId : null
   // Grouped by where each one is: in progress, in care, and site checks.
   const groups = ([["progress", "In progress"], ["care", "Launched and in care"], ["check", "Site checks"], ["closed", "Closed"]] as const).map(([k, label]) => ({ k, label, list: projects.filter((p) => (p.stage || (p.kind === "audit" ? "check" : "progress")) === k) })).filter((g) => g.list.length)
-  // Closed projects stay folded away unless one is open.
-  const [showClosed, setShowClosed] = React.useState(false)
+  // Folded sections are remembered; closed projects start folded.
+  const [folded, setFolded] = React.useState<Record<string, boolean>>(() => store.get("sidebarFolded", { closed: true }))
+  const fold = (k: string) => setFolded((f) => { const n = { ...f, [k]: !f[k] }; store.set("sidebarFolded", n); return n })
+  const favorites = (prefs.favorites || []).map((id) => projects.find((p) => p.id === id)).filter(Boolean) as ProjectSummary[]
   return (
     <aside
       ref={panelRef}
@@ -237,9 +294,9 @@ function Sidebar({ floating, open, onHover, panelRef }: { floating?: boolean; op
     >
       {/* The top row belongs to the window buttons and the toggle cluster, which float above it. */}
       <div className={cn("app-drag shrink-0", floating ? "h-12" : "h-14")} />
+      <Workspace />
       <TimerCard />
       <nav aria-label="Main" className="grid gap-px">
-        <NavItem icon={SquarePen} label="New project" hint="⌘N" onClick={() => newProject()} />
         <NavItem icon={Search} label="Search" hint="⌘K" onClick={openQuickFind} />
         <NavItem icon={Sun} label="Today" active={route.name === "home"} onClick={() => go(routes.home)} />
         <NavItem icon={Timer} label="Time" active={route.name === "time"} onClick={() => go(routes.time())} count={timer.state?.today.mins ? fmtMins(timer.state.today.mins) : undefined} />
@@ -247,14 +304,20 @@ function Sidebar({ floating, open, onHover, panelRef }: { floating?: boolean; op
       </nav>
       <div className="scrollbar-thin mt-4 min-h-0 flex-1 overflow-auto">
         {!projects.length && <><div className="px-2 pb-1 text-[12px] font-medium text-muted-foreground">Projects</div><p className="px-2 py-1 text-[13px] text-muted-foreground">Projects you start show up here.</p></>}
+        {favorites.length > 0 && (
+          <div className="mb-3">
+            <SectionLabel label="Favorites" count={favorites.length} folded={!!folded.favorites} onToggle={() => fold("favorites")} />
+            {!folded.favorites && favorites.map((p) => <ProjectRow key={p.id} p={p} active={(route.name === "project" && route.id === p.id) || curProject === p.id} />)}
+          </div>
+        )}
         {groups.map((g) => {
           const isActive = (p: (typeof g.list)[number]) => (route.name === "project" && route.id === p.id) || curProject === p.id
-          const folded = g.k === "closed" && !showClosed && !g.list.some(isActive)
+          // A folded section still shows the open project.
+          const shut = !!folded[g.k]
           return (
             <div key={g.k} className="mb-3">
-              {g.k === "closed" ? <button onClick={() => setShowClosed(!showClosed)} className="flex w-full items-center gap-1 px-2 pb-1 text-left text-[12px] font-medium text-muted-foreground hover:text-foreground">{g.label} <span className="font-normal tabular">{g.list.length}</span><ChevronRight className={cn("size-3 transition-transform", !folded && "rotate-90")} /></button>
-                : <div className="px-2 pb-1 text-[12px] font-medium text-muted-foreground">{g.label}</div>}
-              {!folded && g.list.map((p) => <ProjectRow key={p.id} p={p} active={isActive(p)} />)}
+              <SectionLabel label={g.label} count={g.list.length} folded={shut} onToggle={() => fold(g.k)} />
+              {(shut ? g.list.filter(isActive) : g.list).map((p) => <ProjectRow key={p.id} p={p} active={isActive(p)} />)}
             </div>
           )
         })}

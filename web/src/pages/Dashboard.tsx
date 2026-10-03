@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Bell, CalendarClock, ListPlus, Mail, Plus, Radar, Receipt, Rocket, User, Stamp } from "lucide-react"
+import { Bell, CalendarClock, History, ListPlus, Mail, Plus, Radar, Receipt, Rocket, User, Stamp } from "lucide-react"
 import { cn } from "cn"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
@@ -15,10 +15,11 @@ import { api, type HomeData, type HomeGroup, type HomeMessages, type NextUp, typ
 import { dayOf, dueLabel, fmtDay } from "@/lib/project"
 import { store } from "@/lib/store"
 import { go, routes } from "@/lib/router"
+import { ago } from "@/lib/format"
 
 /** Today: my tasks and time, the messages to send, then what needs doing across every project and where each stands. */
 export function Dashboard() {
-  const { projects, runs } = useApp()
+  const { projects, runs, prefs } = useApp()
   const { state } = useTimer()
   const [data, setData] = React.useState<HomeData | null>(null)
   const [left, setLeft] = React.useState(0)
@@ -36,14 +37,15 @@ export function Dashboard() {
         <div className="flex mx-auto w-full max-w-5xl flex-col gap-9 px-12 pt-10 pb-12">
           <div>
             {work.length > 0 && <>
-            <div className="text-[13px] text-muted-foreground">{work.length ? (building.length ? `${building.length} ${building.length === 1 ? "project" : "projects"} in progress` : "Nothing in progress") : today}</div>
-            <h1 className="mt-1 text-[32px] leading-tight font-medium">{work.length ? today : "Welcome to Groundwork"}</h1>
+            <div className="text-[13px] text-muted-foreground">{today}{building.length ? ` · ${building.length} ${building.length === 1 ? "project" : "projects"} in progress` : ""}</div>
+            <h1 className="mt-1 text-[32px] leading-tight font-medium">{greeting(prefs.appliedBy)}</h1>
             {data && work.length > 0 && <p className="mt-1.5 text-[14px] text-muted-foreground">{[left ? `${left} ${left === 1 ? "task" : "tasks"} left` : "", state?.today.mins ? `${fmtMins(state.today.mins)} logged` : ""].filter(Boolean).join(", ").replace(/^./, (c) => c.toUpperCase())}{left || state?.today.mins ? ". " : ""}{summaryLine(data)}</p>}
             </>}
           </div>
           {!work.length ? <FirstRun /> : <Setup />}
           {!work.length ? null : (
             <>
+              <JumpBackIn list={work.filter((p) => p.stage !== "closed")} />
               <MyTasks onCount={setLeft} />
               <div className="grid grid-cols-2 gap-x-8 gap-y-4 sm:grid-cols-4">
                 {s?.overdue ? <Stat n={s.overdue} label="of yours late" tone="bad" sub={`${s.dueThisWeek} more due this week`} /> : <Stat n={s?.dueThisWeek ?? 0} label="due this week" sub={s?.toAsk ? `${s.toAsk} to ask the client for` : undefined} />}
@@ -77,6 +79,33 @@ export function Dashboard() {
         </div>
       </div>
     </div>
+  )
+}
+
+/** "Good morning, Asheem", by the time of day, like Notion's Home. */
+const greeting = (name?: string) => { const h = new Date().getHours(); const first = (name || "").trim().split(/\s+/)[0]; return `${h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening"}${first ? `, ${first}` : ""}` }
+
+/** The projects changed most recently, as cards, so the one you were in is a click away. */
+function JumpBackIn({ list }: { list: ProjectSummary[] }) {
+  const recent = list.slice().sort((a, b) => (b.updated || 0) - (a.updated || 0)).slice(0, 6)
+  if (recent.length < 2) return null
+  return (
+    <section>
+      <h2 className="mb-2 flex items-center gap-1.5 text-[13px] font-medium text-muted-foreground"><History className="size-3.5" />Jump back in</h2>
+      <div className="scrollbar-thin -mx-1 flex gap-3 overflow-x-auto px-1 pb-1">
+        {recent.map((p) => (
+          <button key={p.id} onClick={() => go(routes.project(p.id))} className="grid w-[150px] shrink-0 content-start overflow-hidden rounded-xl border bg-card text-left transition-shadow hover:shadow-[0_2px_8px_rgba(22,23,22,0.08)]">
+            <span className="h-10 bg-muted/70" />
+            <SiteIcon runId={p.iconRun || undefined} name={p.name} className="-mt-4 ml-3 size-8 rounded-md border-2 border-card text-[13px]" />
+            <span className="grid gap-0.5 px-3 pt-1.5 pb-3">
+              <span className="truncate text-[13.5px] font-medium">{p.name}</span>
+              <span className="truncate text-[12px] text-muted-foreground">{p.current ? `${p.current.name}, ${p.current.done} of ${p.current.total}` : p.stage === "care" ? "Launched" : "Site check"}</span>
+              {p.updated && <span className="text-[12px] text-muted-foreground">Edited {ago(p.updated)}</span>}
+            </span>
+          </button>
+        ))}
+      </div>
+    </section>
   )
 }
 

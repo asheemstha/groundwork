@@ -40,9 +40,9 @@ export function standLine(p: Project) {
 
 /**
  * The Overview: where the project stands in a sentence, what's next for you, what the client owes, and the time,
- * money and site in one line each. `details` are the project's addresses and dates, at the bottom.
+ * money and site in one line each.
  */
-export function OverviewTab({ p, setItem, details }: { p: Project; setItem: (id: string, b: { status: "todo" | "done" }) => void; details: React.ReactNode }) {
+export function OverviewTab({ p, setItem }: { p: Project; setItem: (id: string, b: { status: "todo" | "done" }) => void }) {
   const all = itemsOf(p)
   // Yours, late first, then by date; items with no date last.
   const mine = all.filter((x) => x.who === "us" && x.status === "todo").sort((a, b) => Number(b.late) - Number(a.late) || (a.due || "9999").localeCompare(b.due || "9999")).slice(0, 5)
@@ -78,10 +78,6 @@ export function OverviewTab({ p, setItem, details }: { p: Project; setItem: (id:
         {p.website && <Stat label="Site" onClick={() => go(routes.project(p.id, "site"))}>{p.tools.launchRunning ? "Checking now" : last ? (fails ? `${plural(fails, "check needs", "checks need")} fixing` : "Every check passed") : p.tools.oldScan ? `Old site scanned, ${plural(p.tools.oldScan.urls, "address", "addresses")}` : p.tools.scan ? `Scanned, ${plural(p.tools.scan.urls, "address", "addresses")}` : "Not checked yet"}</Stat>}
       </div>
 
-      <section className="grid gap-2">
-        <h2 className="text-[13px] font-medium text-muted-foreground">Details</h2>
-        {details}
-      </section>
     </div>
   )
 }

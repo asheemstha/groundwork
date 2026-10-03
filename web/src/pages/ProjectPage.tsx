@@ -1,6 +1,6 @@
 import * as React from "react"
 import { cn } from "cn"
-import { Ban, BarChart3, CalendarDays, FileText, Check, ChevronDown, ChevronRight, ChevronUp, Copy, Download, ExternalLink, FolderPlus, Hourglass, Info, Play, Layers, Link2, Loader2, Mail, MessageSquare, MoreHorizontal, Paperclip, Pencil, Plus, Receipt, RefreshCw, Stamp, Timer, Trash2, Undo2, User, X } from "lucide-react"
+import { Ban, BarChart3, CalendarDays, Globe, LayoutDashboard, ListChecks, Star, Wallet, FileText, Check, ChevronDown, ChevronRight, ChevronUp, Copy, Download, ExternalLink, FolderPlus, Hourglass, Info, Play, Layers, Link2, Loader2, Mail, MessageSquare, MoreHorizontal, Paperclip, Pencil, Plus, Receipt, RefreshCw, Stamp, Timer, Trash2, Undo2, User, X } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -83,18 +83,19 @@ export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Ta
   const open = p.client.late.length + p.client.soon.length
   // The project's addresses and dates, at the bottom of the Overview.
   const details = (
-            <dl className={cn("grid max-w-2xl gap-y-0.5 text-[14px] [--prop-w:130px] lg:max-w-5xl lg:grid-flow-col lg:grid-cols-2 lg:gap-x-12", audit ? "lg:grid-rows-2" : "lg:grid-rows-5")}>
+            <dl className="grid max-w-2xl gap-y-0.5 text-[14px] [--prop-w:130px] lg:max-w-5xl lg:grid-cols-2 lg:gap-x-12">
               {p.website ? <>
-              {(audit ? (["live"] as const) : SITE_KEYS).map((k) => (
+              {(audit ? (["live"] as const) : SITE_KEYS).filter((k) => audit || p.sites[k]).map((k) => (
                 <Prop key={k} icon={<Link2 className="size-3.5" />} label={audit ? "Site" : SITE_NAME[k]}>{p.sites[k] ? <a href={p.sites[k]!} target="_blank" rel="noreferrer" className="hover:underline">{hostOfUrl(p.sites[k])}</a> : <button onClick={() => setEditing(true)} className="text-muted-foreground hover:text-foreground">Empty</button>}</Prop>
               ))}
+              {/* Empty addresses stay out of the way, like Notion's hidden empty properties. */}
+              {!audit && !SITE_KEYS.some((k) => p.sites[k]) && <Prop icon={<Link2 className="size-3.5" />} label="Website"><button onClick={() => setEditing(true)} className="text-muted-foreground hover:text-foreground">Add the addresses</button></Prop>}
               <Prop icon={<Layers className="size-3.5" />} label="Built with">{platformOf(p.platform) ? <button onClick={() => setEditing(true)} className="hover:underline">{platformOf(p.platform)!.name}</button> : <button onClick={() => setEditing(true)} className="text-muted-foreground hover:text-foreground">Not known yet</button>}</Prop>
               </> : <Prop icon={<Link2 className="size-3.5" />} label="Website"><button onClick={() => setEditing(true)} className="text-muted-foreground hover:text-foreground">None. Add one if the work includes a site</button></Prop>}
               {!audit && <>
               <Prop icon={<User className="size-3.5" />} label="Client">{p.clientName ? <button onClick={() => setEditing(true)} className="hover:underline">{p.clientName}</button> : <button onClick={() => setEditing(true)} className="text-muted-foreground hover:text-foreground">Empty</button>}</Prop>
               <Prop icon={<CalendarDays className="size-3.5" />} label={p.labels?.kickoff || "Kickoff"}><DateField value={p.kickoff} placeholder="Empty" icon={false} className="-ml-2" onChange={async (v) => { try { setP(await api.updateProject(id, { kickoff: v })); refreshProjects() } catch (e) { toast.error((e as Error).message) } }} /></Prop>
               <Prop icon={<CalendarDays className="size-3.5" />} label={p.labels?.launch || "Launch"}><DateField value={p.launch} placeholder="Empty" icon={false} className="-ml-2" onChange={async (v) => { try { setP(await api.updateProject(id, { launch: v })); refreshProjects() } catch (e) { toast.error((e as Error).message) } }} /></Prop>
-              <Prop icon={<Stamp className="size-3.5" />} label="Phase">{(() => { const c = p.phases.find((x) => x.id === p.current); return c ? <span>{c.name} <span className="text-muted-foreground">· {c.done} of {c.total} done</span></span> : <span className="text-muted-foreground">All signed off</span> })()}</Prop>
               <Prop icon={<Timer className="size-3.5" />} label="Time"><button onClick={() => go(routes.time(p.id))} className={cn("hover:underline", !p.time.mins && "text-muted-foreground")}>{p.repeat && p.time.month != null ? `${fmtMins(p.time.month)}${p.planHours ? ` of ${p.planHours}h` : ""} this month` : p.time.mins ? `${fmtMins(p.time.mins)} logged` : "None logged yet"}</button>{p.time.mins > 0 && p.time.billable < p.time.mins && <span className="ml-1.5 text-muted-foreground">· {fmtMins(p.time.billable)} billable</span>}{p.time.running && <span className="ml-2.5 inline-flex items-center gap-1.5 text-[12.5px] text-brand-ink"><span className="size-1.5 rounded-full bg-brand" />Timer running</span>}</Prop>
               <Prop icon={<Layers className="size-3.5" />} label="Template"><span>{p.templateName}</span>{p.templateChanged && <button onClick={updateFromTemplate} className="ml-2 inline-flex items-center gap-1.5 text-[12.5px] text-muted-foreground underline underline-offset-2 hover:text-foreground">Template updated. Review changes</button>}</Prop>
               </>}
@@ -107,6 +108,7 @@ export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Ta
         <Crumbs projectId={id} label={sub_label(tab) || undefined} />
         <span className="flex-1" />
         <span className="text-[12.5px] text-muted-foreground">Edited {ago(p.updated || p.created)}</span>
+        <FavoriteStar id={id} />
         {!audit && (
           <DropdownMenu>
             <DropdownMenuTrigger render={<Button variant="outline" size="sm" className="ml-1" />}>Send to client<ChevronDown /></DropdownMenuTrigger>
@@ -141,8 +143,8 @@ export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Ta
         {!sub_label(tab) && (
           <header className="px-12 pt-7">
             {tab === "overview" && <>
-              <SiteIcon runId={p.tools.iconRun || undefined} name={p.name} className="size-10 rounded-lg text-lg" />
-              <h1 className="mt-2.5 text-[32px] leading-tight font-medium">{p.name}</h1>
+              <SiteIcon runId={p.tools.iconRun || undefined} name={p.name} className="size-11 rounded-lg text-xl" />
+              <h1 className="mt-3 text-[36px] leading-tight font-medium">{p.name}</h1>
               <p className="mt-2 max-w-3xl text-[16px] leading-normal">{standLine(p)}</p>
               {!p.closed && p.website && !p.repeat && !p.launched && p.launch && p.launch <= addDaysTo(today(), 3) && (
                 <div className="mt-3 flex max-w-3xl flex-wrap items-center gap-3 rounded-lg bg-muted/60 px-3.5 py-2.5 text-[14px]">
@@ -152,7 +154,15 @@ export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Ta
               )}
               {p.closed && <div className="mt-3 flex max-w-3xl items-center gap-3 rounded-lg bg-muted/60 px-3.5 py-2.5 text-[14px]"><span className="flex-1">This project is closed.</span><Button size="sm" variant="outline" onClick={async () => { setP(await api.setClosed(id, false)); refreshProjects() }}>Reopen</Button></div>}
               <div className="mt-2.5"><PhaseStrip p={p} /></div>
+              {/* The project's properties, the way a Notion page lists them under its title. */}
+              <div className="mt-4 border-t pt-3">{details}</div>
             </>}
+            {!audit && tab !== "overview" && (
+              <div className="flex items-center gap-2.5 pb-3">
+                <SiteIcon runId={p.tools.iconRun || undefined} name={p.name} className="size-7 rounded-md text-[13px]" />
+                <h1 className="truncate text-[26px] leading-tight font-medium">{p.name}</h1>
+              </div>
+            )}
             {audit ? (
               <>
                 <SiteIcon runId={p.tools.iconRun || undefined} name={p.name} className="size-10 rounded-lg text-lg" />
@@ -163,17 +173,17 @@ export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Ta
                 </div>
               </>
             ) : (
-              <nav aria-label="Project" className={cn("flex gap-1 border-b pb-2", tab === "overview" ? "mt-6" : "mt-0")}>
-                <TabLink on={tab === "overview"} onClick={() => go(routes.project(id))}>Overview</TabLink>
-                <TabLink on={tab === "checklist"} onClick={() => go(routes.project(id, "checklist"))}>Checklist</TabLink>
-                <TabLink on={tab === "client"} onClick={() => go(routes.project(id, "client"))}>Client {open > 0 && <span className="text-xs text-muted-foreground tabular">{open}</span>}{p.client.late.length > 0 && <span className="size-1.5 rounded-full bg-destructive" aria-label={`${p.client.late.length} late`} />}</TabLink>
-                {p.website && <TabLink on={tab === "site"} onClick={() => go(routes.project(id, "site"))}>Site{p.tools.launch && Object.values(p.tools.launch.checks).some((c) => c && !c.ok) && <span className="size-1.5 rounded-full bg-foreground/50" aria-label="Checks to fix" />}</TabLink>}
-                <TabLink on={tab === "money"} onClick={() => go(routes.project(id, "money"))}>Money{p.money && p.money.toInvoice > 0 && <span className="size-1.5 rounded-full bg-foreground/50" aria-label="Something to invoice" />}</TabLink>
+              <nav aria-label="Project" className={cn("flex gap-1 border-b pb-2", tab === "overview" ? "mt-5" : "mt-0")}>
+                <TabLink on={tab === "overview"} onClick={() => go(routes.project(id))}><LayoutDashboard />Overview</TabLink>
+                <TabLink on={tab === "checklist"} onClick={() => go(routes.project(id, "checklist"))}><ListChecks />Checklist</TabLink>
+                <TabLink on={tab === "client"} onClick={() => go(routes.project(id, "client"))}><User />Client {open > 0 && <span className="text-xs text-muted-foreground tabular">{open}</span>}{p.client.late.length > 0 && <span className="size-1.5 rounded-full bg-destructive" aria-label={`${p.client.late.length} late`} />}</TabLink>
+                {p.website && <TabLink on={tab === "site"} onClick={() => go(routes.project(id, "site"))}><Globe />Site{p.tools.launch && Object.values(p.tools.launch.checks).some((c) => c && !c.ok) && <span className="size-1.5 rounded-full bg-foreground/50" aria-label="Checks to fix" />}</TabLink>}
+                <TabLink on={tab === "money"} onClick={() => go(routes.project(id, "money"))}><Wallet />Money{p.money && p.money.toInvoice > 0 && <span className="size-1.5 rounded-full bg-foreground/50" aria-label="Something to invoice" />}</TabLink>
               </nav>
             )}
           </header>
         )}
-        {tab === "overview" && <OverviewTab p={p} setItem={(itemId, b) => setItem(itemId, b)} details={details} />}
+        {tab === "overview" && <OverviewTab p={p} setItem={(itemId, b) => setItem(itemId, b)} />}
         {tab === "checklist" && <ChecklistTab p={p} setItem={setItem} setP={setP} reload={load} openItem={item} openPhase={sub} />}
         {tab === "client" && <ClientTab key={sub || ""} p={p} setItem={setItem} setP={setP} mode={sub === "remind" || sub === "update" ? sub : undefined} />}
         {tab === "client" && <FilesSection p={p} setP={setP} focus={sub === "files"} />}
@@ -223,8 +233,16 @@ export function ProjectPage({ id, tab: asked, sub, item }: { id: string; tab: Ta
 
 const sub_label = (tab: Tab) => (tab === "launch" ? "Launch check" : tab === "redirects" ? "Redirect map" : tab === "inventory" ? "Content inventory" : "")
 
+/** Notion's star: adds the project to the sidebar's Favorites. */
+function FavoriteStar({ id }: { id: string }) {
+  const { prefs, setPrefs } = useApp()
+  const on = (prefs.favorites || []).includes(id)
+  const toggle = () => { const favorites = on ? (prefs.favorites || []).filter((x) => x !== id) : [...(prefs.favorites || []), id]; api.savePrefs({ favorites }).catch(() => {}); setPrefs({ favorites }) }
+  return <button onClick={toggle} aria-pressed={on} aria-label={on ? "Remove from Favorites" : "Add to Favorites"} title={on ? "Remove from Favorites" : "Add to Favorites"} className="grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"><Star className={cn("size-4", on && "fill-current text-foreground/60")} /></button>
+}
+
 function TabLink({ on, onClick, children }: { on: boolean; onClick: () => void; children: React.ReactNode }) {
-  return <button onClick={onClick} aria-current={on ? "page" : undefined} className={cn("inline-flex h-7 items-center gap-1.5 rounded-md px-2.5 text-[14px]", on ? "bg-muted font-medium text-foreground" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground")}>{children}</button>
+  return <button onClick={onClick} aria-current={on ? "page" : undefined} className={cn("inline-flex h-7 items-center gap-1.5 rounded-md px-2.5 text-[14px] [&>svg]:size-3.5", on ? "bg-muted font-medium text-foreground [&>svg]:text-foreground" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground")}>{children}</button>
 }
 
 // ---------- status icon ----------

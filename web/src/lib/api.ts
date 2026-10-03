@@ -81,6 +81,8 @@ export interface Settings {
   weeklyUpdates?: boolean
   /** Every checklist in the New project picker, the long Full agency process too. */
   allChecklists?: boolean
+  /** Projects starred into the sidebar's Favorites, in order. */
+  favorites?: string[]
 }
 /** Which official connectors the user's Claude Code has, from `claude mcp list`. */
 export type ConnectorId = "ga4" | "ads" | "meta" | "gsc"
@@ -430,6 +432,8 @@ export interface ProjectSummary {
   clientOpen: number; clientLate: number; behind: Behind
   /** Where it is in its life: in progress, in care (a monthly plan), or a site check. */
   stage: "progress" | "care" | "check" | "closed"
+  /** When it last changed, for Today's "Jump back in". */
+  updated?: number
   /** What's running for the project now ("Launch check", "SEO plan"…), or null. */
   running: string | null
 }

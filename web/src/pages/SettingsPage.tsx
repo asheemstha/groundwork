@@ -61,8 +61,8 @@ export function SettingsPage({ focus }: { focus?: EngineId | "privacy" | "connec
             <Section id="skills" title="AI rules" desc="The rules each AI plan follows, packaged as a skill (a folder with a SKILL.md). The built-in rules are always here. Add your own to change them, and pick which one each plan uses."><SkillsSection /></Section>
             <Section id="updates" title="Updates"><Updates /></Section>
             <Section id="scanning" title="Scanning">
-              <div className="grid gap-px overflow-hidden rounded-xl border bg-border">
-                <div className="flex items-center gap-3 bg-card p-4 text-sm"><Globe className="size-4" /><span className="flex-1">Browser for scans</span>{status.browser.ok ? <span className="flex items-center gap-2"><Dot tone="ink" />{status.browser.name}</span> : <span className="text-brand">{status.browser.error}</span>}</div>
+              <div className="grid divide-y divide-border/70">
+                <div className="flex items-center gap-3 py-3.5 text-sm"><Globe className="size-4" /><span className="flex-1">Browser for scans</span>{status.browser.ok ? <span className="flex items-center gap-2"><Dot tone="ink" />{status.browser.name}</span> : <span className="text-brand">{status.browser.error}</span>}</div>
               </div>
             </Section>
             <Section id="help" title="Help and feedback"><Help /></Section>
@@ -89,16 +89,16 @@ function Section({ id, title, desc, children }: { id: string; title: string; des
 function Privacy() {
   const { status } = useApp()
   const row = (title: string, body: React.ReactNode) => (
-    <div className="grid gap-1 bg-card p-4 text-[13.5px]"><span className="font-medium">{title}</span><span className="leading-relaxed text-muted-foreground">{body}</span></div>
+    <div className="grid gap-1 py-3.5 text-[13.5px]"><span className="font-medium">{title}</span><span className="leading-relaxed text-muted-foreground">{body}</span></div>
   )
   return (
-    <div className="grid gap-px overflow-hidden rounded-xl border bg-border">
-      <div className="flex items-center gap-3 bg-card p-4 text-[13.5px]">
+    <div className="grid divide-y divide-border/70">
+      <div className="flex items-center gap-3 py-3.5 text-[13.5px]">
         <HardDrive className="size-4 shrink-0" />
         <span className="flex-1"><span className="font-medium">Everything is saved on this Mac.</span> <span className="text-muted-foreground">Projects, checklists, sign-off proof, scans and plans live in Groundwork’s data folder. There’s no Groundwork account or server.</span></span>
         <Button size="sm" variant="outline" onClick={() => api.openData().catch((e) => toast.error(e.message))}>Show in Finder</Button>
       </div>
-      <div className="flex items-center gap-3 bg-card p-4 text-[13.5px]">
+      <div className="flex items-center gap-3 py-3.5 text-[13.5px]">
         <span className="flex-1"><span className="font-medium">Backups.</span> <span className="text-muted-foreground">Save everything as one zip in Documents, Groundwork Backups. To move a single project to another Mac, use Export project in the project’s ⋯ menu.</span></span>
         <BackupButton />
       </div>
@@ -114,10 +114,10 @@ function Privacy() {
 function Help() {
   const copyDetails = async () => { try { const d = await api.diagnostics(); navigator.clipboard.writeText(d.text); toast("Copied the app details", { description: "Check them before you send them. Error messages can include a site’s address." }) } catch (e) { toast.error((e as Error).message) } }
   const row = (title: string, desc: string, action: React.ReactNode) => (
-    <div className="grid gap-3 bg-card p-4 text-sm sm:grid-cols-[1fr_auto] sm:items-center"><span><span className="block font-medium">{title}</span><span className="text-muted-foreground">{desc}</span></span>{action}</div>
+    <div className="grid gap-3 py-3.5 text-sm sm:grid-cols-[1fr_auto] sm:items-center"><span><span className="block font-medium">{title}</span><span className="text-muted-foreground">{desc}</span></span>{action}</div>
   )
   return (
-    <div className="grid gap-px overflow-hidden rounded-2xl border bg-border">
+    <div className="grid divide-y divide-border/70">
       {row("Send feedback", "What happened, what got in the way, or what you’d change. Groundwork doesn’t collect anything on its own.", <Button size="sm" variant="outline" onClick={() => sendFeedback()}>Send feedback</Button>)}
       {row("App details", "Versions, macOS, the scan browser and recent errors, for a bug report. No project data.", <Button size="sm" variant="outline" onClick={copyDetails}><Copy />Copy</Button>)}
       {row("Guide for testers", "What to try in your first week, and what’s most useful to report.", <Button size="sm" variant="outline" onClick={() => window.open("https://github.com/asheemstha/groundwork/blob/main/TESTING.md")}><ExternalLink />Open</Button>)}
@@ -140,16 +140,16 @@ function Reminders() {
     new Notification("Today in Groundwork", { body: (d && morningLine(d)) || "Nothing is due today." })
   }
   return (
-    <div className="grid gap-px overflow-hidden rounded-2xl border bg-border">
-      <div className="grid gap-3 bg-card p-4 text-sm sm:grid-cols-[1fr_auto] sm:items-center">
+    <div className="grid divide-y divide-border/70">
+      <div className="grid gap-3 py-3.5 text-sm sm:grid-cols-[1fr_auto] sm:items-center">
         <span><span className="block font-medium">Morning notification</span><span className="text-muted-foreground">Once a day from 9am, while Groundwork is open: what’s due today, what’s late and the messages to send.</span></span>
         <span className="flex items-center gap-3">{prefs.notify && <button onClick={test} className="text-[12.5px] text-muted-foreground underline underline-offset-2 hover:text-foreground">Send a test</button>}<Switch checked={!!prefs.notify} onCheckedChange={setNotify} aria-label="Morning notification" /></span>
       </div>
-      <div className="grid gap-3 bg-card p-4 text-sm sm:grid-cols-[1fr_auto] sm:items-center">
+      <div className="grid gap-3 py-3.5 text-sm sm:grid-cols-[1fr_auto] sm:items-center">
         <span><span className="block font-medium">Weekly update reminders</span><span className="text-muted-foreground">Today lists a weekly update to send for each project in progress, a week after the last one. You can always write one from the Client tab.</span></span>
         <Switch checked={prefs.weeklyUpdates !== false} onCheckedChange={async (on) => { await api.savePrefs({ weeklyUpdates: on }); setPrefs({ weeklyUpdates: on }) }} aria-label="Weekly update reminders" />
       </div>
-      <div className="grid gap-3 bg-card p-4 text-sm">
+      <div className="grid gap-3 py-3.5 text-sm">
         <span><span className="block font-medium">Calendar</span><span className="text-muted-foreground">Launch days and sign-off dates for every project in Calendar or any app that subscribes to calendars. A subscription refreshes while Groundwork is open.</span></span>
         <label className="flex items-center gap-2 text-[13px]"><Checkbox checked={items} onCheckedChange={(v) => setItems(!!v)} />Include every open item with a due date</label>
         <div className="flex flex-wrap gap-2">
@@ -281,22 +281,22 @@ function Preferences() {
     toast.success("Saved")
   }
   return (
-    <div className="grid gap-px overflow-hidden rounded-2xl border bg-border">
-      <label className="grid gap-3 bg-card p-4 text-sm sm:grid-cols-[1fr_260px] sm:items-center">
+    <div className="grid divide-y divide-border/70">
+      <label className="grid gap-3 py-3.5 text-sm sm:grid-cols-[1fr_260px] sm:items-center">
         <span><span className="block font-medium">Your name</span><span className="text-muted-foreground">Signs your client messages and your time entries, and shows on exported guides as the person who applies the changes.</span></span>
         <Input value={name} placeholder="e.g. Alex" onChange={(e) => setName(e.target.value)} onBlur={save} onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()} />
       </label>
-      <label className="grid gap-3 bg-card p-4 text-sm sm:grid-cols-[1fr_260px] sm:items-center">
+      <label className="grid gap-3 py-3.5 text-sm sm:grid-cols-[1fr_260px] sm:items-center">
         <span><span className="block font-medium">Studio or agency name</span><span className="text-muted-foreground">Shows at the top of client status pages.</span></span>
         <Input value={agency} placeholder="e.g. Northwind Studio" onChange={(e) => setAgency(e.target.value)} onBlur={saveAgency} onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()} />
       </label>
-      <label className="grid gap-3 bg-card p-4 text-sm sm:grid-cols-[1fr_260px] sm:items-center">
+      <label className="grid gap-3 py-3.5 text-sm sm:grid-cols-[1fr_260px] sm:items-center">
         <span><span className="block font-medium">Who runs the projects</span><span className="text-muted-foreground">Just you, or a studio where each person keeps their own hours.</span></span>
         <select value={prefs.who || "solo"} onChange={async (e) => { const who = e.target.value as "solo" | "studio"; await api.savePrefs({ who }); setPrefs({ who }) }} className="h-9 rounded-lg border border-input bg-card px-2.5 text-[13.5px]">
           <option value="solo">Just me</option><option value="studio">A studio with a team</option>
         </select>
       </label>
-      <div className="grid gap-3 bg-card p-4 text-sm">
+      <div className="grid gap-3 py-3.5 text-sm">
         <span><span className="block font-medium">What you do for clients</span><span className="text-muted-foreground">Their checklists come first when you start a project.</span></span>
         <div className="flex flex-wrap gap-1.5">
           {SERVICES.map((x) => {
@@ -305,7 +305,7 @@ function Preferences() {
           })}
         </div>
       </div>
-      <div className="grid gap-3 bg-card p-4 text-sm sm:grid-cols-[1fr_260px] sm:items-center">
+      <div className="grid gap-3 py-3.5 text-sm sm:grid-cols-[1fr_260px] sm:items-center">
         <span className="font-medium">Theme</span>
         <div className="grid grid-cols-3 gap-1 rounded-lg bg-muted p-1">
           {(["light", "dark", "system"] as const).map((t) => (
@@ -326,7 +326,7 @@ function PrefField({ k, title, desc, placeholder, multiline }: { k: "rate" | "bi
     try { await api.savePrefs({ [k]: v.trim() }); setPrefs({ [k]: v.trim() }); toast.success("Saved") } catch (e) { toast.error((e as Error).message) }
   }
   return (
-    <label className={cn("grid gap-3 bg-card p-4 text-sm sm:grid-cols-[1fr_260px]", !multiline && "sm:items-center")}>
+    <label className={cn("grid gap-3 py-3.5 text-sm sm:grid-cols-[1fr_260px]", !multiline && "sm:items-center")}>
       <span><span className="block font-medium">{title}</span><span className="text-muted-foreground">{desc}</span></span>
       {multiline ? <Textarea value={v} rows={3} placeholder={placeholder} onChange={(e) => setV(e.target.value)} onBlur={save} className="text-[13.5px]" /> : <Input value={v} placeholder={placeholder} onChange={(e) => setV(e.target.value)} onBlur={save} onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()} />}
     </label>
@@ -336,13 +336,13 @@ function PrefField({ k, title, desc, placeholder, multiline }: { k: "rate" | "bi
 function Invoices() {
   const { prefs, setPrefs } = useApp()
   return (
-    <div className="grid gap-px overflow-hidden rounded-2xl border bg-border">
+    <div className="grid divide-y divide-border/70">
       <PrefField k="rate" title="Hourly rate" desc="For invoices made from hours. A project can have its own in its details." placeholder="e.g. $90" />
       <PrefField k="bizDetails" title="Your details" desc="Under your studio name: address, email, tax or business number." placeholder={"Street, city\nhello@yourstudio.com"} multiline />
       <PrefField k="payLink" title="Payment link" desc="Your own Stripe, PayPal or other link, if you have one." placeholder="https://" />
       <PrefField k="payDetails" title="How to pay" desc="Bank details or anything else clients need to pay you." placeholder={"Bank transfer to\nAccount name, number"} multiline />
       <PrefField k="invoiceNext" title="Next invoice number" desc="Counts up from here each time you make an invoice." placeholder="INV-0001" />
-      <div className="grid gap-3 bg-card p-4 text-sm sm:grid-cols-[1fr_260px] sm:items-center">
+      <div className="grid gap-3 py-3.5 text-sm sm:grid-cols-[1fr_260px] sm:items-center">
         <span><span className="block font-medium">Days to pay</span><span className="text-muted-foreground">The due date on a new invoice.</span></span>
         <select value={prefs.payDays || 14} onChange={async (e) => { const n = +e.target.value; await api.savePrefs({ payDays: n }); setPrefs({ payDays: n }) }} className="h-9 rounded-lg border border-input bg-card px-2.5 text-sm">
           {[7, 14, 21, 30, 45, 60].map((n) => <option key={n} value={n}>{n} days</option>)}
@@ -358,7 +358,7 @@ function AccountantExport() {
   const now = new Date().getFullYear()
   const [year, setYear] = React.useState(String(now))
   return (
-    <div className="grid gap-3 bg-card p-4 text-sm sm:grid-cols-[1fr_260px] sm:items-center">
+    <div className="grid gap-3 py-3.5 text-sm sm:grid-cols-[1fr_260px] sm:items-center">
       <span><span className="block font-medium">For your accountant</span><span className="text-muted-foreground">Every invoice for the year, from every project: number, dates, client, amount and when it was paid.</span></span>
       <span className="flex gap-2">
         <select value={year} onChange={(e) => setYear(e.target.value)} aria-label="Year" className="h-9 rounded-lg border border-input bg-card px-2.5 text-sm">{[now, now - 1, now - 2].map((y) => <option key={y} value={y}>{y}</option>)}</select>
@@ -373,7 +373,7 @@ function Updates() {
   const [busy, setBusy] = React.useState(false)
   const check = async () => { setBusy(true); const u = await checkUpdate(); setBusy(false); if (u?.enabled && !u.behind && !u.error) toast.success("Groundwork is up to date") }
   return (
-    <div className="flex flex-wrap items-center gap-3 rounded-2xl border bg-card p-4 text-sm">
+    <div className="flex flex-wrap items-center gap-3 rounded-2xl border py-3.5 text-sm">
       <div className="min-w-0 flex-1">
         <div className="font-medium">Groundwork {update?.version}{update?.commit && !update.app && <span className="ml-1 tabular text-xs text-muted-foreground">{update.commit}</span>}</div>
         <div className="text-muted-foreground">
